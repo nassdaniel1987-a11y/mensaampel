@@ -1,6 +1,7 @@
 // Mensaampel - Tischkonsole fuer M5Stack Dial v1.1 und externen Kartenleser (M5Stack Unit RFID2, U031-B).
 // Masse des Dial und der RFID2 Unit aus den offiziellen M5Stack-Modellen (github.com/m5stack/M5_Hardware).
 // Teile (einzeln exportieren mit -D teil="..."): "deckplatte", "unterteil", "rfid_halter", "passtest", "zusammenbau".
+// Das Dial wird mit seiner orangen Ueberwurfmutter in der Deckplatte verschraubt.
 // Druck: PETG oder PLA, 0,2 mm, 3 Waende, 20 % Fuellung. Deckplatte mit der Oberseite nach unten drucken, Unterteil stehend.
 // Keine Stuetzen noetig.
 
@@ -17,17 +18,16 @@ platte = 3;          // Deckplattenstaerke
 spiel = 0.3;         // Passungsspiel
 
 // --- M5Stack Dial v1.1 ---
-dial_sockel_d = 44.0;   // hinterer, fester Sockel
-dial_sockel_h = 8.5;    // vom Drehring bis zur Rueckseite
-dial_ring_d = 50.8;     // Drehring (liegt 0,5 mm ueber der Platte, schleift nicht)
-dial_luft_ring = 0.5;
-usb_winkel = 270;       // Richtung der USB-C-Buchse im Sockel (270 = zur Vorderkante); am Geraet pruefen
-usb_breite = 13;        // Platz fuer USB-C-Stecker mit Umspritzung
-usb_laenge = 28;        // Kanal fuer den geraden Stecker ab Sockelrand (Winkelstecker nach unten braucht weniger)
-usb_haut = 0.8;         // Restwand der Oberseite ueber dem Kanal
+// Einbau wie vom Hersteller vorgesehen: Dial von oben durch das Loch stecken, von unten mit der orangen
+// Ueberwurfmutter festziehen. Masse aus dem offiziellen Modell (Dial_v1.1.stl).
+dial_gewinde_d = 44.0;  // Aussengewinde am Sockel (Kern 42,0), reicht bis 12,4 mm unter die Plattenoberseite
+dial_loch_d = 45.2;     // Wulst direkt unter dem Kragen hat 44,6 mm
+dial_kragen_d = 48;     // Anschlagkragen mit 1 mm Dichtring darunter, der Ring liegt auf der Deckplatte
+dial_knopf_d = 49.8;    // Drehknopf, endet 1,6 mm ueber der Platte
+mutter_d = 50.8;        // orange Ueberwurfmutter
+mutter_h = 5;
+mutter_frei_d = 60;     // freie, ebene Flaeche unter der Platte zum Anziehen der Mutter
 dial_mitte_y = 110;     // Abstand der Dial-Mitte von der Vorderkante, entlang der Platte
-anschluss_d = 32;       // freie Oeffnung hinter dem Dial fuer PORT.A/B und Kabel
-sitz_tiefe = 8.0;       // Oberseite Platte bis Dial-Rueckseite (Sockel 8,5 mm, Ring 0,5 mm ueber der Platte)
 
 // --- M5Stack Unit RFID2 ---
 rfid = [48, 24, 8];
@@ -51,25 +51,11 @@ module deckplatte() {
   difference() {
     union() {
       cube([breite, laenge, platte]);
-      // Aufnahme fuer den Dial-Sockel unter der Platte, unten mit 45-Grad-Sitz (druckbar ohne Stuetzen)
-      translate([breite / 2, dial_mitte_y, 0]) mirror([0, 0, 1]) {
-        cylinder(d = dial_sockel_d + 2 * spiel + 4, h = sitz_tiefe - platte);
-        translate([0, 0, sitz_tiefe - platte - eps]) cylinder(d1 = dial_sockel_d + 2 * spiel + 4, d2 = anschluss_d + 4, h = (dial_sockel_d + 2 * spiel - anschluss_d) / 2);
-      }
       // Rahmen fuer die RFID2 Unit unter der Kartenflaeche
       translate([breite / 2, karte_mitte_y, 0]) mirror([0, 0, 1]) rfid_rahmen();
     }
-    // Sockel-Aufnahme: der Dial steckt von oben, der Drehring bleibt frei ueber der Platte;
-    // die Rueckseite liegt am Rand auf dem 45-Grad-Sitz auf, die Mitte bleibt fuer PORT.A/B und Kabel offen
-    translate([breite / 2, dial_mitte_y, platte - sitz_tiefe]) {
-      cylinder(d = dial_sockel_d + 2 * spiel, h = sitz_tiefe + 1);
-      mirror([0, 0, 1]) cylinder(d1 = dial_sockel_d + 2 * spiel, d2 = anschluss_d, h = (dial_sockel_d + 2 * spiel - anschluss_d) / 2 + eps);
-    }
-    translate([breite / 2, dial_mitte_y, -40]) cylinder(d = anschluss_d, h = 50);
-    // USB-C-Kanal: unter der Oberseite bis in die Aufnahme, die Oberseite bleibt geschlossen
-    translate([breite / 2, dial_mitte_y, platte - sitz_tiefe - 2.5])
-      rotate([0, 0, usb_winkel]) translate([0, -usb_breite / 2, 0])
-        cube([dial_sockel_d / 2 + usb_laenge, usb_breite, sitz_tiefe + 2.5 - usb_haut]);
+    // Durchgangsloch fuer das Dial-Gewinde (Platte 3 mm: die Mutter greift voll)
+    translate([breite / 2, dial_mitte_y, -1]) cylinder(d = dial_loch_d, h = platte + 2);
     // RFID2-Tasche: Platte ueber der Antenne auf rfid_restwand verduennt
     translate([breite / 2 - (rfid[0] + 2 * spiel) / 2, karte_mitte_y - (rfid[1] + 2 * spiel) / 2, -rfid[2] - 2])
       cube([rfid[0] + 2 * spiel, rfid[1] + 2 * spiel, rfid[2] + 2 + platte - rfid_restwand]);
@@ -160,23 +146,35 @@ module platte_zu_welt(x, y) {
 }
 
 module passtest() {
-  // Nur die Dial-Aufnahme mit etwas Platte: vorab drucken und den Sitz pruefen (ca. 20 Minuten)
+  // Plattenausschnitt mit Dial-Loch: vorab drucken, Dial einschrauben und Sitz pruefen (ca. 15 Minuten)
   intersection() {
     deckplatte();
-    translate([breite / 2, dial_mitte_y, -20]) cylinder(d = dial_sockel_d + 16, h = 40);
+    translate([breite / 2, dial_mitte_y, -20]) cylinder(d = 70, h = 40);
+  }
+}
+
+// Vereinfachtes Dial ab Anlageflaeche (z = 0 = Oberseite Platte); mutter_z = Abstand der Mutter unter der Flaeche
+module dial(mutter_z = platte) {
+  color("dimgray") {
+    translate([0, 0, 1.6]) cylinder(d = dial_knopf_d, h = 12.6);
+    translate([0, 0, 14.2]) cylinder(d = 45, h = 0.4);
+    translate([0, 0, 1]) cylinder(d = dial_kragen_d, h = 1.2);
+    translate([0, 0, -12.4]) cylinder(d = dial_gewinde_d, h = 12.4);
+    translate([0, 0, -14]) cylinder(d = 42, h = 1.7);
+    translate([-14, -13.5, -15.7]) cube([28, 27, 2]);
+  }
+  color("black") cylinder(d = dial_kragen_d, h = 1);  // Dichtring
+  color("black") translate([0, 0, 14.6]) cylinder(d = 36, h = 0.2);
+  color("darkorange") translate([0, 0, -mutter_z - mutter_h]) difference() {
+    cylinder(d = mutter_d, h = mutter_h);
+    translate([0, 0, -1]) cylinder(d = 42.5, h = mutter_h + 2);
   }
 }
 
 module zusammenbau() {
   color("gainsboro") unterteil();
   color("white") platte_zu_welt(0, 0) deckplatte();
-  color("dimgray") platte_zu_welt(breite / 2, dial_mitte_y)
-    translate([0, 0, platte + dial_luft_ring]) {
-      translate([0, 0, -dial_sockel_h]) cylinder(d = dial_sockel_d, h = dial_sockel_h);
-      cylinder(d = dial_ring_d, h = 5.5);
-      translate([0, 0, 5.5]) cylinder(d = 49.7, h = 16);
-      color("black") translate([0, 0, 21.5]) cylinder(d = 36, h = 0.3);
-    }
+  platte_zu_welt(breite / 2, dial_mitte_y) translate([0, 0, platte]) dial();
   color("steelblue") platte_zu_welt(breite / 2, karte_mitte_y)
     translate([-rfid[0] / 2, -rfid[1] / 2, platte - rfid_restwand - rfid[2]]) cube(rfid);
 }
@@ -184,11 +182,7 @@ module zusammenbau() {
 module explosion() {
   color("gainsboro") unterteil();
   translate([0, 0, 45]) { color("white") platte_zu_welt(0, 0) deckplatte(); }
-  translate([0, 0, 90]) color("dimgray") platte_zu_welt(breite / 2, dial_mitte_y) translate([0, 0, platte + dial_luft_ring]) {
-    translate([0, 0, -dial_sockel_h]) cylinder(d = dial_sockel_d, h = dial_sockel_h);
-    cylinder(d = dial_ring_d, h = 5.5);
-    translate([0, 0, 5.5]) cylinder(d = 49.7, h = 16);
-  }
+  translate([0, 0, 90]) platte_zu_welt(breite / 2, dial_mitte_y) translate([0, 0, platte]) dial(mutter_z = 55);
   translate([0, 0, 20]) color("steelblue") platte_zu_welt(breite / 2, karte_mitte_y) translate([-rfid[0] / 2, -rfid[1] / 2, platte - rfid_restwand - rfid[2]]) cube(rfid);
   translate([0, 0, 5]) color("orange") platte_zu_welt(breite / 2, karte_mitte_y) translate([0, 0, -rfid[2] - 3.5]) mirror([0, 0, 1]) rfid_halter();
 }
