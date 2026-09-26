@@ -139,3 +139,41 @@ test('Tagesstart erst nach 30 Minuten ohne Scan, Uhr stellen ohne Gruppe zu stö
  assert.equal(x.state().volume,7);assert.equal(x.cmd({type:'settings',cooldown:10,volume:11}).ok,false);assert.equal(x.cmd({type:'settings',cooldown:10,volume:3}).ok,true);assert.equal(x.state().volume,3);
  const snap=x.e.snapshot();delete snap.volume;const e=await createEngine();assert.equal(e.restore(snap).ok,true);assert.equal(e.status(0).volume,7);
 });
+test('Karten am Stück einlernen: der Reihe nach, überspringen, Doppelte, keine Buchung',async()=>{
+ const e=await createEngine();let now=1000;const cmd=c=>e.command(c,now),tap=uid=>{const r=cmd({type:'scan',uid});cmd({type:'remove'});now+=1000;return r;};
+ e.call({op:'hardware'});cmd({type:'confirm'});
+ assert.equal(cmd({type:'seriesStart',room:'K'}).ok,true);let s=e.status(now);assert.equal(s.series.label,'K01');assert.equal(s.paused,true);
+ const texts=l=>l.filter(i=>i[0]==='t').map(i=>i[5]);assert.ok(texts(e.call({op:'dial',now})).includes('EINLERNEN'));assert.ok(texts(e.call({op:'dial',now})).includes('K01'));
+ assert.equal(tap('04:AA:01').message,'K01 gespeichert.');assert.equal(e.status(now).series.label,'K02');
+ assert.match(tap('04:AA:01').message,/schon K01/);
+ cmd({type:'dialPress'});assert.equal(e.status(now).series.label,'K03');tap('04:AA:03');s=e.status(now);
+ assert.equal(s.cards.find(c=>c.label==='K03').uid,'04:AA:03');assert.equal(s.cards.find(c=>c.label==='K02').uid,'sim:K02');assert.equal(s.rooms.K.occupied,0);assert.equal(s.series.done,2);
+ cmd({type:'dialHold'});assert.equal(e.status(now).series.active,false);assert.equal(tap('04:AA:01').ok,false);
+ cmd({type:'pause',paused:false});now+=10000;assert.equal(tap('04:AA:01').ok,true);assert.equal(e.status(now).rooms.K.occupied,1);
+});
+test('Betreuerkarte: Menü per Ring und Taste, keine Buchung',async()=>{
+ const e=await createEngine();let now=1000;const cmd=c=>e.command(c,now),tap=uid=>{const r=cmd({type:'scan',uid});cmd({type:'remove'});now+=1000;return r;},texts=()=>e.call({op:'dial',now}).filter(i=>i[0]==='t').map(i=>i[5]);
+ cmd({type:'staffLearn'});assert.equal(tap('BE:TR:01').ok,true);assert.equal(e.status(now).staffCount,1);assert.equal(tap('sim:K01').ok,false);
+ cmd({type:'staffLearn'});assert.equal(tap('sim:K01').ok,false);
+ tap('BE:TR:01');assert.equal(e.status(now).menuOpen,true);assert.ok(texts().includes('BETREUUNG'));assert.ok(texts().includes('Bestand ok'));
+ assert.equal(cmd({type:'relief'}).ok,false);cmd({type:'dialPress'});assert.equal(e.status(now).ready,true);assert.equal(e.status(now).menuOpen,false);
+ tap('BE:TR:01');assert.ok(texts().includes('Pause'));cmd({type:'dialPress'});assert.equal(e.status(now).paused,true);
+ tap('BE:TR:01');cmd({type:'dialTurn',steps:1});assert.ok(texts().includes('Mensa freigeben'));cmd({type:'dialPress'});assert.ok(e.status(now).mensaEdit>=0);cmd({type:'dialTurn',steps:12});cmd({type:'dialPress'});assert.equal(e.status(now).rooms.M.limit,12);
+ tap('BE:TR:01');now+=21000;assert.equal(e.status(now).menuOpen,false);tap('BE:TR:01');tap('BE:TR:01');assert.equal(e.status(now).menuOpen,false);
+ assert.equal(e.status(now).rooms.K.occupied,0);const snap=e.snapshot();assert.deepEqual(snap.staff,['BE:TR:01']);const f=await createEngine();assert.equal(f.restore(snap).ok,true);assert.equal(f.status(0).staffCount,1);
+ cmd({type:'staffClear'});assert.equal(e.status(now).staffCount,0);
+});
+test('Neue Dial-Bildschirme passen in die runde Anzeige',async()=>{
+ const e=await createEngine();let now=1000;const cmd=c=>e.command(c,now);const fits=(y,size,t)=>{const h=8*size,top=y-h/2,bottom=top+h-1,dy=Math.max(Math.abs(top-120),Math.abs(bottom-119)),half=Math.floor(Math.sqrt(14400-dy*dy));return t.length*6*size<=2*half;};
+ const check=()=>{for(const i of e.call({op:'dial',now}).filter(i=>i[0]==='t'))assert.ok(fits(i[2],i[3],i[5]),`${i[5]} (Größe ${i[3]})`);};
+ e.call({op:'hardware'});cmd({type:'seriesStart',room:'M'});check();cmd({type:'dialHold'});cmd({type:'staffLearn'});cmd({type:'scan',uid:'X1'});cmd({type:'remove'});cmd({type:'scan',uid:'X1'});cmd({type:'remove'});check();for(let i=0;i<4;i++){cmd({type:'dialTurn',steps:1});check();}
+});
+test('Gerätetest (PC-Simulation): Scans buchen nicht, Anzeige zeigt Karte und Eingaben',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'mensa-test-'));try{
+  const app=await createApp({dataDir:dir});const t=c=>app.transact(c);t({type:'confirm'});t({type:'deviceTest',on:true});
+  t({type:'tap',uid:'sim:K01'});t({type:'tap',uid:'sim:K01'});t({type:'dialTurn',steps:3});t({type:'dialPress'});
+  const s=app.state();assert.equal(s.testMode,true);assert.equal(s.rooms.K.occupied,0);const lines=s.dial.filter(i=>i[0]==='t').map(i=>i[5]);
+  assert.ok(lines.includes('GERAETETEST'));assert.ok(lines.includes('Karte: sim:K01'));assert.ok(lines.some(l=>l.startsWith('Lesungen: 2')));assert.ok(lines.includes('Ring: 3  Taste: kurz'));
+  t({type:'deviceTest',on:false});t({type:'tap',uid:'sim:K01'});assert.equal(app.state().rooms.K.occupied,1);app.stop();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

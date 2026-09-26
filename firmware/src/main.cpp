@@ -13,6 +13,8 @@ using mensa::Json;
 mensa::Engine engine;BookStorage storage;DeviceConfig config;CardReader reader;WebServer web(80);
 bool configValid=false,needsReview=false;std::string session,loginNonce,captureTarget,capturedUid,feedback="Bereit zur Einrichtung.";
 uint64_t sessionUntil=0,loginAfter=0,captureUntil=0,restartAt=0,showCredentialsUntil=0,resetConfirmUntil=0,clockCheckAt=0,ampelSeenAt=0;unsigned loginFailures=0;bool ampelWarned=false;long encoderBase=0;
+// Device test: scans, ring and button are only shown, nothing is booked.
+bool testMode=false;std::string testUid,testButton="-";int testReads=0;long testTurn=0;uint64_t testAt=0;
 bool feedbackOk=true;uint64_t feedbackAt=0,drawAt=0;
 uint64_t nowMs(){return uint64_t(esp_timer_get_time()/1000);}
 void note(const std::string& text,bool ok){feedback=text;feedbackOk=ok;feedbackAt=nowMs();M5.Speaker.tone(ok?1800:400,ok?90:220);}
@@ -26,7 +28,7 @@ Json publicSignal(){
 }
 Json state(){auto s=engine.status(nowMs());
  s["storageError"]=storage.error;s["recoveryRequired"]=false;s["sim"]={{"offset",0},{"offline",false},{"forceWriteFailure",false}};
- s["device"]={{"version","0.8.0-preview"},{"configured",config.configured},{"reader",config.reader},{"readerHealthy",reader.healthy},{"readerError",reader.error},{"ssid",config.ssid},{"captureTarget",captureTarget},{"capturedUid",capturedUid},{"captureUntil",captureUntil},{"feedback",feedback},{"feedbackOk",feedbackOk},{"needsReview",needsReview},{"freeHeap",ESP.getFreeHeap()},{"minimumHeap",ESP.getMinFreeHeap()},{"clients",WiFi.softAPgetStationNum()},{"uptime",nowMs()}};
+ s["device"]={{"version","0.9.0-preview"},{"configured",config.configured},{"reader",config.reader},{"readerActive",reader.mode},{"testMode",testMode},{"readerHealthy",reader.healthy},{"readerError",reader.error},{"ssid",config.ssid},{"captureTarget",captureTarget},{"capturedUid",capturedUid},{"captureUntil",captureUntil},{"feedback",feedback},{"feedbackOk",feedbackOk},{"needsReview",needsReview},{"freeHeap",ESP.getFreeHeap()},{"minimumHeap",ESP.getMinFreeHeap()},{"clients",WiFi.softAPgetStationNum()},{"uptime",nowMs()}};
  if(blocked())s["signal"]={{"green",false},{"reason","device"},{"free",0}};return s;
 }
 // Built-in RTC: plausible once it was set from the tablet; supplies weekday and time for the learned half-hour values.
@@ -59,7 +61,7 @@ Json command(const Json& j){
   return result(true,"Gerät eingerichtet. Jetzt Leser prüfen und echte Karten zuordnen.");
  }
  if(type=="reader"){
-  std::string selected=j.at("reader");if(selected!="internal"&&selected!="external")return result(false,"Ungültige Leserauswahl.");
+  std::string selected=j.at("reader");if(selected!="internal"&&selected!="external"&&selected!="auto")return result(false,"Ungültige Leserauswahl.");
   auto r=transact({{"type","restart"}});if(!r["ok"].get<bool>())return r;clearCapture();clockCheckAt=0;auto next=config;next.reader=selected;
   if(!next.save())return result(false,"Leserauswahl konnte nicht gespeichert werden.");config=next;bool ok=reader.begin(selected);
   return result(ok,ok?"Leser umgestellt und erreichbar. Karte entfernen und Bestand erneut bestätigen.":reader.error);
@@ -69,6 +71,7 @@ Json command(const Json& j){
   const auto target=j.at("uid").get<std::string>();auto snapshot=engine.snapshot();bool found=false;for(auto& c:snapshot["cards"])if(c["uid"]==target&&!c["out"].get<bool>())found=true;if(!found)return result(false,"Karte fehlt oder ist noch ausgegeben.");
   auto r=transact({{"type","pause"},{"paused",true}});if(!r["ok"].get<bool>())return r;clearCapture();captureTarget=target;captureUntil=nowMs()+60000;return result(true,"Einlernen aktiv. Leser zuerst freimachen, dann genau eine Karte vorhalten. Einlass bleibt pausiert.");
  }
+ if(type=="deviceTest"){testMode=j.value("on",false);testUid.clear();testReads=0;testTurn=0;testButton="-";return result(true,testMode?"Gerätetest gestartet. Scans buchen nicht.":"Gerätetest beendet.");}
  if(type=="captureCancel"){clearCapture();return result(true,"Einlernen beendet. Einlass bei Bedarf fortsetzen.");}
  if(type=="captureBind"){
   if(captureTarget.empty()||capturedUid.empty()||nowMs()>=captureUntil)return result(false,"Zuerst eine Karte im Einlernmodus vorhalten.");
@@ -89,12 +92,12 @@ Json command(const Json& j){
  if(type=="confirm"&&blocked())return result(false,"Einrichtung, Leser und Speicherung zuerst prüfen.");
  if(type=="correct"&&j.at("uid").get<std::string>().rfind("sim:",0)==0)return result(false,"Dieser Nummer zuerst eine echte Karte zuordnen.");
  if((type=="measurementContext"||type=="clockSync")&&j.contains("date"))setRtc(j["date"]);
- if(type=="clockSync"||type=="autoSettings"||type=="trialSettings"||type=="trialFeedback"||type=="relief"||type=="confirm"||type=="pause"||type=="correct"||type=="room"||type=="settings"||type=="undo"||type=="newDay"||type=="flowSettings"||type=="measurementContext"||type=="queueState"||type=="measurementArm"||type=="measurementFinish"||type=="measurementCancel"||type=="measurementDeleteLast")return transact(j);
+ if(type=="seriesStart"||type=="seriesStop"||type=="staffLearn"||type=="staffClear"||type=="clockSync"||type=="autoSettings"||type=="trialSettings"||type=="trialFeedback"||type=="relief"||type=="confirm"||type=="pause"||type=="correct"||type=="room"||type=="settings"||type=="undo"||type=="newDay"||type=="flowSettings"||type=="measurementContext"||type=="queueState"||type=="measurementArm"||type=="measurementFinish"||type=="measurementCancel"||type=="measurementDeleteLast")return transact(j);
  return result(false,"Diese Aktion ist am Gerät nicht verfügbar.");
 }
 void configureWeb(){
  const char* headers[]={"Origin","X-Mensa-Token"};web.collectHeaders(headers,2);
- web.on("/api/info",HTTP_GET,[]{if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));reply(200,{{"mode","device"},{"configured",config.configured},{"nonce",loginNonce},{"version","0.8.0-preview"}});});
+ web.on("/api/info",HTTP_GET,[]{if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));reply(200,{{"mode","device"},{"configured",config.configured},{"nonce",loginNonce},{"version","0.9.0-preview"}});});
  web.on("/api/signal",HTTP_GET,[]{reply(200,publicSignal());});
  web.on("/api/login",HTTP_POST,[]{
   if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));if(nowMs()<loginAfter)return reply(429,result(false,"Zu viele Versuche. Bitte 30 Sekunden warten."));
@@ -144,6 +147,8 @@ void draw(){
  mensa::DialExtras x;
  if(resetConfirmUntil>now)x.screen="reset";else if(!configValid)x.screen="broken";
  else if(!config.configured||now<showCredentialsUntil){x.screen="credentials";x.ssid=config.ssid;x.wifi=config.wifiPassword;x.setupCode=config.setupCode;x.configured=config.configured;}
+ else if(testMode){x.screen="test";m5::rtc_datetime_t t;char clock[24]="nicht gestellt";if(rtcTime(t))snprintf(clock,sizeof(clock),"%02d:%02d:%02d",t.time.hours,t.time.minutes,t.time.seconds);
+  x.lines={std::string("Leser: ")+(reader.mode=="external"?"extern":"intern")+(reader.healthy?" ok":" FEHLER"),"Karte: "+(testUid.empty()?std::string("-"):testUid),"Lesungen: "+std::to_string(testReads)+(testAt?"  vor "+std::to_string((now-testAt)/1000)+" s":""),"Ring: "+std::to_string(testTurn)+"  Taste: "+testButton,"Tablets: "+std::to_string(WiFi.softAPgetStationNum())+"  Ampel: "+(ampelSeenAt&&!ampelLost()?"ok":"-"),"Speicher frei: "+std::to_string(ESP.getFreeHeap()/1024)+" KB","Uhr: "+std::string(clock),"Version 0.9.0-preview"};}
  else{x.blocked=blocked();x.hint=!reader.healthy?"Leser pruefen!":!storage.error.empty()?"Speicher pruefen!":!captureTarget.empty()?"Karte einlernen am Tablet":ampelLost()?"Ampel draussen getrennt!":"";if(feedbackAt&&now-feedbackAt<3500){x.feedback=feedback;x.feedbackOk=feedbackOk;}}
  auto list=engine.dialScreen(now,x);auto dump=list.dump();if(dump==lastScreen)return;lastScreen=dump;
  // Only take the sprite with enough reserve for WLAN and web server; otherwise draw directly (may flicker slightly).
@@ -159,14 +164,16 @@ void setup(){
 void loop(){
  const auto now=nowMs();M5Dial.update();if(configValid)web.handleClient();
  if(restartAt&&now>=restartAt)ESP.restart();if(captureUntil&&now>=captureUntil){clearCapture();note("Einlernen abgelaufen. Einlass bleibt pausiert.",false);}
- auto touch=M5.Touch.getDetail();
- if(touch.wasPressed()&&touch.x>=30&&touch.x<=210&&touch.y>=142&&touch.y<=177&&configValid&&config.configured&&!needsReview&&now>=showCredentialsUntil&&now>=resetConfirmUntil&&!engine.isRelieving()){
+ auto touch=M5.Touch.getDetail();if(testMode&&touch.wasPressed())testButton="Touch "+std::to_string(touch.x)+","+std::to_string(touch.y);
+ if(touch.wasPressed()&&touch.x>=30&&touch.x<=210&&touch.y>=142&&touch.y<=177&&configValid&&config.configured&&!needsReview&&now>=showCredentialsUntil&&now>=resetConfirmUntil&&!engine.isRelieving()&&!testMode){
   auto r=transact({{"type","relief"}});note(r.value("message",std::string()),r.value("ok",false));
  }
  if(M5.BtnA.wasReleaseFor(10000)){resetConfirmUntil=now+15000;}
+ else if(testMode&&M5.BtnA.wasReleaseFor(3000))testButton="3 s";
+ else if(testMode&&M5.BtnA.wasClicked())testButton="kurz";
  else if(M5.BtnA.wasReleaseFor(3000)){
   // Holding 3 s confirms an unconfirmed stock; otherwise it shows the WLAN credentials as before.
-  bool handled=false;if(configValid&&config.configured&&!needsReview&&!engine.isReady()){if(blocked())note("Leser und Speicher zuerst pruefen.",false);else{auto r=transact({{"type","dialHold"}});handled=r.value("handled",true);if(handled)note(r.value("message",std::string()),r.value("ok",false));}handled=true;}
+  bool handled=false;if(configValid&&config.configured&&!needsReview&&engine.wantsHold(now)){if(blocked()&&!engine.isReady())note("Leser und Speicher zuerst pruefen.",false);else{auto r=transact({{"type","dialHold"}});handled=r.value("handled",true);if(handled)note(r.value("message",std::string()),r.value("ok",false));}handled=true;}
   if(!handled)showCredentialsUntil=now+30000;}
  else if(M5.BtnA.wasClicked()){
   if(resetConfirmUntil>now){auto next=config;if(!configValid)next.fresh();else{next.configured=false;next.setupCode=randomKey(10);next.salt=randomKey();next.adminHash=passwordHash(next.setupCode,next.salt);}if(next.save()){engine.command({{"type","restart"}},now);restartAt=now+500;}resetConfirmUntil=0;}
@@ -174,12 +181,15 @@ void loop(){
  }
  // Automatic group release: only transact (and write flash) when a release or its scheduling is due.
  // Rotary ring: Mensa seats (one step per detent; 4 counts per detent to be verified on the device).
- {long position=M5Dial.Encoder.read();long steps=(position-encoderBase)/4;if(steps){encoderBase+=steps*4;if(configValid&&config.configured&&!needsReview&&now>=showCredentialsUntil)engine.command({{"type","dialTurn"},{"steps",int(steps)}},now);}}
+ {long position=M5Dial.Encoder.read();long steps=(position-encoderBase)/4;if(steps){encoderBase+=steps*4;if(testMode)testTurn+=steps;else if(configValid&&config.configured&&!needsReview&&now>=showCredentialsUntil)engine.command({{"type","dialTurn"},{"steps",int(steps)}},now);}}
  {bool lost=ampelLost();if(lost&&!ampelWarned)note("Ampel draussen getrennt!",false);ampelWarned=lost;}
  if(configValid&&config.configured&&!needsReview&&storage.error.empty()&&!blocked()&&(engine.autoDue(now)||engine.dayDue(now))){auto r=transact({{"type","tick"}});if(r.value("ok",false)&&!r.value("message",std::string()).empty())note(r["message"],true);}
  if(configValid&&config.configured&&!needsReview&&now>=clockCheckAt){clockCheckAt=now+5000;const auto& f=engine.flowState();m5::rtc_datetime_t t;
   if(!f.clockReady(now)&&!f.armed&&f.started<0&&f.issued==0&&rtcTime(t))transact({{"type","measurementContext"},{"weekday",t.date.weekDay},{"minute",t.time.hours*60+t.time.minutes},{"queue",f.queue}});}
- if(configValid){mensa::Edge edge;if(reader.poll(now,edge)&&edge.kind){
+ if(configValid){mensa::Edge edge;bool sampled=reader.poll(now,edge);
+  if(!reader.change.empty()){engine.command({{"type","remove"}},now);note(reader.change,true);reader.change.clear();}
+  if(sampled&&edge.kind&&testMode){if(edge.kind>0){if(edge.uid==testUid)testReads++;else{testUid=edge.uid;testReads=1;}testAt=now;note("Karte gelesen",true);}}
+  else if(sampled&&edge.kind){
   if(edge.kind<0)engine.command({{"type","remove"}},now);
   else if(!captureTarget.empty()){capturedUid=edge.uid;note("Karte erkannt. Zuordnung am Tablet speichern.",true);}
   else if(!config.configured||needsReview||!storage.error.empty()){note("Einrichtung oder Speicher zuerst pruefen.",false);}

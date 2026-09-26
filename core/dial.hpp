@@ -48,6 +48,6 @@ inline nlohmann::json rect(int x,int y,int w,int h,int r,int color){return nlohm
 inline void ring(nlohmann::json& list,double share,int color){if(share<=0)return;int end=270+int(std::lround(360*std::min(share,1.0)));list.push_back(nlohmann::json::array({"a",120,120,110,119,270,std::min(end,360),color}));if(end>360)list.push_back(nlohmann::json::array({"a",120,120,110,119,0,end-360,color}));}
 }
 // Device-specific additions supplied by firmware or simulation host.
-// screen: "" main screen, "credentials" WLAN data, "reset" access reset question, "broken" invalid configuration.
-struct DialExtras {bool blocked=false;std::string hint,feedback;bool feedbackOk=true;std::string screen,ssid,wifi,setupCode;bool configured=true;};
+// screen: "" main screen, "credentials" WLAN data, "reset" access reset question, "broken" invalid configuration, "test" device test with lines.
+struct DialExtras {bool blocked=false;std::string hint,feedback;bool feedbackOk=true;std::string screen,ssid,wifi,setupCode;bool configured=true;std::vector<std::string> lines;};
 }

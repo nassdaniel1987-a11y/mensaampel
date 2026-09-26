@@ -23,8 +23,8 @@ struct Flow {
  // Group sizes: a larger start group builds the queue at the servery; later groups may grow or shrink within [sizeMin,sizeMax].
  int startSize=0,sizeMin=0,sizeMax=0,idleMinutes=5,dayStart=-1,startLearned=0,sizeGlobal=0,groupTarget=0,dayWeekday=-1;
  bool groupIsStart=false,lastGroupStart=false;long long lastEntry=-1,lastScan=-1,releaseFrom=-1;
- // Daily report: day, weekday, issued, returned, groups, automatic releases, earlier, too full, reliefs, first/last issue minute, missing cards.
- using Day=std::array<int,12>;Day today{1,-1,0,0,0,0,0,0,0,-1,-1,-1};std::vector<Day> history;
+ // Daily report: day, weekday, issued, returned, groups, automatic releases, earlier, too full, reliefs, first/last issue minute, missing cards, learned tenths per child.
+ using Day=std::array<int,13>;Day today{1,-1,0,0,0,0,0,0,0,-1,-1,-1,-1};std::vector<Day> history;
  void clearTrial(){trialDelay=0;trialCount=0;trialLevel=0;trialReviewed=false;lastAdmission=-1;}
 
  static void check(bool yes,const char* text){if(!yes)throw std::runtime_error(text);}
@@ -42,7 +42,7 @@ struct Flow {
  // Size of the running group, or of the next one before its first child.
  int target(long long now)const{if(!batch)return 0;if(issued>0)return groupTarget;return !autoOn?batch:startDue(now)?startTarget():normalSize(now);}
  void resize(long long at,int delta,bool start){if(start){startLearned=std::clamp(startTarget()+delta,1,48);return;}int v=std::clamp(normalSize(at)+delta,lowSize(),highSize()),s=slotOf(at);sizeGlobal=v;if(s<0)return;for(auto& x:autoSlots)if(x[0]==weekday&&x[1]==s){x[4]=v;return;}if(int(autoSlots.size())<autoSlotLimit)autoSlots.push_back({weekday,s,perChild(at),0,v});}
- void closeDay(int missing,int nextDay,int nextWeekday){today[11]=missing;if(history.size()==60)history.erase(history.begin());history.push_back(today);today={nextDay,nextWeekday,0,0,0,0,0,0,0,-1,-1,-1};}
+ void closeDay(int missing,int nextDay,int nextWeekday){today[11]=missing;today[12]=perChild(-1);if(history.size()==60)history.erase(history.begin());history.push_back(today);today={nextDay,nextWeekday,0,0,0,0,0,0,0,-1,-1,-1,-1};}
  int slotOf(long long at)const{return at>=0&&clockReady(at)?currentMinute(at)/30:-1;}
  // Learned seconds per child: matching half hour with at least three observations, otherwise all observations, otherwise the start value.
  int perChild(long long at,int* level=nullptr)const{int s=slotOf(at);if(s>=0)for(auto& x:autoSlots)if(x[0]==weekday&&x[1]==s&&x[3]>=3){if(level)*level=2;return x[2];}if(autoGlobalN>0){if(level)*level=1;return autoGlobal;}if(level)*level=0;return autoStart;}
@@ -85,7 +85,7 @@ n.yellow=integer(v,"yellow",0,256);n.batch=integer(v,"batch",0,48);n.issued=inte
   if(v.contains("startSize")){n.startSize=integer(v,"startSize",0,48);n.sizeMin=integer(v,"sizeMin",0,48);n.sizeMax=integer(v,"sizeMax",0,48);n.idleMinutes=integer(v,"idleMinutes",1,120);n.dayStart=integer(v,"dayStart",-1,1439);n.startLearned=integer(v,"startLearned",0,48);n.sizeGlobal=integer(v,"sizeGlobal",0,48);n.dayWeekday=integer(v,"dayWeekday",-1,6);
    for(auto key:{"groupIsStart","lastGroupStart"})check(v.at(key).is_boolean(),"Ungültige Gruppe.");n.groupIsStart=v["groupIsStart"];n.lastGroupStart=v["lastGroupStart"];
    for(auto key:{"lastEntry","lastScan"})check(v.at(key).is_number_integer()&&v[key].get<long long>()>=-1&&v[key].get<long long>()<=9007199254740991LL,"Ungültige Scanzeit.");n.lastEntry=v["lastEntry"];n.lastScan=v["lastScan"];if(v.contains("releaseFrom")){check(v["releaseFrom"].is_number_integer()&&v["releaseFrom"].get<long long>()>=-1,"Ungültige Freigabezeit.");n.releaseFrom=v["releaseFrom"];}
-   auto day=[&](const J& d){check(d.is_array()&&d.size()==12,"Ungültiger Tagesbericht.");Day r;for(int i=0;i<12;i++){check(d[i].is_number_integer(),"Ungültiger Tagesbericht.");auto x=d[i].get<long long>();check(x>=-1&&x<=1000000,"Ungültiger Tagesbericht.");r[i]=int(x);}return r;};
+   auto day=[&](const J& d){check(d.is_array()&&(d.size()==12||d.size()==13),"Ungültiger Tagesbericht.");Day r;r[12]=-1;for(size_t i=0;i<d.size();i++){check(d[i].is_number_integer(),"Ungültiger Tagesbericht.");auto x=d[i].get<long long>();check(x>=-1&&x<=1000000,"Ungültiger Tagesbericht.");r[i]=int(x);}return r;};
    n.today=day(v.at("today"));check(v.at("history").is_array()&&v["history"].size()<=60,"Zu viele Tagesberichte.");for(auto& d:v["history"])n.history.push_back(day(d));}
   *this=std::move(n);
  }

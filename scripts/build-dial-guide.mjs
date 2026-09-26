@@ -4,8 +4,8 @@ import {writeFileSync,mkdirSync,existsSync} from 'node:fs';import {resolve,join}
 import {createEngine} from '../server/engine.mjs';import {paintDial,dialSize} from '../src/dial-paint.mjs';
 
 // --- Screens: each scenario is played on a fresh engine so the pictures are exactly what the device shows. ---
-async function scenario(steps,extras={}){
- const e=await createEngine();let now=100000;const cmd=c=>{const r=e.command(c,now);if(r.ok===false&&!c.allowFail)throw Error(`${c.type}: ${r.message}`);return r;},tap=uid=>{cmd({type:'scan',uid});cmd({type:'remove'});};
+async function scenario(steps,extras={},{hardware=false}={}){
+ const e=await createEngine();let now=100000;if(hardware)e.call({op:'hardware'});const cmd=c=>{const r=e.command(c,now);if(r.ok===false&&!c.allowFail)throw Error(`${c.type}: ${r.message}`);return r;},tap=uid=>{cmd({type:'scan',uid});cmd({type:'remove'});};
  cmd({type:'confirm'});cmd({type:'measurementContext',weekday:1,minute:720,queue:0});cmd({type:'flowSettings',yellow:5,batch:3});cmd({type:'pause',paused:false});cmd({type:'autoSettings',on:true,start:20,startGroup:6});
  await steps({cmd,tap,wait:ms=>now+=ms});return e.call({op:'dial',now,...extras});
 }
@@ -24,6 +24,9 @@ const screens=[
  {id:'karten',title:'Karten fehlen',meaning:'20 Minuten kein Scan, aber es sind noch Karten ausgegeben.',action:'Karten einsammeln. Die Liste steht am Tablet unter „Betreuung“.',items:await scenario(({tap,wait})=>{tap(K(1));tap(K(2));wait(21*60000);})},
  {id:'ampel',title:'Ampel draußen getrennt',meaning:'Das Tablet vor der Tür fragt nicht mehr nach (Akku leer, Bildschirm aus, WLAN weg).',action:'Tablet vor der Tür prüfen und die Ampelseite wieder öffnen.',items:await scenario(()=>{},{hint:'Ampel draussen getrennt!'})},
  {id:'stoerung',title:'Störung',meaning:'Rot: Kartenleser oder Speicher melden einen Fehler. Kein Einlass.',action:'Betreuung verständigen. Am Tablet unter „Gerät“ steht die Ursache.',items:await scenario(()=>{},{blocked:true,hint:'Leser pruefen!'})},
+ {id:'einlernen',title:'Karten am Stück einlernen',meaning:'Am Tablet gestartet: Jede vorgehaltene Karte bekommt die angezeigte Nummer, dann springt das Dial zur nächsten freien Nummer.',action:'Karte vorhalten, mit der angezeigten Nummer beschriften. Taste = Nummer überspringen, 3 s halten = Ende.',items:await scenario(({cmd})=>cmd({type:'seriesStart',room:'K'}),{},{hardware:true})},
+ {id:'betreuung',title:'Betreuermenü',meaning:'Eine Betreuerkarte am Dial öffnet dieses Menü. Sie bucht keinen Platz.',action:'Ring drehen = Auswahl, Taste = ausführen. Karte erneut vorhalten = schließen.',items:await scenario(({cmd,tap})=>{cmd({type:'staffLearn'});tap('BETREUER');tap('BETREUER');})},
+ {id:'geraetetest',title:'Gerätetest',meaning:'Am Tablet unter „Gerät“ gestartet: zeigt Leser, Kartenkennung, Lesungen, Drehring, Taste, Tablets, Speicher und Uhr. Scans buchen nicht.',action:'Nur für die Abnahme und Fehlersuche. Am Tablet beenden.',items:await scenario(()=>{},{screen:'test',lines:['Leser: extern ok','Karte: 04:A2:3F:11','Lesungen: 12  vor 1 s','Ring: 3  Taste: kurz','Tablets: 2  Ampel: ok','Speicher frei: 96 KB','Uhr: 11:42:07','Version 0.9.0-preview']})},
  {id:'wlan',title:'WLAN-Daten',meaning:'Taste 3 Sekunden halten (bei bestätigtem Bestand) zeigt 30 Sekunden lang WLAN-Name und Kennwort.',action:'Tablet mit diesem WLAN verbinden und http://192.168.4.1 öffnen.',items:await scenario(()=>{},{screen:'credentials',ssid:'Mensaampel-4F2A',wifi:'Beispiel-Kennwort-123',configured:true})},
  {id:'reset',title:'Zugang zurücksetzen',meaning:'Nur bei vergessenem Betreuungskennwort: Taste 10 Sekunden halten.',action:'Kurz drücken = Ja. Nichts tun = Abbruch. Karten und Bestand bleiben erhalten.',items:await scenario(()=>{},{screen:'reset'})},
 ];
@@ -32,6 +35,7 @@ const handgriffe=[
  ['Mensa für freies Essen öffnen','mensa','Ring drehen bis zur Platzzahl, Taste drücken.'],
  ['Es wird zu voll an der Ausgabe','entlastung','Orange Fläche „ENTLASTEN“ antippen. Weiter: Taste.'],
  ['Ausgabe ist schon frei, Ring läuft noch','countdown','Taste drücken: nächste Gruppe sofort.'],
+ ['Betreuerkarte vorhalten','betreuung','Menü: Ring = Auswahl, Taste = ausführen.'],
  ['Alles läuft','start','Nichts tun.'],
 ];
 writeFileSync('src/dial-screens.json',JSON.stringify({screens,handgriffe}));
@@ -72,7 +76,8 @@ const presses=`<table><tr><th>Taste (Dial-Front drücken)</th><th>Wirkung</th></
 <tr><td>3 Sekunden halten</td><td>Bestand unbestätigt: <b>Bestand bestätigen</b> · sonst: WLAN-Daten anzeigen</td></tr>
 <tr><td>10 Sekunden halten</td><td>Zugang zurücksetzen (nur bei vergessenem Kennwort; mit kurzem Druck bestätigen)</td></tr>
 <tr><td>Ring drehen</td><td>Mensaplätze einstellen, Taste übernimmt</td></tr>
-<tr><td>Fläche „ENTLASTEN“ antippen</td><td>Einlass sofort stoppen, weil es an der Ausgabe zu voll ist</td></tr></table>`;
+<tr><td>Fläche „ENTLASTEN“ antippen</td><td>Einlass sofort stoppen, weil es an der Ausgabe zu voll ist</td></tr>
+<tr><td>Betreuerkarte vorhalten</td><td>Menü: Bestand ok · Pause/Weiter · Mensa freigeben · Abbrechen (Ring = Auswahl, Taste = ausführen)</td></tr></table>`;
 const guide=`<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Bedienung am Dial</title><style>${css}</style><main>
 <button class="print" onclick="window.print()">Drucken / als PDF speichern</button><h1>Bedienung am Dial</h1><p class="lead">Für alle, die in der Mensa Dienst haben. Das Dial steht drinnen, das Tablet vor der Tür ist nur die Ampel.</p>
 ${device}
@@ -82,10 +87,11 @@ ${device}
 <h2>Ablauf an einem Tag</h2><ol><li><b>Einschalten</b> (USB-Strom). Das Dial zeigt „Bestand ok?“ → Karten kurz prüfen → <b>Taste 3 s halten</b>. Ist der automatische Essenstag eingestellt, sind die Belegungen vom Vortag schon zurückgesetzt.</li><li><b>Tablet vor der Tür</b>: Ampelseite öffnen (http://192.168.4.1/ampel), Vollbild. Optional „Ton an“ für einen Gong bei Grün.</li><li><b>Mittag</b>: Kinder halten ihre Platzkarte ans Dial. Die erste Gruppe ist größer, danach öffnet die Ampel im Takt von selbst.</li><li><b>Begleitete Kinder fertig</b>: Ring drehen, Mensaplätze einstellen, Taste.</li><li><b>Nur bei Bedarf</b>: zu voll → ENTLASTEN; Ausgabe schon frei → Taste.</li><li><b>Ende</b>: Fehlen Karten, zeigt das Dial „Karten fehlen“ – einsammeln.</li></ol>
 <h2>Wenn etwas nicht stimmt</h2><ul><li><b>Alles rot, „Stoerung“</b>: Leser oder Speicher. Betreuung verständigen; am Tablet unter „Gerät“ steht die Ursache.</li><li><b>„Ampel draussen getrennt!“</b>: Tablet vor der Tür prüfen (Akku, Bildschirm, WLAN).</li><li><b>Kind wird abgewiesen</b> (orange Schrift, tiefer Ton): Karte wurde gerade erst gescannt, Raum ist gesperrt oder die Karte ist unbekannt.</li><li><b>Strom weg</b>: Der Bestand bleibt gespeichert. Nach dem Einschalten wieder Taste 3 s halten.</li></ul>
 <p class="note">Die Automatik lernt aus euren Eingriffen: „ENTLASTEN“ nach einer automatischen Freigabe = künftig länger warten, Taste im Countdown = künftig schneller. Ohne Eingriff wird sie vorsichtig etwas schneller.</p>
+<h2>Karten einrichten</h2><p>Am Tablet unter „Betreuung“ bzw. „Gerät“: <b>Karten am Stück einlernen</b> für Küche oder Mensa starten. Das Dial zeigt die nächste freie Nummer groß an; Karte vorhalten, mit dieser Nummer beschriften (Etiketten: <code>KARTEN-ETIKETTEN.pdf</code>). <b>Betreuerkarte</b>: am Tablet unter Einstellungen „Neue Betreuerkarte einlernen“, dann die Karte ans Dial halten. Sie ist kein Sicherheitsschlüssel und öffnet nur das Alltagsmenü.</p>
 <h2>Nur für die Einlernphase (zweite Person)</h2><p>Mit Handy oder Tablet im Dial-WLAN anmelden → „Einlass &amp; Messungen“ → vor einer Gruppe „Gruppe messen“, wenn das letzte Kind sein Essen hat „Alle haben Essen“. Jede Messung verbessert die Automatik.</p>
 </main></html>`;
 const card=`<section class="card"><h1>Mensaampel · Dial</h1>${handgriffe.map(([w,id,a])=>`<div class="row"><img src="${uri[id]}" alt=""><div><b>${esc(w)}</b><span>${esc(a)}</span></div></div>`).join('')}<p class="foot">Taste = Dial-Front drücken · Rot mit Ring = Ampel öffnet gleich von selbst</p></section>`;
-const cards=`<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Kurzkarte Dial</title><style>*{box-sizing:border-box}body{margin:0;font:13px/1.35 "Segoe UI",Arial,sans-serif;color:#183345;background:#edf3f2}.sheet{display:grid;gap:10mm;padding:10mm;justify-content:center}.card{width:148mm;min-height:120mm;background:#fff;border:1.5px dashed #9fb3b8;border-radius:6mm;padding:7mm 9mm}.card h1{font-size:18px;margin:0 0 3mm;color:#174e55}.row{display:flex;align-items:center;gap:4mm;margin:3.2mm 0}.row img{width:19mm;height:19mm;border-radius:50%;box-shadow:0 0 0 1.3mm #2e373a;flex:none}.row b{display:block;font-size:13.5px}.row span{font-size:14px;font-weight:700;color:#174e55}.foot{color:#557080;margin:3mm 0 0;font-size:11px}@media print{body{background:#fff}.sheet{padding:0}@page{size:A4;margin:10mm}}</style><div class="sheet">${card}${card}</div></html>`;
+const cards=`<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Kurzkarte Dial</title><style>*{box-sizing:border-box}body{margin:0;font:13px/1.35 "Segoe UI",Arial,sans-serif;color:#183345;background:#edf3f2}.sheet{display:grid;gap:6mm;padding:10mm;justify-content:center}.card{width:148mm;min-height:0;background:#fff;border:1.5px dashed #9fb3b8;border-radius:6mm;padding:5mm 9mm}.card h1{font-size:18px;margin:0 0 3mm;color:#174e55}.row{display:flex;align-items:center;gap:4mm;margin:1.2mm 0}.row img{width:16mm;height:16mm;border-radius:50%;box-shadow:0 0 0 1.3mm #2e373a;flex:none}.row b{display:block;font-size:13.5px}.row span{font-size:14px;font-weight:700;color:#174e55}.foot{color:#557080;margin:3mm 0 0;font-size:11px}@media print{body{background:#fff}.sheet{padding:0}@page{size:A4;margin:10mm}}</style><div class="sheet">${card}${card}</div></html>`;
 writeFileSync('BEDIENUNG-DIAL.html',guide);writeFileSync('DIAL-KURZKARTE.html',cards);
 
 // --- PDFs (optional, needs Playwright with Chromium; skipped otherwise). ---

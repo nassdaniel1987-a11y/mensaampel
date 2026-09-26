@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.8.0-preview · Stand 26.09.2026**
+**Vorbereitete Geräteversion 0.9.0-preview · Stand 26.09.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -45,8 +45,11 @@ Unter **Gerät → Kartenleser** wählen:
 
 | Auswahl | Anschluss |
 |---|---|
+| **Automatisch (empfohlen, Standard)** | Externe RFID2 Unit an Port A, sobald sie antwortet; sonst der eingebaute Leser |
 | Intern im M5Stack Dial | Eingebauter Leser; kein Zusatzgerät |
 | Extern: RFID2 an Port A | Externe RFID2 Unit am Port A |
+
+**Automatisch:** Beim Start und danach alle 5 Sekunden (wenn gerade keine Karte aufliegt) prüft das Dial, ob an Port A ein Leser antwortet, und schaltet selbst um. Fällt der externe Leser aus oder wird abgezogen, arbeitet das Dial ohne Störung mit dem internen Leser weiter. Das Dial meldet „Externer Leser aktiv“ bzw. „Interner Leser aktiv“; unter Gerät steht, welcher Leser gerade aktiv ist. Der Bestand bleibt dabei unverändert. Port A laut Hersteller nur **stromlos** umstecken.
 
 **Auswahl speichern und Leser prüfen** drücken. Die Einstellung bleibt nach dem Ausschalten erhalten. Beim Wechsel wird der Einlass gesperrt und der Bestand muss erneut bestätigt werden. Es ist kein erneutes Aufspielen der Software erforderlich.
 
@@ -55,6 +58,8 @@ Im externen Modus wird das interne RFID-Feld abgeschaltet und dessen Abschaltung
 Die echte Funkstabilität muss mit Tablet und Karten geprüft werden. Interner RFID-Leser und WLAN nutzen unterschiedliche Frequenzen; dennoch sind beim Dial Berichte über gegenseitige Störungen bekannt. Eine externe Unit ist eine prüfbare Alternative, keine bereits nachgewiesene Garantie.
 
 ## 4 · Karten einmalig zuordnen
+
+**Am schnellsten: Karten am Stück einlernen.** Unter **Betreuung → Karten am Stück einlernen** „Küche“ oder „Mensa“ starten. Das Dial zeigt groß die nächste freie Nummer (z. B. „K07“). Karte vorhalten → sie gehört nun zu K07 → mit dem passenden Etikett bekleben (`KARTEN-ETIKETTEN.pdf`, 70 × 37 mm, 24 pro A4-Bogen, Küche blau, Mensa rot). Das Dial springt selbst weiter. Taste = Nummer überspringen, 3 s halten = Ende. Doppelte Karten werden erkannt, gebucht wird nichts. Der Einzelweg unten bleibt für Nachträge.
 
 Die Nummern **K01–K48** und **M01–M64** sind vorbereitet. Auf einem echten Gerät zählen noch nicht zugeordnete Nummern zunächst nicht als verfügbare Karten.
 
@@ -160,3 +165,14 @@ Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG
 | Anzeige ohne Flackern | Bildwechsel ruhig (Zwischenspeicher aktiv) | ☐ |
 | Uhr nach Stromlosigkeit | Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt | ☐ |
 | Ampel-Tablet ausschalten | nach 10 s „Ampel draussen getrennt!“ am Dial | ☐ |
+
+## Neu in 0.9
+
+- **Leser automatisch** (siehe Abschnitt 3), **Karten am Stück einlernen** (Abschnitt 4), **Kartenetiketten** zum Drucken.
+- **Betreuerkarte:** unter Betreuung → Einstellungen „Neue Betreuerkarte einlernen“ und die Karte ans Dial halten (bis zu 5). Vorgehalten öffnet sie das Menü **BETREUUNG**: Bestand ok · Pause/Weiter · Mensa freigeben · Abbrechen (Ring = Auswahl, Taste = ausführen, Karte erneut = schließen). Sie bucht keinen Platz. Kein Sicherheitsschlüssel: Die Kartenkennung ist kopierbar, das Menü kann nur Alltagsaktionen.
+- **Gerätetest:** unter Gerät „Gerätetest starten“. Das Dial zeigt Leser, Kartenkennung, Lesungen, Drehring, Taste/Touch, Tablets, Speicher und Uhr; Scans buchen nicht. Darunter eine Checkliste für die Abnahme (auf dem Tablet gespeichert, als CSV exportierbar).
+- **Statistik:** Diagramme im Tagesbericht (Kinder pro Tag, Eingriffe, gelernte Sekunden pro Kind).
+
+### Welche Karten kaufen?
+
+Der Leser (WS1850S, 13,56 MHz, ISO 14443A) liest nur die Kartenkennung. Es reichen günstige **MIFARE Classic 1K**-Karten (ca. 0,50–0,70 € im 100er-Pack); NTAG213 geht auch. Farbige Karten (z. B. blau/rot) oder Karten mit Schlitz für eine Hakenleiste sind praktisch. **Zuerst 5–10 Stück am echten Dial testen.** Beispiele (ohne Gewähr): [Varius Card](https://www.variuscard.com/shop/de/chipkarten-nxp-mifare-classic-1k-ev1-4bnuid.html), [primacards](https://www.primacards.de/rfid-karten-mifare-classic-1k-1356-mhz-100.html), [Böttcher AG (Rechnungskauf)](https://www.bueromarkt-ag.de/rfid-karte_nxp_mifare_classic_1k_100_stueck,p-card12826.html), [ausweisshop farbig](https://ausweisshop.com/produkt/mifare-classic-1k-rfid-karte-farbig/), [mychip24 Schlüsselanhänger](https://mychip24.de/rfid-transponderanhaenger/17/13-56mhz-mifare-classic-1k-rfid-schluesselanhaenger).

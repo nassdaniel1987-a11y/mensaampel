@@ -8,7 +8,7 @@ import {createEngine} from './engine.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export async function createApp({dataDir=resolve(root,'data')}={}){
  const engine=await createEngine();mkdirSync(dataDir,{recursive:true});
- const file=resolve(dataDir,'bestand.json');let offset=0,offlineUntil=0,storageError='',loadError='',forceWriteFailure=false,feedback={text:'',ok:true,at:0},ampelSeenAt=0,ampelWarned=false;
+ const file=resolve(dataDir,'bestand.json');let offset=0,offlineUntil=0,storageError='',loadError='',forceWriteFailure=false,feedback={text:'',ok:true,at:0},ampelSeenAt=0,ampelWarned=false,test=null;
  const now=()=>Date.now()+offset;
  const hash=s=>createHash('sha256').update(s).digest('hex');
  function save(){
@@ -31,6 +31,8 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
  function state(){
   const s=engine.status(now()),error=storageError||loadError;
   // Same main screen as the Dial; the note stays visible for 3.5 s like on the device.
+  // Device test in the simulation: same screen as on the Dial, simulated values.
+  if(test){const lines=['Leser: Simulation ok','Karte: '+(test.uid||'-'),'Lesungen: '+test.reads+(test.at?'  vor '+Math.floor((Date.now()-test.at)/1000)+' s':''),'Ring: '+test.turn+'  Taste: '+test.button,'Tablets: 1  Ampel: '+(ampelSeenAt&&!ampelLost()?'ok':'-'),'Speicher frei: PC','Uhr: '+new Date(now()).toLocaleTimeString('de-DE'),'Version 0.9.0-preview'];return {...s,dial:engine.call({op:'dial',now:now(),screen:'test',lines}),feedback,testMode:true,storageError:error,recoveryRequired:!!loadError,sim:{offset,offline:Date.now()<offlineUntil,forceWriteFailure}};}
   const dial=engine.call({op:'dial',now:now(),blocked:!!error,hint:error?'Speicher pruefen!':ampelLost()?'Ampel draussen getrennt!':'',...(Date.now()-feedback.at<3500?{feedback:feedback.text,feedbackOk:feedback.ok}:{})});
   return {...s,dial,feedback,storageError:error,recoveryRequired:!!loadError,sim:{offset,offline:Date.now()<offlineUntil,forceWriteFailure}};
  }
@@ -51,6 +53,12 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
    catch(e){return {ok:false,message:'Wiederherstellung fehlgeschlagen: '+e.message,state:state()};}
   }
   if(command.type==='disconnect'){offlineUntil=Date.now()+8000;return {ok:true,message:'Verbindung für acht Sekunden unterbrochen.',state:state()};}
+  if(command.type==='deviceTest'){test=command.on?{uid:'',reads:0,at:0,turn:0,button:'-'}:null;return {ok:true,message:test?'Gerätetest gestartet. Scans buchen nicht.':'Gerätetest beendet.',state:state()};}
+  if(test&&['tap','scan','remove','dialTurn','dialPress','dialHold','relief'].includes(command.type)){
+   if(command.type==='tap'||command.type==='scan'){if(command.uid===test.uid)test.reads++;else{test.uid=command.uid;test.reads=1;}test.at=Date.now();note('Karte gelesen',true);}
+   else if(command.type==='dialTurn')test.turn+=command.steps|0;else if(command.type!=='remove')test.button={dialPress:'kurz',dialHold:'3 s',relief:'Touch'}[command.type];
+   return {ok:true,message:'',state:state()};
+  }
   if(command.type==='storageFailure'){forceWriteFailure=!!command.enabled;return {ok:true,message:forceWriteFailure?'Speicherfehler eingeschaltet. Buchungen werden nicht bestätigt.':'Speicherfehler beendet. Bitte erneut speichern oder buchen.',state:state()};}
   const previous=engine.snapshot(),oldOffset=offset;
   let result;

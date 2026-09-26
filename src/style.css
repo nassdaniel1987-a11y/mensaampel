@@ -43,3 +43,11 @@ header nav{height:auto;min-height:48px}
 .help-do{font-weight:700;color:var(--teal)}
 .help-dial{width:150px;height:150px;border-radius:50%;box-shadow:0 0 0 6px #2e373a;flex:none;margin:6px}
 .help-dial.small{width:128px;height:128px}
+.series-section{margin-bottom:18px}.staff-cards{margin:18px 0;padding-top:12px;border-top:1px solid var(--line)}
+.device-test{margin-top:22px}.test-result{white-space:nowrap}.test-result button{padding:6px 10px;margin-right:6px}.device-test input{width:100%;min-width:120px}button.danger{background:#b3261e;color:#fff;border-color:#b3261e}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px 24px;margin:14px 0 20px;position:relative}
+.chart{margin:0}.chart figcaption{font-weight:700;font-size:14px;margin-bottom:4px}.chart svg{width:100%;height:auto;display:block}
+.chart-grid{stroke:#e3ebec;stroke-width:1}.chart-tick{fill:var(--muted);font-size:11px}.chart-cross{stroke:#9fb3b8;stroke-width:1}
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);align-self:center}.chart-legend i,.chart-tip i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.chart-tip{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 14px;background:#f4f8f8;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+.chart-tip.muted{color:var(--muted)}

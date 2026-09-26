@@ -8,6 +8,7 @@ class ReaderLatch {
  std::string held;uint64_t absentSince=0;unsigned misses=0;bool waitingClear=true;
 public:
  void reset(){held.clear();misses=0;absentSince=0;waitingClear=true;}
+ bool idle()const{return held.empty();}
  Edge sample(Sample type,const std::string& uid,uint64_t now){
   if(type==Sample::Fault||type==Sample::Suspended){misses=0;return {};}
   if(type==Sample::Present){misses=0;if(waitingClear||!held.empty())return {};held=uid;return {1,uid};}
