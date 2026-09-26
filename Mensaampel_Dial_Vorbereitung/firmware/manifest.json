@@ -1,0 +1,35 @@
+{
+  "version": "0.5.0-preview",
+  "board": "M5Stack Dial v1.1 / ESP32-S3 / 8MB",
+  "hardwareTested": false,
+  "files": [
+    {
+      "path": "firmware/boot_app0.bin",
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+    },
+    {
+      "path": "firmware/bootloader.bin",
+      "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+    },
+    {
+      "path": "firmware/firmware.bin",
+      "sha256": "f99dfc277c614926302abdf691672330664a9a458c49d17b1fcfc03d4f3b38db"
+    },
+    {
+      "path": "firmware/first-install.bin",
+      "sha256": "0a0c78dc10e7c0a7df21a70b32c96fcdba17560d2f3ed3c44148a7d2f49e0375"
+    },
+    {
+      "path": "firmware/littlefs.bin",
+      "sha256": "dadc8966840708bc71df7135ab59f5183155b65e9bc54af5dc55034b87449caf"
+    },
+    {
+      "path": "firmware/partitions.bin",
+      "sha256": "b24845511019a9912c15975c58b36e50adf503a5f95532bc4db1020bc8937f3f"
+    },
+    {
+      "path": "tools/mensa-flash.exe",
+      "sha256": "ac883db4581232a49fa1e7af55840742b2d8160b3b1743aebc507c4b06674cdd"
+    }
+  ]
+}

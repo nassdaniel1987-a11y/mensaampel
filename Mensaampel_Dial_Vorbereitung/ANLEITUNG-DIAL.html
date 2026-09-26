@@ -1,0 +1,184 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
+<p><strong>Vorbereitete Geräteversion 0.3.0 · Stand 24.09.2026</strong></p>
+<p>Die Software, Tabletoberfläche und Windows-Übertragung sind vorbereitet. Der Gerätecode wurde erfolgreich für ESP32-S3 übersetzt. Die Erprobung an einem echten Dial steht noch aus. Dieses Paket ist für euren ersten begleiteten Hardwaretest vorgesehen.</p>
+<h2>Was du brauchst</h2>
+<ul>
+<li>M5Stack Dial v1.1.</li>
+<li>Windows-PC zum einmaligen Aufspielen und ein USB-C-<strong>Datenkabel</strong>. Ein reines Ladekabel reicht dafür nicht.</li>
+<li>Tablet mit aktuellem Browser für Betreuung oder große Ampel.</li>
+<li>Passende 13,56-MHz-Karten, deren UID der WS1850S lesen kann; zunächst mit wenigen Karten testen, bevor ihr alle beschriftet oder kauft.</li>
+<li>Optional: M5Stack RFID2 Unit (WS1850S, U031-B) am <strong>Port A</strong>, mit passendem Grove-Kabel. Vor dem Anstecken die Stromversorgung trennen.</li>
+<li>Für den späteren Betrieb eine zuverlässige USB-Stromversorgung. Bei einer Powerbank prüfen, ob sie bei der geringen Last eingeschaltet bleibt.</li>
+</ul>
+<p>Nach dem Aufspielen läuft die Buchungslogik auf dem Dial. Der PC wird im Alltag nicht gebraucht. Das Dial stellt sein eigenes WLAN und die Webseiten bereit; Internet und zusätzliche Router sind dafür nicht nötig. Das Tablet ist Anzeige und Bedienung, der Dial speichert den Bestand.</p>
+<h2>1 · Software per USB aufspielen</h2>
+<ol>
+<li><code>Mensaampel_Dial_Vorbereitung.zip</code> vollständig in einen beschreibbaren Ordner entpacken.</li>
+<li>Am Dial die rückseitige <strong>G0-Taste gedrückt halten</strong>, das USB-Datenkabel mit dem PC verbinden und G0 loslassen. Das versetzt das Gerät in den Übertragungsmodus.</li>
+<li><code>Dial-Installieren.cmd</code> doppelt anklicken. Der mitgelieferte Helfer benötigt keine separat installierte Python- oder Programmierumgebung.</li>
+<li>Den passenden USB-Anschluss auswählen. Falls keiner erscheint: Datenkabel, G0-Modus und „Aktualisieren“ prüfen.</li>
+<li>Beim ersten Mal <strong>Erstinstallation</strong> auswählen. Dabei werden die bisherige Software, Einstellungen und Daten auf dem Dial gelöscht. Der Helfer fragt dies ausdrücklich ab. Bereits vorhandene Daten vorher sichern.</li>
+<li>Gerät und Vorgang im Kontrollkästchen bestätigen und <strong>Software übertragen</strong> wählen. Währenddessen USB verbunden lassen.</li>
+<li>Nach „Fertig“ nötigenfalls RST drücken oder USB neu verbinden. Auf dem Display erscheinen WLAN-Name, WLAN-Kennwort und Einrichtungscode.</li>
+</ol>
+<p>Der Übertragungshelfer wurde ohne angeschlossenes Gerät geprüft. Die erste tatsächliche USB-Übertragung ist Teil des Hardwaretests. Das Programm ist nicht digital signiert. Sicherheitsrichtlinien eines Schul-PCs gegebenenfalls mit der zuständigen IT klären.</p>
+<h2>2 · Tablet verbinden und Zugang einrichten</h2>
+<ol>
+<li>In den WLAN-Einstellungen des Tablets das auf dem Dial angezeigte Netz auswählen und dessen WLAN-Kennwort eingeben.</li>
+<li>Falls das Tablet „Kein Internet“ meldet: für diesen Betrieb mit dem Netz verbunden bleiben. Automatisches Wechseln auf ein anderes WLAN würde die Ampel trennen.</li>
+<li>Im Browser ausdrücklich <strong>http://192.168.4.1</strong> öffnen.</li>
+<li>Mit dem Einrichtungscode vom Dial anmelden. Unter <strong>Gerät → WLAN und Zugang</strong> ein eigenes Betreuungskennwort mit mindestens zehn Zeichen festlegen, wiederholen und speichern.</li>
+<li>WLAN-Name und WLAN-Kennwort können ebenfalls geändert werden. Eine WLAN-Änderung startet den Dial neu; anschließend das Tablet neu verbinden.</li>
+</ol>
+<p>Die Betreuung ist kennwortgeschützt. Die Kinderansicht unter <strong>http://192.168.4.1/ampel</strong> zeigt ausschließlich den Ampelstatus und benötigt keine Anmeldung. Nur vertrauenswürdige Geräte ins Mensa-WLAN aufnehmen; das lokale Webinterface verwendet HTTP im kennwortgeschützten WLAN. Ein neues Anmelden beendet die vorherige Betreuungssitzung. Betreuung und Kinderampel können gleichzeitig geöffnet sein.</p>
+<h2>3 · Internen oder externen Leser auswählen</h2>
+<p>Unter <strong>Gerät → Kartenleser</strong> wählen:</p>
+<table>
+<thead>
+<tr>
+<th>Auswahl</th>
+<th>Anschluss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Intern im M5Stack Dial</td>
+<td>Eingebauter Leser; kein Zusatzgerät</td>
+</tr>
+<tr>
+<td>Extern: RFID2 an Port A</td>
+<td>Externe RFID2 Unit am Port A</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Auswahl speichern und Leser prüfen</strong> drücken. Die Einstellung bleibt nach dem Ausschalten erhalten. Beim Wechsel wird der Einlass gesperrt und der Bestand muss erneut bestätigt werden. Es ist kein erneutes Aufspielen der Software erforderlich.</p>
+<p>Im externen Modus wird das interne RFID-Feld abgeschaltet und dessen Abschaltung überwacht. Ein fehlender oder nicht erreichbarer Leser führt zu Rot. Nach dem Einschalten oder Wechsel den Leser etwa eine Sekunde frei lassen. Ein Leserfehler oder eine Lesepause gilt nicht als bestätigtes Entfernen einer Karte.</p>
+<p>Die echte Funkstabilität muss mit Tablet und Karten geprüft werden. Interner RFID-Leser und WLAN nutzen unterschiedliche Frequenzen; dennoch sind beim Dial Berichte über gegenseitige Störungen bekannt. Eine externe Unit ist eine prüfbare Alternative, keine bereits nachgewiesene Garantie.</p>
+<h2>4 · Karten einmalig zuordnen</h2>
+<p>Die Nummern <strong>K01–K48</strong> und <strong>M01–M64</strong> sind vorbereitet. Auf einem echten Gerät zählen noch nicht zugeordnete Nummern zunächst nicht als verfügbare Karten.</p>
+<ol>
+<li>Unter <strong>Gerät → Platzkarten zuordnen</strong> beispielsweise K01 auswählen.</li>
+<li><strong>Echte Karte einlernen</strong> drücken. Die Einlasspause wird eingeschaltet.</li>
+<li>Leser freihalten, dann genau eine Karte vorhalten. Ihre Kennung erscheint in der Oberfläche.</li>
+<li><strong>Zuordnung speichern</strong> drücken. Beim Einlernen erfolgt keine Platzbuchung.</li>
+<li>Karte passend mit K01 beschriften. Die Auswahl springt zur nächsten Nummer. Den Ablauf für weitere Karten wiederholen.</li>
+<li>Zum Schluss unter <strong>Betreuung</strong> den Bestand prüfen und bestätigen; eine bestehende Einlasspause ausdrücklich beenden.</li>
+</ol>
+<p>Für den ersten Test genügen z. B. zwei Küchen- und zwei Mensakarten. Die maximal mögliche Ausgabe ergibt sich sowohl aus Raumfreigabe als auch verfügbaren zugeordneten Karten. Zusätzliche Kartennummern vergrößern die Raumkapazität nicht automatisch.</p>
+<h2>5 · So läuft der Mittag</h2>
+<ul>
+<li>Nach jedem Neustart den tatsächlichen Bestand prüfen und <strong>Bestand bestätigen</strong>. Es wird nichts automatisch auf null gesetzt.</li>
+<li>Die Küche hat zunächst 48 Plätze; die Mensa bleibt für das freie Essen geschlossen. Die 61 begleiteten Kinder werden nicht einzeln gebucht.</li>
+<li>Karte vorhalten: verfügbare Karte wird ausgegeben. Dieselbe Karte später erneut vorhalten: Rückgabe.</li>
+<li>Nach einer erfolgreichen Buchung gelten zehn Sekunden Sperre für diese Karte. Andere Karten bleiben nutzbar. Dauerhaftes Vorhalten erzeugt keine zweite Buchung.</li>
+<li>Eine Karte nach dem Vorhalten entfernen; für die sichere Entfernungserkennung etwa eine Sekunde Abstand zwischen Karten lassen. Eine in der Sperrzeit abgewiesene Buchung wird nicht später nachgeholt.</li>
+<li><strong>Einlass pausieren</strong> stoppt Ausgaben, lässt Rückgaben zu. Ein kurzer Tastendruck am Dial schaltet die Pause ebenfalls um.</li>
+<li>Tatsächlich freie Mensaplätze später unter <strong>Betreuung → Mensa → Anpassen</strong> teilweise oder vollständig freigeben.</li>
+<li>Eine verlorene ausgegebene Karte bleibt belegt, bis der Platz geprüft und die Karte manuell korrigiert wurde.</li>
+<li>Ein erneuter Scan nach Ablauf der Sperrzeit zählt als Gegenbuchung, auch wenn er versehentlich war. Dann „Letzte Buchung rückgängig“ oder gezielt „Bearbeiten“ verwenden.</li>
+<li><strong>Neuer Essenstag</strong> wird ausdrücklich gestartet. Dabei werden Belegungen zurückgesetzt, Verlustmarkierungen bleiben erhalten und die Mensa wird wieder gesperrt.</li>
+</ul>
+<h2>6 · Große Ampel anzeigen</h2>
+<p>Auf dem Tablet <strong>Ampel öffnen</strong> und bei Bedarf <strong>Vollbild</strong> wählen. Grün bedeutet: betriebsbereit, keine Pause und mindestens eine verfügbare Karte für einen freigegebenen Platz. Bei Pause, vollem Bestand oder Störung erscheint Rot.</p>
+<p>Nach mehr als drei Sekunden ohne erfolgreiche Statusmeldung schaltet die laufende Browseranzeige auf Rot. Das gilt nicht für einen eingefrorenen Browser oder ausgeschalteten Bildschirm: Energiesparen und automatische Bildschirmsperre für euren Einsatz passend einstellen und testen. Die getrennte Ampel sollte vor dem Mensaeingang sichtbar sein.</p>
+<h2>7 · Sicherung, Zugang und Updates</h2>
+<p><strong>Bestand sichern:</strong> Unter Gerät die JSON-Sicherung herunterladen. Sie enthält Kartenzuordnungen und Belegungen, keine Zugangskennwörter. Derzeit ist dies eine Sicherung zur Kontrolle und technischen Wiederherstellung; ein automatischer Importknopf ist noch nicht enthalten.</p>
+<p><strong>WLAN anzeigen:</strong> Taste am Dial drei Sekunden halten und loslassen. Die Zugangsdaten werden vorübergehend angezeigt.</p>
+<p><strong>Betreuungskennwort vergessen:</strong> Taste zehn Sekunden halten, loslassen und die Rückfrage mit einem kurzen Druck bestätigen. Danach erscheint ein neuer Einrichtungscode. Der Kartenbestand bleibt erhalten. Dies setzt den Betreuungszugang zurück; bei gültiger Konfiguration bleibt das WLAN-Kennwort unverändert.</p>
+<p><strong>Update:</strong> Bestand vorher sichern. Im Installationshelfer „Update“ wählen. Der Helfer liest zunächst das Speicherlayout aus; bei Abweichung bricht er ab, ohne die Firmware zu schreiben. Bei passendem Layout wird nur die Programmdatei aktualisiert. Die Option ist für die bereits installierte Mensaampel vorgesehen. Nach Neustart ist erneut eine Bestandsbestätigung erforderlich. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.</p>
+<p><strong>Speicherstörung:</strong> Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.</p>
+<h2>Abnahme am echten Gerät</h2>
+<table>
+<thead>
+<tr>
+<th>Prüfung</th>
+<th>Erwartung</th>
+<th>Erledigt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Erstinstallation und Tablet-Einrichtung</td>
+<td>Display und Oberfläche erreichbar</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Intern und optional extern auswählen</td>
+<td>Gewählter Leser funktioniert; Auswahl bleibt nach Neustart</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Zwei Karten einlernen</td>
+<td>Richtige Nummern, keine Platzbuchung</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ausgabe / Rückgabe</td>
+<td>Genau eine Änderung; gesicherter Bestand</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Karte mindestens 20 Sekunden vorhalten</td>
+<td>Keine zweite Buchung</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Erneut bei 5 und nach 10 Sekunden vorhalten</td>
+<td>Erst abgewiesen, später Gegenbuchung</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Andere Karte während Sperre</td>
+<td>Sofort verwendbar nach bestätigter Entfernung</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Mensa gesperrt / teilweise offen / Pause</td>
+<td>Regeln und Ampel stimmen</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Tablet-WLAN trennen</td>
+<td>Ampel nach drei Sekunden ohne Status rot</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Leser abziehen / wieder anschließen</td>
+<td>Störung rot; keine Phantom-Rückgabe</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Strom nach bestätigter Buchung trennen</td>
+<td>Belegung bleibt, Einlass fordert Bestätigung</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Strom während Speichern unterbrechen, nur Testbestand</td>
+<td>Kein unbemerkter Neustart mit falschem Bestand</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Update des Testgeräts</td>
+<td>Kartenzuordnungen und Einstellungen bleiben</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Mindestens ein kompletter Mittag als Probelauf</td>
+<td>WLAN, Scans, Stromversorgung und Speicher stabil</td>
+<td>☐</td>
+</tr>
+</tbody>
+</table>
+<p>Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern, tatsächliche Speicherreserven mit allen 112 Karten, gleichzeitiger WLAN-/RFID-Betrieb und Stromausfallverhalten. Softwaretests ersetzen diese Prüfung nicht.</p>
+<h2>Herstellerunterlagen</h2>
+<ul>
+<li><a href="https://docs.m5stack.com/en/core/M5Dial%20V1.1">M5Stack Dial v1.1</a></li>
+<li><a href="https://docs.m5stack.com/en/unit/rfid2">RFID2 Unit und Anschluss</a></li>
+<li><a href="https://docs.m5stack.com/en/arduino/m5dial/program">Übertragungsmodus des Dial</a></li>
+<li><a href="https://community.m5stack.com/topic/6628/m5dial-wifi-not-work-when-rfid-is-enabled">Erfahrungsbericht zu WLAN und RFID</a></li>
+</ul>
+<h2>Neu: Einlassgruppen, Gelb und Messungen</h2>
+<p>Unter <strong>Einlass &amp; Messungen</strong> stehen Gelbgrenze, begrenzte Einlassgruppen sowie Einzel- und Gruppenmessungen zur Verfügung. Startwert Gelb: fünf freie Plätze. Gruppenbegrenzung zunächst aus (0); beispielsweise auf fünf setzen und Einlass anschließend bewusst fortsetzen. Die Messungen bedient ihr am verbundenen Tablet. Einzelheiten: <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a>.</p>
+<p>Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Druck pausiert beziehungsweise setzt fort; bei einer noch laufenden Gruppenmessung zuerst den Messabschluss am Tablet bestätigen oder die Messung verwerfen.</p>
+<h2>Erweiterung 0.4: Entlastung und frühe Hinweise</h2>
+<p>Die orange Bildschirmtaste am Dial startet <strong>Ausgabe entlasten</strong>. Kurzer physischer Tastendruck setzt bewusst fort. Messungen bleiben am Betreuungstablet. Die neue Ampelanzeige und die zweistufigen Zeithinweise sind in <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a> beschrieben.</p></main></html>

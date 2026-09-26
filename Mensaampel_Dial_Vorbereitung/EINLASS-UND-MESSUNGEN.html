@@ -1,0 +1,72 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Einlass und Messungen</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><h1>Einlass und Messungen</h1>
+<p>Die neue Seite <strong>Einlass &amp; Messungen</strong> ist auf dem verbundenen Tablet verfügbar. In der PC-Simulation und in der einzelnen HTML-Vorführung funktioniert sie mit simulierten Karten genauso. Echte Messdaten werden auf dem Dial beziehungsweise im PC-Bestand gespeichert; die HTML-Vorführung behält nur ihren Testbestand bis zum Neuladen.</p>
+<h2>Grün, Gelb und Rot</h2>
+<ul>
+<li>Grün: Einlass offen, mehr freie Plätze als die Gelbgrenze.</li>
+<li>Gelb: Einlass offen, noch ein bis fünf freie Plätze (Startwert, einstellbar). Weitere Ausgaben bleiben möglich.</li>
+<li>Rot: Pause, abgeschlossene Einlassgruppe, keine Plätze, noch unbestätigter Bestand oder Störung. Eine Pause lässt gültige Rückgaben zu.</li>
+</ul>
+<p>Die freien Plätze berücksichtigen nur freigegebene Räume und verfügbare Karten. 0 als Gelbgrenze schaltet Gelb aus. Der farbige Kreis am Dial zeigt dieselbe Regel wie die Tabletampel. Bei einer unterbrochenen Tabletverbindung zeigt das Tablet nach mehr als drei Sekunden ohne Status Rot, unabhängig vom lokalen Gerätezustand.</p>
+<h2>Kleine Einlassgruppen</h2>
+<ol>
+<li>Unter <strong>Einlass &amp; Messungen</strong> eine Gruppengröße setzen, zum Beispiel fünf Kinder.</li>
+<li>Speichern. Der Einlass wird zunächst pausiert.</li>
+<li>Nach Prüfung der Ausgabe <strong>Einlass fortsetzen</strong> wählen oder den Dial kurz drücken.</li>
+<li>Jede erfolgreiche neue Kartenausgabe zählt ein Kind. Abgewiesene Scans und Rückgaben zählen nicht mit.</li>
+<li>Nach der eingestellten Anzahl bleibt die Ampel automatisch rot. Freie Sitzplätze allein öffnen den Einlass nicht wieder.</li>
+<li>Wenn die Ausgabe frei ist: <strong>Nächste Gruppe freigeben</strong> oder kurzer Druck auf den Dial.</li>
+</ol>
+<p>Mit 0 ist die Gruppenbegrenzung ausgeschaltet; dies bleibt zur Einführung der Standard. Bei einem Wechsel der Gruppengröße wird der Einlass bewusst pausiert. Nach einer manuellen Pause beginnt beim Fortsetzen ebenfalls eine neue Gruppe. Eine Rückgabe oder eine rückgängig gemachte Buchung öffnet keine bereits abgeschlossene Gruppe; die Zählung bleibt dabei konservativ. Ein Zeitvorschlag öffnet den Einlass niemals automatisch.</p>
+<h2>Einzelkind messen</h2>
+<ol>
+<li><strong>Uhrzeit vom Tablet übernehmen</strong> drücken. Datum/Wochentag und Uhrzeit des Tablets sollten stimmen. Nach einem Neustart oder neuen Essenstag erneut übernehmen.</li>
+<li>Situation <strong>Keine Schlange</strong>, <strong>Kurze Schlange</strong> oder <strong>Lange Schlange</strong> wählen. Diese Einschätzung kommt von euch; für „kurz“ und „lang“ gemeinsam klare Kriterien festlegen.</li>
+<li><strong>Einzelkind messen</strong> wählen. Die Messung wartet auf die nächste erfolgreiche Kartenausgabe. Rückgaben und abgelehnte Scans starten sie nicht.</li>
+<li>Das zugehörige Kind beobachten. Die Kartennummer wird während dieser Messung angezeigt.</li>
+<li>Sobald dieses Kind sein Essen erhalten hat und zum Platz gehen kann, auf <strong>Essen erhalten</strong> tippen.</li>
+</ol>
+<p>Erfasst wird die Zeit vom Ausgabescan der Platzkarte bis zur Bestätigung am Tablet. Die spätere Kartenrückgabe ist kein Messende. Wird die Messkarte vorher zurückgegeben, wird die unvollständige Messung verworfen. Eine zusätzliche beobachtende Person an der Ausgabe kann die Bestätigung am Tablet übernehmen. Es gibt keine zweite Leserstation für den Messabschluss.</p>
+<h2>Gruppe messen</h2>
+<ol>
+<li>Vor der nächsten Gruppe die Schlangensituation wählen und <strong>Gruppe messen</strong> drücken. Wenn gerade eine begrenzte Gruppe eingelassen wird, diese zunächst abschließen.</li>
+<li>Einlass freigeben. Die erste erfolgreiche Kartenausgabe startet die Zeit; weitere Ausgaben erhöhen die gemessene Gruppengröße.</li>
+<li>Nach Erreichen des Gruppenlimits stoppt der Einlass automatisch. Ohne Gruppenlimit den Einlass von Hand pausieren.</li>
+<li>Wenn das <strong>letzte Kind dieser Gruppe sein Essen hat</strong>, auf <strong>Alle haben Essen</strong> tippen.</li>
+<li>Erst danach die nächste Gruppe freigeben. Solange eine Gruppenmessung noch läuft, wird das Fortsetzen abgewiesen; alternativ die Messung bewusst verwerfen.</li>
+</ol>
+<p>Eine Gruppenzeit ist die Dauer bis zur Versorgung des letzten Kindes, kein Durchschnitt der einzelnen Kinder. Einzel- und Gruppenmessungen werden deshalb getrennt ausgewertet.</p>
+<h2>Auswertung und Zeithinweise</h2>
+<p>Die Tabelle zeigt Anzahl, Durchschnitt sowie kürzeste und längste gemessene Zeit nach Schlangensituation und Messart. Sie ist insgesamt oder für den aktuell eingestellten Wochentag sichtbar. Diese breite Übersicht fasst unterschiedliche Gruppengrößen und Zeitfenster zusammen und ist keine automatische Steuerungsregel.</p>
+<p>Ein Zeithinweis wird in zwei Stufen gebildet:</p>
+<ul>
+<li><strong>Grobe Orientierung:</strong> Ab drei Gruppenmessungen mit gleicher tatsächlicher Gruppengröße und gleicher Schlangensituation; Wochentag und Uhrzeit dürfen abweichen.</li>
+<li><strong>Passend zu Uhrzeit und Wochentag:</strong> Sobald zusätzlich mindestens drei Werte mit gleichem Wochentag und gleichem 15-Minuten-Zeitfenster des Einlasses vorliegen, werden ausschließlich diese verwendet.</li>
+</ul>
+<p>Anzahl, Durchschnitt und kürzeste/längste Zeit bleiben sichtbar. Ein oder zwei Werte erzeugen noch keinen zeitlichen Prüfhinweis. Die beim ersten Einlass gesetzte Schlangensituation bleibt für den Vergleich dieser Gruppe fest. Ist der Mittelwert seit dem ersten Eintritt erreicht, erscheint bei geschlossener Gruppe <strong>„Ausgabe wieder frei? Bitte vor Ort prüfen.“</strong> Andere Uhrzeiten werden nur in der ausdrücklich als grob gekennzeichneten Orientierung einbezogen.</p>
+<p>Dies ist eine erste statistische Unterstützung. Die Software erkennt weder eine Schlange noch eine freie Essensausgabe. Die Grenzwerte und Gruppengröße werden von euch festgelegt; es gibt keine selbstständige Änderung oder zeitgesteuerte Freigabe. Für einen genauen Vergleich fällt der Tag mit frühem Essen um 11:40 in ein anderes Zeitfenster als ein Beginn um 12:25.</p>
+<h2>Daten und Korrekturen</h2>
+<ul>
+<li>Es läuft jeweils eine aktive Messung. Die Schlangensituation und die Zeitbasis lassen sich währenddessen nicht ändern.</li>
+<li>Gültige Messdauern: eine Sekunde bis 60 Minuten. Eine vergessene Messung über 60 Minuten bitte verwerfen; sie wird nicht als Durchschnittswert übernommen.</li>
+<li>Die letzten <strong>120 abgeschlossenen Messungen</strong> bleiben gespeichert. Die nächste ersetzt jeweils den ältesten Wert. Vor längeren Versuchen regelmäßig <strong>Messungen als CSV sichern</strong> nutzen.</li>
+<li>Abgeschlossene Messungen enthalten Messart, Schlangensituation, Wochentag, Startminute, Gruppengröße und Dauer; keine Kindernamen und keine Kartenkennung.</li>
+<li>Eine falsche letzte Messung kann nach Rückfrage gelöscht werden. Eine aktive Messung kann jederzeit verworfen werden.</li>
+<li>Neustart, neuer Essenstag sowie Buchungskorrektur oder Rückgängig verwerfen eine aktive Messung. Abgeschlossene Messungen bleiben bei Neustart und Tageswechsel erhalten.</li>
+<li>Messungen werden erst nach erfolgreichem Speichern bestätigt. Ein Speicherfehler rollt auch gleichzeitig betroffene Gruppenzähler und Buchungen zurück.</li>
+<li>Eine neu übernommene Tablet-Uhrzeit verwirft den Zeithinweis für eine bereits laufende Gruppe; die nächste Gruppe erhält wieder eine neue Zeitbasis.</li>
+</ul>
+<h2>Kurzer Probelauf</h2>
+<p>In der Simulation zunächst zwei Kinder pro Gruppe einstellen und die Tablet-Uhrzeit übernehmen. Gruppe messen, Einlass öffnen, K01 und K02 ausgeben: Rot muss erscheinen. Zehn Sekunden vorspulen, <strong>Alle haben Essen</strong> bestätigen und den Tabellenwert prüfen. Anschließend bewusst die nächste Gruppe freigeben. Für Gelb testweise nur drei Küchenplätze freigeben und Gelbgrenze zwei wählen; die Mensa bleibt geschlossen.</p>
+<p>Vor dem Einsatz mit Kindern bleiben die Hardwareprüfungen notwendig: RFID und WLAN gleichzeitig, Tastendruck am Dial, Tabletanzeige, Speicherung bei Stromunterbrechung und ausreichend freier Gerätespeicher mit allen Karten und Messwerten.</p>
+<h2>Ausgabe entlasten direkt am Dial</h2>
+<p>Auf dem Dial-Bildschirm die orange Fläche <strong>Ausgabe entlasten</strong> antippen. Die Ampel wird rot; gültige Rückgaben bleiben möglich. Der Dial zeigt den eigenen Stoppgrund an. Ein kurzer Druck auf die physische Dial-Taste gibt den Einlass bewusst wieder frei, sofern keine laufende Gruppenmessung erst abgeschlossen oder verworfen werden muss. Freie Plätze und Betriebsbereitschaft bleiben Voraussetzung für Grün/Gelb. Die Taste behält auch die gewöhnliche Pausefunktion.</p>
+<p>Beginn und Ende stehen im begrenzten Ereignisprotokoll (letzte 80 Ereignisse), beim Ende mit Dauer in Sekunden. Nach Neustart bleibt die Entlastung aktiv; ihre Dauer wird als unbekannt angegeben. Diese Phasen sind keine Wartezeitmessungen und fließen nicht in die Empfehlungen ein. Ein neuer Essenstag beendet eine Entlastung ausdrücklich. Es gibt kein dauerhaftes separates Archiv der Entlastungsphasen.</p>
+<p>Der Dial zeigt während des offenen Einlasses die verbleibende Gruppenzahl, begrenzt durch tatsächlich freie Plätze. Die Bildschirmfläche ist neu und muss am echten Dial auf Erreichbarkeit geprüft werden.</p>
+<h2>Zwei Tablets und gut sichtbare Ampel</h2>
+<p>Tablet 1 vor der Tür öffnet die reine Ampelansicht, Tablet 2 in der Anfangsphase die kennwortgeschützte Betreuung für Messungen und Einstellungen. Beide verbinden sich mit demselben Dial-WLAN und sehen denselben zentralen Zustand. Die öffentliche Ampel benötigt keine Betreuungsanmeldung.</p>
+<p>Die große Ampel hat jetzt einen kräftigen, vollflächigen Hintergrund, dunkle kontrastreiche Schrift und ein großes Symbol. Rot bleibt ruhig und blinkt nicht. Am Tablet die Displayhelligkeit passend zum Standort einstellen; Farbe allein kann die Gerätehelligkeit nicht erhöhen. Sichtbarkeit aus eurer tatsächlichen Entfernung und bei Tageslicht vor Ort prüfen. Die Offline-HTML-Datei ist eine Vorführung pro Gerät und synchronisiert zwei Tablets nicht.</p>
+<h2>Erprobungsphase 0.5</h2>
+<p>Nur im aktualisierten Dial-Paket: Unter <strong>Einlass &amp; Messungen → Erprobung der Freigabe</strong> die Vorschläge bewerten. Das Tablet vor der Tür bleibt eine reine Ampel. Die zweite Person verwendet das Betreuungstablet.</p>
+<p>Vor einer Gruppe Uhrzeit übernehmen und bei Bedarf den Puffer einstellen (0–300 Sekunden, Startwert 30). Mindestens drei passende Gruppenmessungen sind nötig. Der Prüfvorschlag wird beim letzten Einlassscan der Gruppe festgelegt: längste passende gemessene Gruppenzeit plus Puffer, frühestens denselben Puffer nach dem letzten Einlassscan. Genau passende Tages-/Zeitfensterdaten werden bevorzugt, sonst wird der Vergleich als grob gekennzeichnet. Dies ist eine vorsichtige Heuristik, keine nachgewiesene sichere Freigabezeit.</p>
+<p>Wenn der Zeitpunkt erreicht ist, einmal <strong>Passt</strong> oder <strong>Noch zu voll</strong> drücken. Die Ampel bleibt in beiden Fällen rot. Zum Einlassen weiterhin bewusst die nächste Gruppe freigeben. Bei manueller Pause, Entlastung oder unbestätigtem Bestand ist die Bewertung gesperrt. Ein Neustart verwirft den laufenden Vorschlag, behält aber abgeschlossene Bewertungen.</p>
+<p>Die letzten 120 anonymen Bewertungen werden separat gespeichert und lassen sich als CSV exportieren. Erfasst werden Gruppengröße, Schlange, Wochentag, Startminute, vorgeschlagene Dauer, tatsächlicher Bewertungszeitpunkt, Antwort, Zahl der Vergleiche und Genauigkeitsstufe (1 grob, 2 passend). Eine späte Antwort bewertet die Situation zum tatsächlichen Drücken; sie beweist nicht, dass der frühere Vorschlagszeitpunkt gepasst hätte. Es gibt noch keine automatische Anpassung und kein automatisches Öffnen. Die Zahl positiver Rückmeldungen allein ist kein Nachweis für eine verlässliche Automatik.</p></main></html>
