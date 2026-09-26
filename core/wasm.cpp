@@ -1,0 +1,21 @@
+#include "engine.hpp"
+#include "reader_latch.hpp"
+static mensa::Engine engine;
+static mensa::ReaderLatch latch;
+static std::string output;
+extern "C" const char* mensa_call(const char* input){
+    try{
+        auto q=mensa::Json::parse(input);std::string op=q.at("op");mensa::Json result;
+        if(op=="reset"){engine.reset();latch.reset();result={{"ok",true}};}
+        else if(op=="hardware"){engine.prepareHardware();result={{"ok",true}};}
+        else if(op=="rebootClock"){engine.rebootClock(q.at("now"));result={{"ok",true}};}
+        else if(op=="sample"){auto e=latch.sample(static_cast<mensa::Sample>(q.at("sample").get<int>()),q.value("uid",std::string()),q.at("now"));result={{"kind",e.kind},{"uid",e.uid}};}
+        else if(op=="restore"){engine.restore(q.at("state"),q.value("preserveUndo",false));result={{"ok",true}};}
+        else if(op=="snapshot")result=engine.snapshot();
+        else if(op=="status")result=engine.status(q.at("now").get<long long>());
+        else if(op=="command")result=engine.command(q.at("command"),q.at("now").get<long long>());
+        else throw std::runtime_error("Unbekannte Schnittstellenoperation.");
+        output=result.dump();
+    }catch(const std::exception& e){output=mensa::Json({{"ok",false},{"message",e.what()}}).dump();}
+    return output.c_str();
+}

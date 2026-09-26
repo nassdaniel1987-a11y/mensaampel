@@ -1,0 +1,9 @@
+export type RoomId='K'|'M';
+export type Card={uid:string;label:string;room:RoomId;out:boolean;lost:boolean;last:number;remainingMs:number};
+export type Room={capacity:number;limit:number;open:boolean;occupied:number;free:number};
+export type Device={version:string;configured:boolean;reader:'internal'|'external';readerHealthy:boolean;readerError:string;ssid:string;captureTarget:string;capturedUid:string;captureUntil:number;feedback:string;feedbackOk:boolean;needsReview:boolean;freeHeap:number;minimumHeap:number;clients:number;uptime:number};
+export type Info={mode:'pc'|'device';configured?:boolean;nonce?:string;version?:string};
+export type State={ready:boolean;paused:boolean;cooldown:number;held:string;undo:unknown;day:number;rooms:Record<RoomId,Room>;cards:Card[];events:{at:number;message:string}[];signal:{green:boolean;reason:string;free:number};now:number;storageError:string;recoveryRequired:boolean;sim:{offset:number;offline:boolean;forceWriteFailure:boolean};token:string;device?:Device};
+export type Command={type:string;[key:string]:unknown};
+export type Send=(command:Command)=>Promise<boolean>;
+export type FlowState={trialBuffer:number;trialDelay:number;trialDue:boolean;trialRemaining:number;trialReviewed:boolean;trialCount:number;trialLevel:number;reviews:[number,number,number,number,number,number,number,number,number][];relief:boolean;reliefAt:number;yellow:number;batch:number;issued:number;waiting:boolean;queue:number;weekday:number;clockValid:boolean;currentMinute:number;armed:boolean;kind:number;started:number;elapsedSeconds:number;measuringUid:string;measureSize:number;samples:[number,number,number,number,number,number][];estimate:{level:'insufficient'|'general'|'matched';count:number;seconds:number;min:number;max:number;checkDue:boolean}};
