@@ -43,3 +43,18 @@ test('Offline-Vorführung: gehaltene Karte, Fehlerrollback und Unterbrechung', a
   assert.equal(d.state().rooms.K.occupied, 2);
   assert.equal(d.state().ready, false);
 });
+test('Offline-Vorführung: Gerätetest bucht nicht und zeigt die Karte', async () => {
+  const d = createDemoController(await createEngine(), () => 100000);
+  d.send({ type: 'confirm' });
+  assert.equal(d.send({ type: 'deviceTest', on: true }).ok, true);
+  d.send({ type: 'tap', uid: 'sim:K01' });
+  d.send({ type: 'dialTurn', steps: 2 });
+  const s = d.state();
+  assert.equal(s.testMode, true);
+  assert.equal(s.rooms.K.occupied, 0);
+  assert.ok(s.dial.some(i => i[5] === 'Karte: sim:K01'));
+  assert.ok(s.dial.some(i => i[5] === 'Ring: 2  Taste: -'));
+  d.send({ type: 'deviceTest', on: false });
+  d.send({ type: 'tap', uid: 'sim:K01' });
+  assert.equal(d.state().rooms.K.occupied, 1);
+});
