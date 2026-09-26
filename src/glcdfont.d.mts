@@ -1,1 +1,1 @@
-export const glcdAscii:string;
+export const glcdAscii: string;

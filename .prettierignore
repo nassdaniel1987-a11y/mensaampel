@@ -1,0 +1,13 @@
+dist/
+build/
+vendor/
+node_modules/
+Mensaampel_Dial_Vorbereitung/
+firmware/
+core/
+docs/
+*.html
+*.md
+src/glcdfont.mjs
+src/dial-screens.json
+package-lock.json

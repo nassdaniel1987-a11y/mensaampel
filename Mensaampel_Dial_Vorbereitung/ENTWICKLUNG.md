@@ -114,3 +114,11 @@ Festgelegter Prüfvorschlag nach längster passender Gruppenzeit plus Puffer, mi
 
 **CI:** `.github/workflows/ci.yml` (TypeScript, Tests, Vite, Kern-Neubau mit Emscripten 4.0.15 und erneute Tests, PlatformIO für beide Umgebungen). `release.yml` packt `Mensaampel_Dial_Vorbereitung/` selbst zur ZIP und veröffentlicht sie mit Demo und PDFs; die ZIP liegt nicht mehr im Repo. Build: 42,9 % Flash. 54 automatisierte Tests.
 
+## Erweiterung 0.9.0-preview: Inbetriebnahme und Alltag
+
+**Leser:** `reader` kennt zusätzlich `auto` (neuer Standard). `CardReader` prüft Port A beim Start und alle 5 s (bei Störung jede Sekunde), solange keine Karte aufliegt, und wechselt über `redetect()`; `main.cpp` löst dann `remove` aus und meldet `reader.change`. `device.readerActive` zeigt den aktiven Leser.
+
+**Kern:** flüchtige Zustände `seriesRoom/seriesLabel` (Befehle `seriesStart`, `seriesStop`; Scans verknüpfen statt buchen), Betreuermenü `menuSel/menuUntil` (Scan einer Karte aus `staff` öffnet/schließt, `dialTurn`/`dialPress`/`dialHold` bedienen es), `staffLearning` (`staffLearn`, `staffClear`). `staff` wird gespeichert. `wantsHold(now)` sagt der Firmware, wann 3 s Halten an den Kern geht. Tagesbericht mit 13. Wert (Zehntelsekunden pro Kind am Tagesende); 12er-Zeilen laden weiter. `DialExtras.screen="test"` mit `lines`.
+
+**Gerätetest:** Firmware- bzw. Serverbefehl `deviceTest {on}`; Scans, Drehring, Taste und Touch werden nur angezeigt. **Etiketten:** `scripts/build-labels.mjs`. **Diagramme:** `src/Charts.tsx` (SVG, Farbwerte geprüft mit dem Palette-Validator, Tabelle als barrierefreie Ansicht).
+

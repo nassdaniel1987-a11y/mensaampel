@@ -1,22 +1,193 @@
-import {useState} from 'react';import {Radio,ScanLine,FastForward,RotateCcw,WifiOff,Database,ArrowUpFromLine} from 'lucide-react';
-import {Signal} from './Signal';import {DialDevice} from './DialDevice';import {DeviceTest} from './DeviceTest';import type {State,Send} from './types';
-export function Simulation({state:s,send,busy,connected}:{state:State;send:Send;busy:boolean;connected:boolean}){
- const [uid,setUid]=useState('sim:K01'),[unknown,setUnknown]=useState('unbekannt:001');
- const current=s.cards.find(c=>c.uid===uid),disabled=busy||!connected;
- const selected=uid==='unknown'?unknown:uid;
- async function tap(){await send({type:'tap',uid:selected});}
- return <><div className="intro"><div><h1>Den Ablauf ausprobieren</h1><p>Das simulierte Dial zeigt genau den Bildschirm des Geräts. Dieselben Buchungsregeln wie später im Gerät.</p></div></div>
- <div className="simulation-layout"><div><section className="reader-panel"><div className="section-heading"><h2><Radio size={22}/> M5Stack Dial</h2><span className="simulation-label">Simulation</span></div>
- <label>Karte auswählen<select value={uid} onChange={e=>setUid(e.target.value)}>{s.cards.map(c=><option key={c.uid} value={c.uid}>{c.label} · {c.room==='K'?'Küche':'Mensa'} · {c.out?'ausgegeben':'nicht ausgegeben'}{c.lost?' · verloren':''}</option>)}<option value="unknown">Unbekannte Karte testen</option></select></label>
- {uid==='unknown'&&<label>Unbekannte Kennung<input value={unknown} onChange={e=>setUnknown(e.target.value)} maxLength={80}/></label>}
- <div className="reader-visual dial-visual"><div className={`virtual-card ${current?.room==='M'?'mensa-card':''}`} draggable={!disabled&&!s.held} onDragStart={e=>e.dataTransfer.setData('text/plain',selected)} title="Auf das Dial ziehen"><span>{current?.room==='M'?'MENSA':'KÜCHE'}</span><strong>{current?.label||'?'}</strong><small>{current?.out?'Ausgegeben':'Nicht ausgegeben'}</small></div>
- <DialDevice state={s} disabled={disabled} onTouch={()=>void send({type:'relief'})} onPress={()=>void send({type:'dialPress'})} onHold={()=>void send({type:'dialHold'})} onTurn={steps=>void send({type:'dialTurn',steps})} onCard={card=>void send({type:'tap',uid:card})}/></div>
- <p className="reader-state">{s.held?'Karte liegt auf. Erst entfernen, bevor erneut gebucht werden kann.':current&&current.remainingMs>0?`Sperrzeit dieser Karte: noch ${Math.ceil(current.remainingMs/1000)} Sekunden.`:'Bereit zum Vorhalten einer Karte.'}</p>
- <div className="scan-actions"><button disabled={disabled||!!s.held} onClick={tap}><ScanLine size={19}/> Kurz scannen</button><button className="outline" disabled={disabled||!!s.held} onClick={()=>send({type:'scan',uid:selected})}>Auflegen und liegen lassen</button><button className="outline" disabled={disabled||!s.held} onClick={()=>send({type:'remove'})}><ArrowUpFromLine size={18}/> Entfernen</button></div>
- <p className="hint">„Kurz scannen“ hält die Karte kurz vor und entfernt sie wieder. Erneutes Scannen nach der Sperrzeit bucht die Gegenrichtung.</p>
- </section><section className="test-tools"><h2>Zeit und Fehlerfälle</h2><p>Teste bewusst, wie sich die Anwendung in besonderen Situationen verhält.</p><div className="tool-row"><div><h3>Zeit vorspulen</h3><small>Simulationszeit: {new Date(s.now).toLocaleTimeString('de-DE')}</small></div><button className="outline" disabled={disabled} onClick={()=>send({type:'advance',seconds:10})}><FastForward size={18}/> +10 Sekunden</button><button className="quiet" disabled={disabled} onClick={()=>send({type:'advance',seconds:60})}>+1 Minute</button></div>
- <div className="tool-row"><div><h3>Verbindung unterbrechen</h3><small>Für 8 Sekunden. Die Ampel muss nach 3 Sekunden rot werden.</small></div><button className="outline" disabled={disabled} onClick={()=>send({type:'disconnect'})}><WifiOff size={18}/> Unterbrechen</button></div>
- <div className="tool-row"><div><h3>Gerät neu starten</h3><small>Bestand bleibt erhalten. Danach ist eine Bestätigung nötig.</small></div><button className="outline" disabled={disabled} onClick={()=>send({type:'restart'})}><RotateCcw size={18}/> Neustart testen</button></div>
- <div className="tool-row"><div><h3>Speicherfehler</h3><small>Eine nicht gespeicherte Buchung darf nicht übernommen werden.</small></div><button className={s.sim.forceWriteFailure?'':'outline'} disabled={disabled} onClick={()=>send({type:'storageFailure',enabled:!s.sim.forceWriteFailure})}><Database size={18}/>{s.sim.forceWriteFailure?'Fehler beenden':'Fehler einschalten'}</button></div>
- </section><DeviceTest state={s} send={send} disabled={disabled}/></div><aside><div className="signal-panel"><Signal state={s} connected={connected}/></div><section className="explanation"><h2>So kannst du starten</h2><ol><li>In „Betreuung“ den Bestand bestätigen.</li><li>K01 kurz scannen: 47 Küchenplätze bleiben frei.</li><li>Noch einmal scannen: Die Sperrzeit verhindert eine zweite Buchung.</li><li>10 Sekunden vorspulen und erneut scannen: 48 Plätze sind frei.</li><li>M01 testen: Die Mensa muss zuerst freigegeben werden.</li></ol><h2>Automatik testen</h2><ol><li>Unter „Einlass & Messungen“ Gruppengröße 3 und Automatik einschalten.</li><li>Drei Karten ans Dial halten: Dial und Ampel werden rot, das Dial zählt die Zeit bis zur nächsten Gruppe herunter.</li><li>Vorspulen: Die nächste Gruppe wird von selbst freigegeben.</li><li>Orange Fläche = „zu voll“, Taste im Countdown = „schon frei“. Beides lernt das System.</li></ol><p className="hint">Rückgaben stehen für wieder nutzbare Plätze. Die Sauberkeit eines Tisches kann die Software nicht erkennen.</p></section></aside></div></>;
+import { useState } from 'react';
+import { Radio, ScanLine, FastForward, RotateCcw, WifiOff, Database, ArrowUpFromLine } from 'lucide-react';
+import { Signal } from './Signal';
+import { DialDevice } from './DialDevice';
+import { DeviceTest } from './DeviceTest';
+import type { State, Send } from './types';
+export function Simulation({
+  state: s,
+  send,
+  busy,
+  connected,
+}: {
+  state: State;
+  send: Send;
+  busy: boolean;
+  connected: boolean;
+}) {
+  const [uid, setUid] = useState('sim:K01'),
+    [unknown, setUnknown] = useState('unbekannt:001');
+  const current = s.cards.find(c => c.uid === uid),
+    disabled = busy || !connected;
+  const selected = uid === 'unknown' ? unknown : uid;
+  async function tap() {
+    await send({ type: 'tap', uid: selected });
+  }
+  return (
+    <>
+      <div className="intro">
+        <div>
+          <h1>Den Ablauf ausprobieren</h1>
+          <p>
+            Das simulierte Dial zeigt genau den Bildschirm des Geräts. Dieselben Buchungsregeln wie später im Gerät.
+          </p>
+        </div>
+      </div>
+      <div className="simulation-layout">
+        <div>
+          <section className="reader-panel">
+            <div className="section-heading">
+              <h2>
+                <Radio size={22} /> M5Stack Dial
+              </h2>
+              <span className="simulation-label">Simulation</span>
+            </div>
+            <label>
+              Karte auswählen
+              <select value={uid} onChange={e => setUid(e.target.value)}>
+                {s.cards.map(c => (
+                  <option key={c.uid} value={c.uid}>
+                    {c.label} · {c.room === 'K' ? 'Küche' : 'Mensa'} · {c.out ? 'ausgegeben' : 'nicht ausgegeben'}
+                    {c.lost ? ' · verloren' : ''}
+                  </option>
+                ))}
+                <option value="unknown">Unbekannte Karte testen</option>
+              </select>
+            </label>
+            {uid === 'unknown' && (
+              <label>
+                Unbekannte Kennung
+                <input value={unknown} onChange={e => setUnknown(e.target.value)} maxLength={80} />
+              </label>
+            )}
+            <div className="reader-visual dial-visual">
+              <div
+                className={`virtual-card ${current?.room === 'M' ? 'mensa-card' : ''}`}
+                draggable={!disabled && !s.held}
+                onDragStart={e => e.dataTransfer.setData('text/plain', selected)}
+                title="Auf das Dial ziehen"
+              >
+                <span>{current?.room === 'M' ? 'MENSA' : 'KÜCHE'}</span>
+                <strong>{current?.label || '?'}</strong>
+                <small>{current?.out ? 'Ausgegeben' : 'Nicht ausgegeben'}</small>
+              </div>
+              <DialDevice
+                state={s}
+                disabled={disabled}
+                onTouch={() => void send({ type: 'relief' })}
+                onPress={() => void send({ type: 'dialPress' })}
+                onHold={() => void send({ type: 'dialHold' })}
+                onTurn={steps => void send({ type: 'dialTurn', steps })}
+                onCard={card => void send({ type: 'tap', uid: card })}
+              />
+            </div>
+            <p className="reader-state">
+              {s.held
+                ? 'Karte liegt auf. Erst entfernen, bevor erneut gebucht werden kann.'
+                : current && current.remainingMs > 0
+                  ? `Sperrzeit dieser Karte: noch ${Math.ceil(current.remainingMs / 1000)} Sekunden.`
+                  : 'Bereit zum Vorhalten einer Karte.'}
+            </p>
+            <div className="scan-actions">
+              <button disabled={disabled || !!s.held} onClick={tap}>
+                <ScanLine size={19} /> Kurz scannen
+              </button>
+              <button
+                className="outline"
+                disabled={disabled || !!s.held}
+                onClick={() => send({ type: 'scan', uid: selected })}
+              >
+                Auflegen und liegen lassen
+              </button>
+              <button className="outline" disabled={disabled || !s.held} onClick={() => send({ type: 'remove' })}>
+                <ArrowUpFromLine size={18} /> Entfernen
+              </button>
+            </div>
+            <p className="hint">
+              „Kurz scannen“ hält die Karte kurz vor und entfernt sie wieder. Erneutes Scannen nach der Sperrzeit bucht
+              die Gegenrichtung.
+            </p>
+          </section>
+          <section className="test-tools">
+            <h2>Zeit und Fehlerfälle</h2>
+            <p>Teste bewusst, wie sich die Anwendung in besonderen Situationen verhält.</p>
+            <div className="tool-row">
+              <div>
+                <h3>Zeit vorspulen</h3>
+                <small>Simulationszeit: {new Date(s.now).toLocaleTimeString('de-DE')}</small>
+              </div>
+              <button className="outline" disabled={disabled} onClick={() => send({ type: 'advance', seconds: 10 })}>
+                <FastForward size={18} /> +10 Sekunden
+              </button>
+              <button className="quiet" disabled={disabled} onClick={() => send({ type: 'advance', seconds: 60 })}>
+                +1 Minute
+              </button>
+            </div>
+            <div className="tool-row">
+              <div>
+                <h3>Verbindung unterbrechen</h3>
+                <small>Für 8 Sekunden. Die Ampel muss nach 3 Sekunden rot werden.</small>
+              </div>
+              <button className="outline" disabled={disabled} onClick={() => send({ type: 'disconnect' })}>
+                <WifiOff size={18} /> Unterbrechen
+              </button>
+            </div>
+            <div className="tool-row">
+              <div>
+                <h3>Gerät neu starten</h3>
+                <small>Bestand bleibt erhalten. Danach ist eine Bestätigung nötig.</small>
+              </div>
+              <button className="outline" disabled={disabled} onClick={() => send({ type: 'restart' })}>
+                <RotateCcw size={18} /> Neustart testen
+              </button>
+            </div>
+            <div className="tool-row">
+              <div>
+                <h3>Speicherfehler</h3>
+                <small>Eine nicht gespeicherte Buchung darf nicht übernommen werden.</small>
+              </div>
+              <button
+                className={s.sim.forceWriteFailure ? '' : 'outline'}
+                disabled={disabled}
+                onClick={() => send({ type: 'storageFailure', enabled: !s.sim.forceWriteFailure })}
+              >
+                <Database size={18} />
+                {s.sim.forceWriteFailure ? 'Fehler beenden' : 'Fehler einschalten'}
+              </button>
+            </div>
+          </section>
+          <DeviceTest state={s} send={send} disabled={disabled} />
+        </div>
+        <aside>
+          <div className="signal-panel">
+            <Signal state={s} connected={connected} />
+          </div>
+          <section className="explanation">
+            <h2>So kannst du starten</h2>
+            <ol>
+              <li>In „Betreuung“ den Bestand bestätigen.</li>
+              <li>K01 kurz scannen: 47 Küchenplätze bleiben frei.</li>
+              <li>Noch einmal scannen: Die Sperrzeit verhindert eine zweite Buchung.</li>
+              <li>10 Sekunden vorspulen und erneut scannen: 48 Plätze sind frei.</li>
+              <li>M01 testen: Die Mensa muss zuerst freigegeben werden.</li>
+            </ol>
+            <h2>Automatik testen</h2>
+            <ol>
+              <li>Unter „Einlass & Messungen“ Gruppengröße 3 und Automatik einschalten.</li>
+              <li>
+                Drei Karten ans Dial halten: Dial und Ampel werden rot, das Dial zählt die Zeit bis zur nächsten Gruppe
+                herunter.
+              </li>
+              <li>Vorspulen: Die nächste Gruppe wird von selbst freigegeben.</li>
+              <li>Orange Fläche = „zu voll“, Taste im Countdown = „schon frei“. Beides lernt das System.</li>
+            </ol>
+            <p className="hint">
+              Rückgaben stehen für wieder nutzbare Plätze. Die Sauberkeit eines Tisches kann die Software nicht
+              erkennen.
+            </p>
+          </section>
+        </aside>
+      </div>
+    </>
+  );
 }

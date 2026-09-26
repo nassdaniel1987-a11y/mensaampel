@@ -1,17 +1,325 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';import {createEngine} from '../server/engine.mjs';import {createApp} from '../server/main.mjs';
-async function setup(){const e=await createEngine();let now=100000;const cmd=c=>e.command(c,now),tap=uid=>{const r=cmd({type:'scan',uid});cmd({type:'remove'});return r;};cmd({type:'confirm'});cmd({type:'measurementContext',weekday:1,minute:745,queue:0});return {e,cmd,tap,wait:ms=>now+=ms,state:()=>e.status(now)};}
-test('Gelbgrenze, Gruppenrot, Rückgabe und konservatives Undo',async()=>{const x=await setup();x.cmd({type:'room',room:'K',capacity:48,limit:3,open:true});x.cmd({type:'flowSettings',yellow:2,batch:2});assert.equal(x.state().paused,true);x.cmd({type:'pause',paused:false});assert.equal(x.state().signal.reason,'free');x.tap('sim:K01');assert.equal(x.state().signal.reason,'low');x.tap('sim:K02');assert.equal(x.state().signal.reason,'batch');assert.equal(x.tap('sim:K03').ok,false);x.wait(10000);x.tap('sim:K01');assert.equal(x.state().flow.issued,2);assert.equal(x.state().signal.reason,'batch');x.cmd({type:'undo'});assert.equal(x.state().signal.reason,'batch');x.cmd({type:'pause',paused:false});assert.equal(x.state().flow.issued,0);assert.equal(x.state().signal.reason,'low');});
-test('Messung startet nur bei Ausgabe; Rückgabe ist kein Essen-Ende',async()=>{const x=await setup();x.cmd({type:'measurementArm',kind:0});x.tap('unknown');x.tap('sim:M01');assert.equal(x.state().flow.armed,true);x.tap('sim:K01');assert.equal(x.state().flow.measuringUid,'sim:K01');x.wait(43000);assert.equal(x.cmd({type:'measurementFinish'}).ok,true);assert.deepEqual(x.state().flow.samples[0],[0,0,1,745,1,43]);assert.equal(x.state().flow.measuringUid,'');x.cmd({type:'measurementArm',kind:0});x.tap('sim:K01');assert.equal(x.state().flow.armed,true);x.wait(10000);x.tap('sim:K01');x.wait(10000);x.tap('sim:K01');assert.equal(x.state().flow.started,-1);assert.equal(x.state().flow.samples.length,1);});
-test('Gruppenmessung verhindert verfrühte Freigabe; Zeithinweis öffnet niemals',async()=>{const x=await setup();x.cmd({type:'flowSettings',yellow:5,batch:2});for(let i=0;i<3;i++){x.cmd({type:'measurementArm',kind:1});x.cmd({type:'pause',paused:false});x.tap(`sim:K0${i*2+1}`);assert.equal(x.cmd({type:'measurementFinish'}).ok,false);x.tap(`sim:K0${i*2+2}`);assert.equal(x.cmd({type:'pause',paused:false}).ok,false);x.wait(30000);assert.equal(x.cmd({type:'measurementFinish'}).ok,true);assert.equal(x.state().paused,true);}x.cmd({type:'pause',paused:false});x.tap('sim:K07');x.tap('sim:K08');assert.equal(x.state().flow.estimate.count,3);x.wait(30000);assert.equal(x.state().flow.estimate.checkDue,true);assert.equal(x.state().signal.reason,'batch');x.cmd({type:'pause',paused:true});x.wait(900000);assert.equal(x.state().signal.reason,'paused');});
-test('Messkontext gesperrt während Messung; Neustart und Tag verwerfen nur aktive Messung',async()=>{const x=await setup();x.cmd({type:'measurementArm',kind:0});assert.equal(x.cmd({type:'queueState',queue:2}).ok,false);x.tap('sim:K01');x.wait(3000);x.cmd({type:'measurementFinish'});x.cmd({type:'measurementArm',kind:0});x.tap('sim:K02');x.cmd({type:'restart'});assert.equal(x.state().flow.samples.length,1);assert.equal(x.state().flow.started,-1);assert.equal(x.state().flow.clockValid,false);assert.equal(x.cmd({type:'measurementArm',kind:0}).ok,false);x.cmd({type:'newDay',confirmed:true});assert.equal(x.state().flow.samples.length,1);assert.equal(x.state().flow.clockValid,false);});
-test('Speicherformat kompatibel; beschädigte Messwerte atomar abgewiesen',async()=>{const x=await setup();const original=x.e.snapshot();const legacy=structuredClone(original);delete legacy.flow;assert.equal(x.e.restore(legacy).ok,true);const corrupt=structuredClone(original);corrupt.flow.samples=[[0,0,1,745,1,-30]];const before=x.e.snapshot();assert.equal(x.e.restore(corrupt).ok,false);assert.deepEqual(x.e.snapshot(),before);assert.equal(x.e.restore(original).ok,true);});
-test('Speicherfehler rollt Gruppengrenze und Messbeginn gemeinsam zurück',async()=>{const dir=mkdtempSync(join(tmpdir(),'mensa-flow-'));try{const app=await createApp({dataDir:dir});app.transact({type:'confirm'});app.transact({type:'measurementContext',weekday:1,minute:745,queue:0});app.transact({type:'flowSettings',yellow:5,batch:1});app.transact({type:'pause',paused:false});app.transact({type:'measurementArm',kind:0});app.transact({type:'storageFailure',enabled:true});assert.equal(app.transact({type:'tap',uid:'sim:K01'}).ok,false);assert.equal(app.state().flow.armed,true);assert.equal(app.state().flow.issued,0);assert.equal(app.state().rooms.K.occupied,0);app.transact({type:'storageFailure',enabled:false});app.transact({type:'tap',uid:'sim:K01'});assert.equal(app.state().flow.waiting,true);const reopened=await createApp({dataDir:dir});assert.equal(reopened.state().flow.waiting,true);assert.equal(reopened.state().flow.started,-1);assert.equal(reopened.state().flow.clockValid,false);}finally{rmSync(dir,{recursive:true,force:true});}});
-test('120 anonyme Messungen begrenzen Speicher; ungültige Dauer bleibt verwerfbar',async()=>{const x=await setup();for(let i=0;i<121;i++){x.cmd({type:'measurementArm',kind:0});x.wait(10000);x.tap('sim:K01');x.wait(1000);assert.equal(x.cmd({type:'measurementFinish'}).ok,true);x.wait(10000);x.tap('sim:K01');}assert.equal(x.state().flow.samples.length,120);assert.ok(!JSON.stringify(x.state().flow.samples).includes('sim:'));x.cmd({type:'measurementArm',kind:0});x.wait(10000);x.tap('sim:K01');x.wait(3601000);assert.equal(x.cmd({type:'measurementFinish'}).ok,false);assert.equal(x.cmd({type:'measurementCancel'}).ok,true);});
-test('Entlastung bleibt rot, erlaubt Rückgaben und protokolliert Dauer',async()=>{const x=await setup();x.tap('sim:K01');assert.equal(x.cmd({type:'relief'}).ok,true);assert.equal(x.state().signal.reason,'relief');assert.equal(x.cmd({type:'relief'}).ok,false);x.wait(10000);assert.equal(x.tap('sim:K01').ok,true);assert.equal(x.tap('sim:K02').ok,false);assert.equal(x.cmd({type:'pause',paused:false}).ok,true);assert.ok(x.state().events.some(e=>e.message.includes('10 Sekunden')));x.cmd({type:'relief'});x.cmd({type:'restart'});x.cmd({type:'confirm'});assert.equal(x.state().signal.reason,'relief');x.cmd({type:'pause',paused:false});assert.ok(x.state().events.some(e=>e.message.includes('Dauer nach Neustart unbekannt')));});
-test('Breite Hinweise früher, genaue Vergleiche bevorzugt, Kontext bleibt fest',async()=>{const x=await setup();x.cmd({type:'flowSettings',yellow:5,batch:2});const snap=x.e.snapshot();snap.flow.samples=[[1,0,2,600,2,20],[1,0,3,800,2,40],[1,0,4,900,2,60],[1,2,1,745,2,900],[1,0,1,745,3,900]];x.e.restore(snap);x.cmd({type:'pause',paused:false});x.tap('sim:K01');x.tap('sim:K02');assert.equal(x.state().flow.estimate.level,'general');assert.equal(x.state().flow.estimate.count,3);assert.equal(x.state().flow.estimate.seconds,40);x.cmd({type:'queueState',queue:2});assert.equal(x.state().flow.estimate.count,3);x.wait(40000);assert.equal(x.state().flow.estimate.checkDue,true);assert.equal(x.state().signal.reason,'batch');const precise=x.e.snapshot();precise.flow.samples.push([1,0,1,745,2,10],[1,0,1,746,2,20],[1,0,1,747,2,30]);x.e.restore(precise);assert.equal(x.state().flow.estimate.level,'matched');assert.equal(x.state().flow.estimate.seconds,20);assert.equal(x.state().flow.estimate.count,3);});
-test('Zwei Werte geben keine Empfehlung; alte Flow-Daten bleiben lesbar',async()=>{const x=await setup();x.cmd({type:'flowSettings',yellow:5,batch:1});const snap=x.e.snapshot();delete snap.flow.relief;delete snap.flow.reliefAt;delete snap.flow.groupQueue;snap.flow.samples=[[1,0,2,600,1,20],[1,0,3,800,1,40]];assert.equal(x.e.restore(snap).ok,true);x.cmd({type:'pause',paused:false});x.tap('sim:K01');x.wait(60000);assert.equal(x.state().flow.estimate.level,'insufficient');assert.equal(x.state().flow.estimate.checkDue,false);assert.equal(x.state().flow.relief,false);});
-test('Entlastung wird bei Speicherfehler nicht bestätigt',async()=>{const dir=mkdtempSync(join(tmpdir(),'mensa-relief-'));try{const app=await createApp({dataDir:dir});app.transact({type:'confirm'});app.transact({type:'storageFailure',enabled:true});assert.equal(app.transact({type:'relief'}).ok,false);assert.equal(app.state().flow.relief,false);app.transact({type:'storageFailure',enabled:false});assert.equal(app.transact({type:'relief'}).ok,true);const reopened=await createApp({dataDir:dir});assert.equal(reopened.state().flow.relief,true);}finally{rmSync(dir,{recursive:true,force:true});}});
-async function trial(){const x=await setup();x.cmd({type:'flowSettings',yellow:5,batch:2});const snap=x.e.snapshot();snap.flow.samples=[[1,0,2,600,2,20],[1,0,3,800,2,40],[1,0,4,900,2,60]];assert.equal(x.e.restore(snap).ok,true);x.cmd({type:'pause',paused:false});return x;}
-test('Erprobung berücksichtigt langsamsten Vergleich und letzten Einlass, öffnet nie',async()=>{const x=await trial();x.tap('sim:K01');x.wait(100000);x.tap('sim:K02');assert.equal(x.state().flow.trialDelay,130);assert.equal(x.state().flow.trialRemaining,30);assert.equal(x.cmd({type:'trialFeedback',fits:true}).ok,false);x.wait(29999);assert.equal(x.state().flow.trialDue,false);x.wait(1);assert.equal(x.cmd({type:'trialFeedback',fits:false}).ok,true);assert.equal(x.state().signal.reason,'batch');assert.equal(x.state().flow.reviews[0][6],0);assert.equal(x.cmd({type:'trialFeedback',fits:true}).ok,false);x.cmd({type:'pause',paused:false});assert.equal(x.state().flow.trialDelay,0);assert.equal(x.state().flow.reviews.length,1);});
-test('Manuelle Pause und Entlastung sperren Bewertung; Neustart behält Historie',async()=>{const x=await trial();x.tap('sim:K01');x.tap('sim:K02');x.wait(90000);x.cmd({type:'pause',paused:true});assert.equal(x.cmd({type:'trialFeedback',fits:true}).ok,false);x.cmd({type:'pause',paused:false});x.tap('sim:K03');x.tap('sim:K04');x.wait(90000);x.cmd({type:'relief'});assert.equal(x.cmd({type:'trialFeedback',fits:true}).ok,false);x.cmd({type:'pause',paused:false});x.tap('sim:K05');x.tap('sim:K06');x.wait(90000);assert.equal(x.cmd({type:'trialFeedback',fits:true}).ok,true);x.cmd({type:'restart'});assert.equal(x.state().flow.trialDelay,0);assert.equal(x.state().flow.reviews.length,1);});
-test('Puffer validiert; ältere Bestände lesbar; beschädigte Rückmeldung abgelehnt',async()=>{const x=await trial();assert.equal(x.cmd({type:'trialSettings',buffer:301}).ok,false);assert.equal(x.cmd({type:'trialSettings',buffer:15}).ok,true);x.tap('sim:K01');assert.equal(x.cmd({type:'trialSettings',buffer:20}).ok,false);const bad=x.e.snapshot();bad.flow.reviews=[[2,0,1,745,75,80,1,999,1]];assert.equal(x.e.restore(bad).ok,false);const old=x.e.snapshot();for(const k of ['trialBuffer','trialDelay','trialCount','trialLevel','trialReviewed','lastAdmission','reviews'])delete old.flow[k];assert.equal(x.e.restore(old).ok,true);assert.equal(x.state().flow.trialBuffer,30);});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createEngine } from '../server/engine.mjs';
+import { createApp } from '../server/main.mjs';
+async function setup() {
+  const e = await createEngine();
+  let now = 100000;
+  const cmd = c => e.command(c, now),
+    tap = uid => {
+      const r = cmd({ type: 'scan', uid });
+      cmd({ type: 'remove' });
+      return r;
+    };
+  cmd({ type: 'confirm' });
+  cmd({ type: 'measurementContext', weekday: 1, minute: 745, queue: 0 });
+  return { e, cmd, tap, wait: ms => (now += ms), state: () => e.status(now) };
+}
+test('Gelbgrenze, Gruppenrot, Rückgabe und konservatives Undo', async () => {
+  const x = await setup();
+  x.cmd({ type: 'room', room: 'K', capacity: 48, limit: 3, open: true });
+  x.cmd({ type: 'flowSettings', yellow: 2, batch: 2 });
+  assert.equal(x.state().paused, true);
+  x.cmd({ type: 'pause', paused: false });
+  assert.equal(x.state().signal.reason, 'free');
+  x.tap('sim:K01');
+  assert.equal(x.state().signal.reason, 'low');
+  x.tap('sim:K02');
+  assert.equal(x.state().signal.reason, 'batch');
+  assert.equal(x.tap('sim:K03').ok, false);
+  x.wait(10000);
+  x.tap('sim:K01');
+  assert.equal(x.state().flow.issued, 2);
+  assert.equal(x.state().signal.reason, 'batch');
+  x.cmd({ type: 'undo' });
+  assert.equal(x.state().signal.reason, 'batch');
+  x.cmd({ type: 'pause', paused: false });
+  assert.equal(x.state().flow.issued, 0);
+  assert.equal(x.state().signal.reason, 'low');
+});
+test('Messung startet nur bei Ausgabe; Rückgabe ist kein Essen-Ende', async () => {
+  const x = await setup();
+  x.cmd({ type: 'measurementArm', kind: 0 });
+  x.tap('unknown');
+  x.tap('sim:M01');
+  assert.equal(x.state().flow.armed, true);
+  x.tap('sim:K01');
+  assert.equal(x.state().flow.measuringUid, 'sim:K01');
+  x.wait(43000);
+  assert.equal(x.cmd({ type: 'measurementFinish' }).ok, true);
+  assert.deepEqual(x.state().flow.samples[0], [0, 0, 1, 745, 1, 43]);
+  assert.equal(x.state().flow.measuringUid, '');
+  x.cmd({ type: 'measurementArm', kind: 0 });
+  x.tap('sim:K01');
+  assert.equal(x.state().flow.armed, true);
+  x.wait(10000);
+  x.tap('sim:K01');
+  x.wait(10000);
+  x.tap('sim:K01');
+  assert.equal(x.state().flow.started, -1);
+  assert.equal(x.state().flow.samples.length, 1);
+});
+test('Gruppenmessung verhindert verfrühte Freigabe; Zeithinweis öffnet niemals', async () => {
+  const x = await setup();
+  x.cmd({ type: 'flowSettings', yellow: 5, batch: 2 });
+  for (let i = 0; i < 3; i++) {
+    x.cmd({ type: 'measurementArm', kind: 1 });
+    x.cmd({ type: 'pause', paused: false });
+    x.tap(`sim:K0${i * 2 + 1}`);
+    assert.equal(x.cmd({ type: 'measurementFinish' }).ok, false);
+    x.tap(`sim:K0${i * 2 + 2}`);
+    assert.equal(x.cmd({ type: 'pause', paused: false }).ok, false);
+    x.wait(30000);
+    assert.equal(x.cmd({ type: 'measurementFinish' }).ok, true);
+    assert.equal(x.state().paused, true);
+  }
+  x.cmd({ type: 'pause', paused: false });
+  x.tap('sim:K07');
+  x.tap('sim:K08');
+  assert.equal(x.state().flow.estimate.count, 3);
+  x.wait(30000);
+  assert.equal(x.state().flow.estimate.checkDue, true);
+  assert.equal(x.state().signal.reason, 'batch');
+  x.cmd({ type: 'pause', paused: true });
+  x.wait(900000);
+  assert.equal(x.state().signal.reason, 'paused');
+});
+test('Messkontext gesperrt während Messung; Neustart und Tag verwerfen nur aktive Messung', async () => {
+  const x = await setup();
+  x.cmd({ type: 'measurementArm', kind: 0 });
+  assert.equal(x.cmd({ type: 'queueState', queue: 2 }).ok, false);
+  x.tap('sim:K01');
+  x.wait(3000);
+  x.cmd({ type: 'measurementFinish' });
+  x.cmd({ type: 'measurementArm', kind: 0 });
+  x.tap('sim:K02');
+  x.cmd({ type: 'restart' });
+  assert.equal(x.state().flow.samples.length, 1);
+  assert.equal(x.state().flow.started, -1);
+  assert.equal(x.state().flow.clockValid, false);
+  assert.equal(x.cmd({ type: 'measurementArm', kind: 0 }).ok, false);
+  x.cmd({ type: 'newDay', confirmed: true });
+  assert.equal(x.state().flow.samples.length, 1);
+  assert.equal(x.state().flow.clockValid, false);
+});
+test('Speicherformat kompatibel; beschädigte Messwerte atomar abgewiesen', async () => {
+  const x = await setup();
+  const original = x.e.snapshot();
+  const legacy = structuredClone(original);
+  delete legacy.flow;
+  assert.equal(x.e.restore(legacy).ok, true);
+  const corrupt = structuredClone(original);
+  corrupt.flow.samples = [[0, 0, 1, 745, 1, -30]];
+  const before = x.e.snapshot();
+  assert.equal(x.e.restore(corrupt).ok, false);
+  assert.deepEqual(x.e.snapshot(), before);
+  assert.equal(x.e.restore(original).ok, true);
+});
+test('Speicherfehler rollt Gruppengrenze und Messbeginn gemeinsam zurück', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mensa-flow-'));
+  try {
+    const app = await createApp({ dataDir: dir });
+    app.transact({ type: 'confirm' });
+    app.transact({ type: 'measurementContext', weekday: 1, minute: 745, queue: 0 });
+    app.transact({ type: 'flowSettings', yellow: 5, batch: 1 });
+    app.transact({ type: 'pause', paused: false });
+    app.transact({ type: 'measurementArm', kind: 0 });
+    app.transact({ type: 'storageFailure', enabled: true });
+    assert.equal(app.transact({ type: 'tap', uid: 'sim:K01' }).ok, false);
+    assert.equal(app.state().flow.armed, true);
+    assert.equal(app.state().flow.issued, 0);
+    assert.equal(app.state().rooms.K.occupied, 0);
+    app.transact({ type: 'storageFailure', enabled: false });
+    app.transact({ type: 'tap', uid: 'sim:K01' });
+    assert.equal(app.state().flow.waiting, true);
+    const reopened = await createApp({ dataDir: dir });
+    assert.equal(reopened.state().flow.waiting, true);
+    assert.equal(reopened.state().flow.started, -1);
+    assert.equal(reopened.state().flow.clockValid, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('120 anonyme Messungen begrenzen Speicher; ungültige Dauer bleibt verwerfbar', async () => {
+  const x = await setup();
+  for (let i = 0; i < 121; i++) {
+    x.cmd({ type: 'measurementArm', kind: 0 });
+    x.wait(10000);
+    x.tap('sim:K01');
+    x.wait(1000);
+    assert.equal(x.cmd({ type: 'measurementFinish' }).ok, true);
+    x.wait(10000);
+    x.tap('sim:K01');
+  }
+  assert.equal(x.state().flow.samples.length, 120);
+  assert.ok(!JSON.stringify(x.state().flow.samples).includes('sim:'));
+  x.cmd({ type: 'measurementArm', kind: 0 });
+  x.wait(10000);
+  x.tap('sim:K01');
+  x.wait(3601000);
+  assert.equal(x.cmd({ type: 'measurementFinish' }).ok, false);
+  assert.equal(x.cmd({ type: 'measurementCancel' }).ok, true);
+});
+test('Entlastung bleibt rot, erlaubt Rückgaben und protokolliert Dauer', async () => {
+  const x = await setup();
+  x.tap('sim:K01');
+  assert.equal(x.cmd({ type: 'relief' }).ok, true);
+  assert.equal(x.state().signal.reason, 'relief');
+  assert.equal(x.cmd({ type: 'relief' }).ok, false);
+  x.wait(10000);
+  assert.equal(x.tap('sim:K01').ok, true);
+  assert.equal(x.tap('sim:K02').ok, false);
+  assert.equal(x.cmd({ type: 'pause', paused: false }).ok, true);
+  assert.ok(x.state().events.some(e => e.message.includes('10 Sekunden')));
+  x.cmd({ type: 'relief' });
+  x.cmd({ type: 'restart' });
+  x.cmd({ type: 'confirm' });
+  assert.equal(x.state().signal.reason, 'relief');
+  x.cmd({ type: 'pause', paused: false });
+  assert.ok(x.state().events.some(e => e.message.includes('Dauer nach Neustart unbekannt')));
+});
+test('Breite Hinweise früher, genaue Vergleiche bevorzugt, Kontext bleibt fest', async () => {
+  const x = await setup();
+  x.cmd({ type: 'flowSettings', yellow: 5, batch: 2 });
+  const snap = x.e.snapshot();
+  snap.flow.samples = [
+    [1, 0, 2, 600, 2, 20],
+    [1, 0, 3, 800, 2, 40],
+    [1, 0, 4, 900, 2, 60],
+    [1, 2, 1, 745, 2, 900],
+    [1, 0, 1, 745, 3, 900],
+  ];
+  x.e.restore(snap);
+  x.cmd({ type: 'pause', paused: false });
+  x.tap('sim:K01');
+  x.tap('sim:K02');
+  assert.equal(x.state().flow.estimate.level, 'general');
+  assert.equal(x.state().flow.estimate.count, 3);
+  assert.equal(x.state().flow.estimate.seconds, 40);
+  x.cmd({ type: 'queueState', queue: 2 });
+  assert.equal(x.state().flow.estimate.count, 3);
+  x.wait(40000);
+  assert.equal(x.state().flow.estimate.checkDue, true);
+  assert.equal(x.state().signal.reason, 'batch');
+  const precise = x.e.snapshot();
+  precise.flow.samples.push([1, 0, 1, 745, 2, 10], [1, 0, 1, 746, 2, 20], [1, 0, 1, 747, 2, 30]);
+  x.e.restore(precise);
+  assert.equal(x.state().flow.estimate.level, 'matched');
+  assert.equal(x.state().flow.estimate.seconds, 20);
+  assert.equal(x.state().flow.estimate.count, 3);
+});
+test('Zwei Werte geben keine Empfehlung; alte Flow-Daten bleiben lesbar', async () => {
+  const x = await setup();
+  x.cmd({ type: 'flowSettings', yellow: 5, batch: 1 });
+  const snap = x.e.snapshot();
+  delete snap.flow.relief;
+  delete snap.flow.reliefAt;
+  delete snap.flow.groupQueue;
+  snap.flow.samples = [
+    [1, 0, 2, 600, 1, 20],
+    [1, 0, 3, 800, 1, 40],
+  ];
+  assert.equal(x.e.restore(snap).ok, true);
+  x.cmd({ type: 'pause', paused: false });
+  x.tap('sim:K01');
+  x.wait(60000);
+  assert.equal(x.state().flow.estimate.level, 'insufficient');
+  assert.equal(x.state().flow.estimate.checkDue, false);
+  assert.equal(x.state().flow.relief, false);
+});
+test('Entlastung wird bei Speicherfehler nicht bestätigt', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mensa-relief-'));
+  try {
+    const app = await createApp({ dataDir: dir });
+    app.transact({ type: 'confirm' });
+    app.transact({ type: 'storageFailure', enabled: true });
+    assert.equal(app.transact({ type: 'relief' }).ok, false);
+    assert.equal(app.state().flow.relief, false);
+    app.transact({ type: 'storageFailure', enabled: false });
+    assert.equal(app.transact({ type: 'relief' }).ok, true);
+    const reopened = await createApp({ dataDir: dir });
+    assert.equal(reopened.state().flow.relief, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+async function trial() {
+  const x = await setup();
+  x.cmd({ type: 'flowSettings', yellow: 5, batch: 2 });
+  const snap = x.e.snapshot();
+  snap.flow.samples = [
+    [1, 0, 2, 600, 2, 20],
+    [1, 0, 3, 800, 2, 40],
+    [1, 0, 4, 900, 2, 60],
+  ];
+  assert.equal(x.e.restore(snap).ok, true);
+  x.cmd({ type: 'pause', paused: false });
+  return x;
+}
+test('Erprobung berücksichtigt langsamsten Vergleich und letzten Einlass, öffnet nie', async () => {
+  const x = await trial();
+  x.tap('sim:K01');
+  x.wait(100000);
+  x.tap('sim:K02');
+  assert.equal(x.state().flow.trialDelay, 130);
+  assert.equal(x.state().flow.trialRemaining, 30);
+  assert.equal(x.cmd({ type: 'trialFeedback', fits: true }).ok, false);
+  x.wait(29999);
+  assert.equal(x.state().flow.trialDue, false);
+  x.wait(1);
+  assert.equal(x.cmd({ type: 'trialFeedback', fits: false }).ok, true);
+  assert.equal(x.state().signal.reason, 'batch');
+  assert.equal(x.state().flow.reviews[0][6], 0);
+  assert.equal(x.cmd({ type: 'trialFeedback', fits: true }).ok, false);
+  x.cmd({ type: 'pause', paused: false });
+  assert.equal(x.state().flow.trialDelay, 0);
+  assert.equal(x.state().flow.reviews.length, 1);
+});
+test('Manuelle Pause und Entlastung sperren Bewertung; Neustart behält Historie', async () => {
+  const x = await trial();
+  x.tap('sim:K01');
+  x.tap('sim:K02');
+  x.wait(90000);
+  x.cmd({ type: 'pause', paused: true });
+  assert.equal(x.cmd({ type: 'trialFeedback', fits: true }).ok, false);
+  x.cmd({ type: 'pause', paused: false });
+  x.tap('sim:K03');
+  x.tap('sim:K04');
+  x.wait(90000);
+  x.cmd({ type: 'relief' });
+  assert.equal(x.cmd({ type: 'trialFeedback', fits: true }).ok, false);
+  x.cmd({ type: 'pause', paused: false });
+  x.tap('sim:K05');
+  x.tap('sim:K06');
+  x.wait(90000);
+  assert.equal(x.cmd({ type: 'trialFeedback', fits: true }).ok, true);
+  x.cmd({ type: 'restart' });
+  assert.equal(x.state().flow.trialDelay, 0);
+  assert.equal(x.state().flow.reviews.length, 1);
+});
+test('Puffer validiert; ältere Bestände lesbar; beschädigte Rückmeldung abgelehnt', async () => {
+  const x = await trial();
+  assert.equal(x.cmd({ type: 'trialSettings', buffer: 301 }).ok, false);
+  assert.equal(x.cmd({ type: 'trialSettings', buffer: 15 }).ok, true);
+  x.tap('sim:K01');
+  assert.equal(x.cmd({ type: 'trialSettings', buffer: 20 }).ok, false);
+  const bad = x.e.snapshot();
+  bad.flow.reviews = [[2, 0, 1, 745, 75, 80, 1, 999, 1]];
+  assert.equal(x.e.restore(bad).ok, false);
+  const old = x.e.snapshot();
+  for (const k of [
+    'trialBuffer',
+    'trialDelay',
+    'trialCount',
+    'trialLevel',
+    'trialReviewed',
+    'lastAdmission',
+    'reviews',
+  ])
+    delete old.flow[k];
+  assert.equal(x.e.restore(old).ok, true);
+  assert.equal(x.state().flow.trialBuffer, 30);
+});
