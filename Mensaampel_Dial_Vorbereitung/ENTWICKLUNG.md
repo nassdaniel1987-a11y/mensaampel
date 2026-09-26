@@ -95,3 +95,11 @@ Festgelegter Prüfvorschlag nach längster passender Gruppenzeit plus Puffer, mi
 **Werkzeuge in dieser Umgebung:** Emscripten 4.0.15 über emsdk (`EMSDK`, `EMSDK_PYTHON=python3`), PlatformIO per pip. `scripts/build-demo.mjs` schreibt nach `DEMO_OUT` (Standard `../outputs/…`).
 
 48 automatisierte Tests bestehen (neu `tests/auto.test.mjs`: Freigabe nach gelernter Zeit, Taste im Countdown, Entlasten, Sperrgründe, Halbstundenwerte, alte Stände, Dial-Anzeige, PC-Zeitgeber). Browserprüfung der Dial-Simulation mit Touchfläche, Taste und Countdown. Nicht geprüft: echtes Dial, Touch-Treffgenauigkeit, RTC-Gangreserve, Installationshelfer unter Windows.
+
+## Erweiterung 0.7.0-preview: Startgruppe, Dial-Bedienung, Tagesbericht
+
+**Kern:** neue Flow-Felder `startSize`, `sizeMin`, `sizeMax`, `idleMinutes`, `dayStart`, `startLearned`, `sizeGlobal`, `groupTarget`, `groupIsStart`, `lastGroupStart`, `lastEntry`, `lastScan`, `dayWeekday`, `today` und `history` (je 12 Zahlen, max. 60 Tage); `autoSlots` haben einen 5. Wert (gelernte Gruppengröße), 4-stellige Einträge aus 0.6 laden weiter. `waiting` bezieht sich auf `groupTarget`. Takt: `releaseAt = groupAt + normalSize × perChild`. `tick` startet zusätzlich den automatischen Essenstag (`Engine::startDay`, `ready` bleibt unverändert). Neue Befehle `dialPress`, `dialHold`, `dialTurn` (Mensa-Einstellmodus flüchtig, `changed:false`). `signal(now)` liefert `releaseIn`, `status` liefert `outCards`, `cardsMissing`, `mensaEdit`.
+
+**PC-Server:** speichert nur bei `changed !== false`; `/api/backup` und `/api/restore` (bis 500 KB); Ampel-Überwachung über Abrufe von `/api/signal`. **Firmware:** Drehgeber aktiv (4 Zählimpulse je Raste, am Gerät prüfen), 3 s Halten → `dialHold`, sonst WLAN-Anzeige; `/api/restore` bis 64 KB; Hinweis „Ampel draussen getrennt!“. Build 1332245 Bytes Flash (42,4 %). **Start:** `scripts/start.ps1` nutzt ohne `runtime/node.exe` ein installiertes Node.js ≥ 22. `.gitignore` enthält `build/` und `dist/` nicht mehr, da beide eingecheckt sind.
+
+53 automatisierte Tests bestehen (neu: Startgruppe/Takt, Größenlernen, automatischer Essenstag, Dial-Halten/Drehring, fehlende Karten, Sicherung einspielen, Ampel-Überwachung). Nicht geprüft: echtes Dial (Drehrichtung und Rasten, Touch, RTC), Installationshelfer und Startdatei unter Windows.

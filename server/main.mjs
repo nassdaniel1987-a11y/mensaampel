@@ -8,7 +8,7 @@ import {createEngine} from './engine.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export async function createApp({dataDir=resolve(root,'data')}={}){
  const engine=await createEngine();mkdirSync(dataDir,{recursive:true});
- const file=resolve(dataDir,'bestand.json');let offset=0,offlineUntil=0,storageError='',loadError='',forceWriteFailure=false,feedback={text:'',ok:true,at:0};
+ const file=resolve(dataDir,'bestand.json');let offset=0,offlineUntil=0,storageError='',loadError='',forceWriteFailure=false,feedback={text:'',ok:true,at:0},ampelSeenAt=0,ampelWarned=false;
  const now=()=>Date.now()+offset;
  const hash=s=>createHash('sha256').update(s).digest('hex');
  function save(){
@@ -31,10 +31,12 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
  function state(){
   const s=engine.status(now()),error=storageError||loadError;
   // Same main screen as the Dial; the note stays visible for 3.5 s like on the device.
-  const dial=engine.call({op:'dial',now:now(),blocked:!!error,hint:error?'Speicher pruefen!':'',...(Date.now()-feedback.at<3500?{feedback:feedback.text,feedbackOk:feedback.ok}:{})});
+  const dial=engine.call({op:'dial',now:now(),blocked:!!error,hint:error?'Speicher pruefen!':ampelLost()?'Ampel draussen getrennt!':'',...(Date.now()-feedback.at<3500?{feedback:feedback.text,feedbackOk:feedback.ok}:{})});
   return {...s,dial,feedback,storageError:error,recoveryRequired:!!loadError,sim:{offset,offline:Date.now()<offlineUntil,forceWriteFailure}};
  }
  const note=(text,ok)=>{if(text)feedback={text,ok:!!ok,at:Date.now()};};
+ // Like the Dial: once an outside signal display has polled, missing polls for more than 10 s are reported inside.
+ const ampelLost=()=>ampelSeenAt>0&&Date.now()-ampelSeenAt>10000;
  // The PC has a reliable clock: take weekday and time for the learned half-hour values automatically.
  function syncClock(){
   const f=engine.status(now()).flow;if(loadError||f.clockValid||f.armed||f.started>=0||f.issued>0)return;
@@ -60,7 +62,7 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
    engine.command({type:'remove'},now());
   }else result=engine.command(command,now());
   if(command.type!=='advance')note(result.message,result.ok);
-  if(command.type==='tick'&&!result.changed)return {...result,state:state()};
+  if(result.changed===false)return {...result,state:state()};
   syncClock();if(command.type==='advance'){const r=engine.command({type:'tick'},now());if(r.changed)note(r.message,r.ok);}
   try{save();storageError='';}
   catch(e){
@@ -77,14 +79,25 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
   let url,decodedPath;
   try{url=new URL(req.url,`http://${req.headers.host}`);decodedPath=decodeURIComponent(url.pathname);}catch{return reply(400,{message:'Ungültige Adresse.'});}
   if(url.pathname==='/api/health')return reply(200,{app:'mensaampel',version:1});
-  if(url.pathname==='/api/info')return reply(200,{mode:'pc',version:'0.6.0-preview'});
+  if(url.pathname==='/api/info')return reply(200,{mode:'pc',version:'0.7.0-preview'});
   if(url.pathname==='/api/signal'){
    if(Date.now()<offlineUntil)return reply(503,{message:'Simulierte Verbindungsunterbrechung.'});
-   const s=state();return reply(200,{signal:s.signal,storageError:s.storageError,now:s.now});
+   ampelSeenAt=Date.now();const s=state();return reply(200,{signal:s.signal,storageError:s.storageError,now:s.now});
   }
   if(url.pathname==='/api/state'){
    if(Date.now()<offlineUntil)return reply(503,{message:'Simulierte Verbindungsunterbrechung.'});
    return reply(200,{...state(),token});
+  }
+  if(url.pathname==='/api/backup'){
+   if(req.headers['x-mensa-token']!==token)return reply(403,{message:'Sitzung ungültig. Seite neu laden.'});
+   return reply(200,{format:'mensa-pc-backup-1',state:engine.snapshot()});
+  }
+  if(url.pathname==='/api/restore'&&req.method==='POST'){
+   if(req.headers['x-mensa-token']!==token)return reply(403,{message:'Sitzung ungültig. Seite neu laden.'});
+   let body='';try{
+    for await(const chunk of req){body+=chunk;if(body.length>500000)return reply(413,{message:'Sicherung zu groß.'});}
+    return reply(200,restoreBackup(JSON.parse(body)));
+   }catch(e){return reply(400,{ok:false,message:'Ungültige Sicherung: '+e.message});}
   }
   if(url.pathname==='/api/command'&&req.method==='POST'){
    if(req.headers['x-mensa-token']!==token)return reply(403,{message:'Sitzung ungültig. Seite neu laden.'});
@@ -105,8 +118,18 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
   }catch{res.writeHead(404);res.end('Nicht gefunden. Anwendung zuerst bauen.');}
  });
  syncClock();
- const timer=setInterval(()=>{if(!loadError&&!forceWriteFailure)transact({type:'tick'});},500);timer.unref();
- return {server,engine,state,transact,stop:()=>clearInterval(timer)};
+ const timer=setInterval(()=>{if(!loadError&&!forceWriteFailure)transact({type:'tick'});const lost=ampelLost();if(lost&&!ampelWarned)note('Ampel draussen getrennt!',false);ampelWarned=lost;},500);timer.unref();
+ // Restore a downloaded backup (PC or Dial format); afterwards the stock has to be confirmed again.
+ function restoreBackup(body){
+  if(loadError)return {ok:false,message:loadError,state:state()};
+  if(body?.confirmed!==true)return {ok:false,message:'Einspielen ausdrücklich bestätigen.',state:state()};
+  const backup=body.backup;if(!backup||!['mensa-pc-backup-1','mensa-device-backup-1'].includes(backup.format)||typeof backup.state!=='object')return {ok:false,message:'Keine gültige Mensaampel-Sicherung.',state:state()};
+  const previous=engine.snapshot();const r=engine.restore(backup.state);if(!r.ok)return {ok:false,message:'Sicherung ungültig: '+r.message,state:state()};
+  engine.command({type:'restart'},now());
+  try{save();storageError='';}catch{engine.restore(previous,true);storageError='Speicherfehler. Sicherung nicht übernommen.';return {ok:false,message:storageError,state:state()};}
+  const message='Sicherung eingespielt. Bestand prüfen und bestätigen.';note(message,true);return {ok:true,message,state:state()};
+ }
+ return {server,engine,state,transact,restoreBackup,stop:()=>clearInterval(timer)};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const app=await createApp({dataDir:process.env.MENSA_DATA_DIR||undefined});

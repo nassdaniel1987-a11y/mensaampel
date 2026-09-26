@@ -3,7 +3,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import {mkd
 async function setup({auto=true,start=20}={}){
  const e=await createEngine();let now=100000;const cmd=c=>e.command(c,now),tap=uid=>{const r=cmd({type:'scan',uid});cmd({type:'remove'});return r;};
  cmd({type:'confirm'});cmd({type:'measurementContext',weekday:1,minute:750,queue:0});cmd({type:'flowSettings',yellow:0,batch:3});cmd({type:'pause',paused:false});
- if(auto)assert.equal(cmd({type:'autoSettings',on:true,start}).ok,true);
+ if(auto)assert.equal(cmd({type:'autoSettings',on:true,start,startGroup:3}).ok,true);
  let card=1;const group=()=>{for(let i=0;i<3;i++)assert.equal(tap(`sim:K${String(card++).padStart(2,'0')}`).ok,true);};
  return {e,cmd,tap,group,wait:ms=>now+=ms,tick:()=>cmd({type:'tick'}),state:()=>e.status(now),dial:(x={})=>e.call({op:'dial',now,...x}),get now(){return now;}};
 }
@@ -42,10 +42,10 @@ test('Keine automatische Freigabe bei Pause, Entlastung, unbestätigtem Bestand 
 test('Gruppenmessungen lernen je Halbstunde und Einstellungen werden geprüft',async()=>{
  const x=await setup({auto:false});
  for(let i=0;i<3;i++){x.cmd({type:'measurementArm',kind:1});x.group();x.wait(45000);assert.equal(x.cmd({type:'measurementFinish'}).ok,true);x.cmd({type:'pause',paused:false});x.wait(10000);}
- const f=x.state().flow;assert.deepEqual(f.autoSlots,[[1,25,150,3]]);assert.equal(f.auto.level,'slot');assert.equal(f.auto.perChild,150);
+ const f=x.state().flow;assert.deepEqual(f.autoSlots,[[1,25,150,3,0]]);assert.equal(f.auto.level,'slot');assert.equal(f.auto.perChild,150);
  assert.equal(x.cmd({type:'autoSettings',on:true,start:500}).ok,false);assert.equal(x.cmd({type:'flowSettings',yellow:0,batch:0}).ok,true);
  assert.equal(x.cmd({type:'autoSettings',on:true,start:20}).ok,false);
- x.cmd({type:'flowSettings',yellow:0,batch:3});x.cmd({type:'autoSettings',on:true,start:20});x.cmd({type:'flowSettings',yellow:0,batch:0});assert.equal(x.state().flow.autoOn,false);
+ x.cmd({type:'flowSettings',yellow:0,batch:3});x.cmd({type:'autoSettings',on:true,start:20,startGroup:3});x.cmd({type:'flowSettings',yellow:0,batch:0});assert.equal(x.state().flow.autoOn,false);
  x.cmd({type:'flowSettings',yellow:0,batch:3});assert.equal(x.cmd({type:'autoSettings',on:false,start:20,reset:true}).ok,true);assert.equal(x.state().flow.autoGlobalN,0);assert.deepEqual(x.state().flow.autoSlots,[]);
 });
 test('Alte Speicherstände übernehmen Gruppenmessungen, Neustart verwirft Countdown',async()=>{
@@ -66,10 +66,63 @@ test('Dial-Anzeige: nur ASCII, passt in die runde Anzeige, Rückmeldung umbroche
 test('PC-Dienst: Zeitgeber gibt Gruppe frei, speichert und meldet am Dial',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'mensa-auto-'));try{
   const app=await createApp({dataDir:dir});const t=c=>app.transact(c);
-  t({type:'confirm'});t({type:'flowSettings',yellow:0,batch:1});t({type:'pause',paused:false});t({type:'autoSettings',on:true,start:3});
+  t({type:'confirm'});t({type:'flowSettings',yellow:0,batch:1});t({type:'pause',paused:false});t({type:'autoSettings',on:true,start:3,startGroup:1});
   assert.equal(app.state().flow.clockValid,true);
   t({type:'tap',uid:'sim:K01'});assert.equal(app.state().signal.reason,'batch');assert.ok(app.state().dial.some(i=>i[5]==='K01 ausgegeben. Ein Platz'));
   t({type:'advance',seconds:10});assert.equal(app.state().signal.reason,'free');assert.ok(app.state().dial.some(i=>i[5]==='Naechste Gruppe automatisch'));
   const again=await createApp({dataDir:dir});assert.equal(again.state().flow.autoOn,true);assert.equal(again.state().flow.autoReleased,false);again.stop();app.stop();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+// Start group builds the queue; later groups follow at the pace of their own size.
+async function sized(){const x=await setup({auto:false});x.cmd({type:'autoSettings',on:true,start:20,startGroup:6,sizeMin:2,sizeMax:5,idleMinutes:5});let card=1;const take=n=>{for(let i=0;i<n;i++)assert.equal(x.tap(`sim:K${String(card++).padStart(2,'0')}`).ok,true);};return {...x,take};}
+test('Startgruppe zu Beginn, danach normale Gruppen im Takt',async()=>{
+ const x=await sized();let f=x.state().flow;assert.equal(f.auto.nextSize,6);assert.equal(f.auto.nextIsStart,true);assert.ok(texts(x.dial()).includes('Startgruppe: 6 Kinder'));
+ x.take(5);assert.equal(x.state().signal.reason,'free');assert.ok(texts(x.dial()).includes('Noch 1 in dieser Gruppe (Start)'));x.take(1);assert.equal(x.state().signal.reason,'batch');
+ assert.equal(x.state().flow.auto.releaseIn,60);assert.equal(x.state().signal.releaseIn,60);
+ x.wait(60000);x.tick();f=x.state().flow;assert.equal(f.auto.nextSize,3);assert.equal(f.auto.nextIsStart,false);assert.ok(texts(x.dial()).includes('Naechste Gruppe: 3 Kinder'));
+ x.take(3);assert.equal(x.state().signal.reason,'batch');x.wait(60000);x.tick();assert.equal(x.state().signal.reason,'free');
+ x.wait(300000);assert.equal(x.state().flow.auto.nextIsStart,true);assert.equal(x.state().flow.auto.nextSize,6);
+ const r=x.state().flow.today;assert.equal(r[2],9);assert.equal(r[4],2);assert.equal(r[5],2);
+});
+test('Gruppengröße lernt mit Grenzen, Startgruppe getrennt',async()=>{
+ const x=await sized();x.take(6);x.wait(20000);x.cmd({type:'pause',paused:false});let f=x.state().flow;assert.equal(f.startLearned,7);assert.equal(f.today[6],1);
+ x.take(3);x.wait(15000);x.cmd({type:'pause',paused:false});f=x.state().flow;assert.equal(f.sizeGlobal,4);assert.equal(f.autoSlots[0][4],4);
+ x.take(4);x.wait(15000);x.cmd({type:'pause',paused:false});x.take(5);x.wait(15000);x.cmd({type:'pause',paused:false});assert.equal(x.state().flow.auto.normalSize,5);
+ x.take(5);x.wait(200000);x.tick();assert.equal(x.state().flow.autoReleased,true);x.cmd({type:'relief'});f=x.state().flow;assert.equal(f.auto.normalSize,4);assert.equal(f.today[7],1);assert.equal(f.today[8],1);
+});
+test('Neuer Essenstag automatisch, Bestand bleibt unbestätigt nach Neustart, Tagesbericht',async()=>{
+ const x=await setup();x.cmd({type:'autoSettings',on:true,start:20,startGroup:3,dayStart:600});x.group();x.tap('sim:M01');
+ assert.equal(x.state().flow.dayWeekday,1);x.wait(24*3600000);x.cmd({type:'restart'});x.cmd({type:'measurementContext',weekday:2,minute:500,queue:0});
+ assert.equal(x.tick().changed,false);assert.equal(x.state().rooms.K.occupied,3);
+ x.wait(100*60000);const r=x.tick();assert.equal(r.changed,true);assert.match(r.message,/automatisch/);const s=x.state();assert.equal(s.rooms.K.occupied,0);assert.equal(s.ready,false);assert.equal(s.day,2);
+ assert.match(s.events.find(e=>e.message.startsWith('Nicht zurück')).message,/K01, K02, K03/);assert.equal(s.flow.history.length,1);assert.equal(s.flow.history[0][11],3);assert.equal(s.flow.today[0],2);
+ assert.equal(x.tick().changed,false);
+ const e=await createEngine();assert.equal(e.restore(x.e.snapshot()).ok,true);assert.equal(e.status(0).flow.history.length,1);
+});
+test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis',async()=>{
+ const x=await setup({auto:false});x.cmd({type:'restart'});assert.ok(texts(x.dial()).includes('Bestand ok? Taste 3 s halten'));
+ assert.equal(x.cmd({type:'dialPress'}).ok,false);assert.equal(x.cmd({type:'dialHold'}).ok,true);assert.equal(x.state().ready,true);assert.equal(x.cmd({type:'dialHold'}).handled,false);
+ x.cmd({type:'room',room:'M',capacity:64,limit:5,open:true});x.tap('sim:M01');x.tap('sim:M02');
+ assert.equal(x.cmd({type:'dialTurn',steps:-10}).changed,false);assert.equal(x.state().mensaEdit,2);assert.ok(texts(x.dial()).includes('Mensa: 2'));assert.ok(!texts(x.dial()).some(t=>t.startsWith('Kueche')||t==='Platz frei'||t==='Einlass zu'));assert.equal(x.cmd({type:'relief'}).ok,false);
+ x.cmd({type:'dialTurn',steps:28});assert.equal(x.cmd({type:'dialPress'}).ok,true);let m=x.state().rooms.M;assert.equal(m.limit,30);assert.equal(m.open,true);assert.equal(x.state().mensaEdit,-1);
+ x.cmd({type:'dialTurn',steps:3});x.wait(16000);assert.equal(x.state().mensaEdit,-1);assert.equal(x.cmd({type:'dialPress'}).ok,true);assert.equal(x.state().paused,true);
+ x.wait(1200000);assert.equal(x.state().cardsMissing,true);assert.ok(texts(x.dial()).includes('2 Karten fehlen'));assert.deepEqual(x.state().outCards,['M01','M02']);
+});
+test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Änderung',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'mensa-backup-'));try{
+  const app=await createApp({dataDir:dir});const t=c=>app.transact(c);t({type:'confirm'});t({type:'flowSettings',yellow:0,batch:3});t({type:'autoSettings',on:true,start:20,startGroup:4});t({type:'pause',paused:false});assert.equal(t({type:'tap',uid:'sim:K01'}).ok,true);
+  const backup={format:'mensa-pc-backup-1',state:app.engine.snapshot()};
+  t({type:'newDay',confirmed:true});assert.equal(app.state().rooms.K.occupied,0);
+  assert.equal(app.restoreBackup({confirmed:false,backup}).ok,false);assert.equal(app.restoreBackup({confirmed:true,backup:{format:'x',state:{}}}).ok,false);
+  const broken=structuredClone(backup);broken.state.cards[0].room='X';assert.equal(app.restoreBackup({confirmed:true,backup:broken}).ok,false);assert.equal(app.state().day,2);
+  const r=app.restoreBackup({confirmed:true,backup});assert.equal(r.ok,true);const s=app.state();assert.equal(s.ready,false);assert.equal(s.rooms.K.occupied,1);assert.equal(s.flow.startSize,4);assert.equal(s.day,1);
+  const again=await createApp({dataDir:dir});assert.equal(again.state().rooms.K.occupied,1);again.stop();
+  assert.equal(t({type:'dialTurn',steps:2}).changed,false);assert.equal(app.state().mensaEdit,2);assert.equal(t({type:'dialPress'}).ok,true);assert.equal(app.state().rooms.M.limit,2);
+  assert.ok(!app.state().dial.some(i=>i[5]==='Ampel draussen getrennt!'));
+  await new Promise(done=>app.server.listen(0,'127.0.0.1',done));const port=app.server.address().port;
+  const res=await fetch(`http://127.0.0.1:${port}/api/signal`);assert.equal(res.status,200);assert.equal((await res.json()).signal.releaseIn,-1);
+  app.server.closeAllConnections();const realNow=Date.now;Date.now=()=>realNow()+11000;try{assert.ok(app.state().dial.some(i=>i[5]==='Ampel draussen getrennt!'));}finally{Date.now=realNow;}
+  app.server.closeAllConnections();app.server.close();app.stop();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

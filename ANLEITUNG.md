@@ -47,7 +47,7 @@ Ungültige gespeicherte Daten sperren den Betrieb. Bei einer ausdrücklich best�
 
 Der Ordner `data` wird beim Start angelegt. `bestand.json` enthält Karten, Einstellungen und maximal 80 Ereignisse ohne Kindernamen. Vor einer Sicherung den Dienst beenden und den gesamten Ordner kopieren. Zwei Instanzen dürfen nicht dieselbe Bestandsdatei bearbeiten.
 
-Diese Version läuft auf einem Windows-PC (x64) mit einem aktuellen Browser. Sie ist bewusst nur auf diesem PC unter `http://127.0.0.1:4317` erreichbar. Ein verbundenes Tablet kann die PC-Version noch nicht über das Netzwerk öffnen.
+Diese Version läuft auf einem Windows-PC (x64) mit einem aktuellen Browser. Fehlt der Ordner `runtime` (z. B. bei einer Kopie direkt von GitHub), nutzt `Start-Mensaampel.cmd` ein installiertes Node.js ab Version 22 (https://nodejs.org). Sie ist bewusst nur auf diesem PC unter `http://127.0.0.1:4317` erreichbar. Ein verbundenes Tablet kann die PC-Version noch nicht über das Netzwerk öffnen.
 
 Die Geräteversion ist jetzt als separates Paket vorbereitet: **Mensaampel_Dial_Vorbereitung.zip** mit USB-Installationshelfer und **ANLEITUNG-DIAL.html**. Leser-, Speicher-, Anzeige- und WLAN-Anbindung sind implementiert und übersetzt, müssen aber noch mit echter Hardware erprobt werden. Die Auswahl zwischen internem und externem Leser erfolgt dort in der Oberfläche. Die PC-Simulation bleibt unabhängig davon nutzbar.
 
@@ -72,3 +72,10 @@ Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Dr
 ## Neu: Automatische Gruppenfreigabe
 
 Unter **Einlass & Messungen → Automatik** lässt sich die automatische Freigabe einschalten (Gruppengröße > 0 nötig). Nach einer vollen Gruppe zählt das Dial herunter und die Ampel öffnet von selbst. Zum Ausprobieren in der Simulation Karten ans Dial halten und vorspulen. Orange Fläche = zu voll, Taste im Countdown = früher frei; beides lernt das System. Die PC-Version übernimmt Wochentag und Uhrzeit automatisch. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
+
+## Neu in 0.7
+
+- **Dial in der Simulation:** Mausrad über dem Dial oder die Pfeilknöpfe drehen den Ring (Mensaplätze einstellen), **Taste 3 s halten** bestätigt einen unbestätigten Bestand.
+- **Startgruppe und lernende Gruppengröße** unter Einlass & Messungen → Automatik; Einzelheiten in [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
+- **Sicherung** herunterladen und wieder einspielen: Betreuung → Einstellungen.
+- **Noch nicht zurückgegebene Karten** stehen unter Betreuung; **Tagesbericht** unter Einlass & Messungen.

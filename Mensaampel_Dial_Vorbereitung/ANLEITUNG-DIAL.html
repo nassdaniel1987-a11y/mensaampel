@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.6.0-preview · Stand 26.09.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.7.0-preview · Stand 26.09.2026</strong></p>
 <p>Die Software, Tabletoberfläche und Windows-Übertragung sind vorbereitet. Der Gerätecode wurde erfolgreich für ESP32-S3 übersetzt. Die Erprobung an einem echten Dial steht noch aus. Dieses Paket ist für euren ersten begleiteten Hardwaretest vorgesehen.</p>
 <h2>Was du brauchst</h2>
 <ul>
@@ -198,4 +198,25 @@ Sonst nichts tun.</p>
 <li><strong>Uhrzeit:</strong> Einmal <strong>Uhrzeit vom Tablet übernehmen</strong> stellt auch die eingebaute Uhr des Dials. Danach übernimmt das Dial Wochentag und Uhrzeit nach Neustart und neuem Essenstag selbst (Uhr nach längerer Stromlosigkeit am Gerät prüfen).</li>
 <li>Keine automatische Freigabe bei Pause, Entlastung, laufender Gruppenmessung, fehlenden Plätzen, Leser- oder Speicherstörung und unbestätigtem Bestand.</li>
 </ul>
-<p>Die Automatik ist eine lernende Heuristik und muss im begleiteten Probebetrieb erprobt werden. Die PC-Simulation zeigt das Dial Pixel für Pixel so, wie es auf dem Gerät erscheint; dort lässt sich der Ablauf vorher üben.</p></main></html>
+<p>Die Automatik ist eine lernende Heuristik und muss im begleiteten Probebetrieb erprobt werden. Die PC-Simulation zeigt das Dial Pixel für Pixel so, wie es auf dem Gerät erscheint; dort lässt sich der Ablauf vorher üben.</p>
+<h2>Neu in 0.7: Startgruppe, Tagesstart am Dial, Mensa per Drehring</h2>
+<p><strong>Aufkleber neben das Dial (vollständig):</strong></p>
+<blockquote>
+<p><strong>Morgens / nach dem Einschalten:</strong> Bestand ok? <strong>Taste 3 Sekunden halten.</strong>
+<strong>Mensa freigeben:</strong> Ring drehen bis zur Platzzahl, <strong>Taste</strong> drücken.
+<strong>Zu voll?</strong> Orange Fläche antippen.
+<strong>Ausgabe schon frei?</strong> Taste drücken.
+Sonst nichts tun.</p>
+</blockquote>
+<ul>
+<li><strong>Startgruppe:</strong> Zu Beginn des Essenstags und nach einer längeren Pause (Standard 5 Minuten ohne Einlass) kommt eine größere erste Gruppe, damit sich an der Ausgabe eine Schlange aufbaut. Das Dial zeigt „Startgruppe: 6 Kinder“. Danach folgen die Gruppen im Takt.</li>
+<li><strong>Gruppengröße lernt mit:</strong> Unter <strong>Einlass &amp; Messungen → Automatik</strong> kleinste und größte Gruppe einstellen. Taste im Countdown = Gruppen dürfen größer werden, orange Fläche = kleiner. Die Startgruppe lernt getrennt.</li>
+<li><strong>Neuer Essenstag automatisch:</strong> Uhrzeit unter Automatik einstellen (z. B. 6:00). Belegungen werden zurückgesetzt, die Mensa gesperrt, nicht zurückgegebene Karten ins Protokoll geschrieben. Nach einem Neustart muss der Bestand trotzdem bestätigt werden (Taste 3 s halten).</li>
+<li><strong>Bestand bestätigen am Dial:</strong> Solange der Bestand unbestätigt ist, zeigt das Dial „Bestand ok? Taste 3 s halten“. Sonst zeigt 3 s Halten wie bisher die WLAN-Daten.</li>
+<li><strong>Mensa am Dial:</strong> Ring drehen öffnet die Einstellung „Mensa: 30“, Taste übernimmt, 15 s ohne Eingabe bricht ab. 0 sperrt die Mensa. Weniger als die belegten Plätze geht nicht. Wie viele Zählimpulse eine Raste des Rings ergibt, muss am echten Gerät geprüft werden.</li>
+<li><strong>Ampel draußen zeigt Countdown:</strong> „Gleich geht's weiter · 0:40“.</li>
+<li><strong>Warnung „Ampel draussen getrennt!“</strong> am Dial, wenn das Ampel-Tablet länger als 10 Sekunden keinen Status mehr abruft (z. B. Akku leer, Energiesparen).</li>
+<li><strong>„3 Karten fehlen“</strong> am Dial, wenn 20 Minuten lang nicht gescannt wurde und noch Karten ausgegeben sind. Die Liste steht unter Betreuung.</li>
+<li><strong>Sicherung einspielen:</strong> unter <strong>Gerät → Sicherung und Prüfung</strong>. Danach Bestand bestätigen.</li>
+<li><strong>Tagesbericht</strong> unter Einlass &amp; Messungen (Ausgaben, Gruppen, Eingriffe, fehlende Karten; CSV).</li>
+</ul></main></html>

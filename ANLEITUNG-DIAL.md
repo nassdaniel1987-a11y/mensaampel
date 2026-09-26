@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.6.0-preview · Stand 26.09.2026**
+**Vorbereitete Geräteversion 0.7.0-preview · Stand 26.09.2026**
 
 Die Software, Tabletoberfläche und Windows-Übertragung sind vorbereitet. Der Gerätecode wurde erfolgreich für ESP32-S3 übersetzt. Die Erprobung an einem echten Dial steht noch aus. Dieses Paket ist für euren ersten begleiteten Hardwaretest vorgesehen.
 
@@ -153,3 +153,24 @@ Das Tablet steht als reine Ampel **vor** der Mensa, das Dial **drinnen** bei der
 - Keine automatische Freigabe bei Pause, Entlastung, laufender Gruppenmessung, fehlenden Plätzen, Leser- oder Speicherstörung und unbestätigtem Bestand.
 
 Die Automatik ist eine lernende Heuristik und muss im begleiteten Probebetrieb erprobt werden. Die PC-Simulation zeigt das Dial Pixel für Pixel so, wie es auf dem Gerät erscheint; dort lässt sich der Ablauf vorher üben.
+
+## Neu in 0.7: Startgruppe, Tagesstart am Dial, Mensa per Drehring
+
+**Aufkleber neben das Dial (vollständig):**
+
+> **Morgens / nach dem Einschalten:** Bestand ok? **Taste 3 Sekunden halten.**
+> **Mensa freigeben:** Ring drehen bis zur Platzzahl, **Taste** drücken.
+> **Zu voll?** Orange Fläche antippen.
+> **Ausgabe schon frei?** Taste drücken.
+> Sonst nichts tun.
+
+- **Startgruppe:** Zu Beginn des Essenstags und nach einer längeren Pause (Standard 5 Minuten ohne Einlass) kommt eine größere erste Gruppe, damit sich an der Ausgabe eine Schlange aufbaut. Das Dial zeigt „Startgruppe: 6 Kinder“. Danach folgen die Gruppen im Takt.
+- **Gruppengröße lernt mit:** Unter **Einlass & Messungen → Automatik** kleinste und größte Gruppe einstellen. Taste im Countdown = Gruppen dürfen größer werden, orange Fläche = kleiner. Die Startgruppe lernt getrennt.
+- **Neuer Essenstag automatisch:** Uhrzeit unter Automatik einstellen (z. B. 6:00). Belegungen werden zurückgesetzt, die Mensa gesperrt, nicht zurückgegebene Karten ins Protokoll geschrieben. Nach einem Neustart muss der Bestand trotzdem bestätigt werden (Taste 3 s halten).
+- **Bestand bestätigen am Dial:** Solange der Bestand unbestätigt ist, zeigt das Dial „Bestand ok? Taste 3 s halten“. Sonst zeigt 3 s Halten wie bisher die WLAN-Daten.
+- **Mensa am Dial:** Ring drehen öffnet die Einstellung „Mensa: 30“, Taste übernimmt, 15 s ohne Eingabe bricht ab. 0 sperrt die Mensa. Weniger als die belegten Plätze geht nicht. Wie viele Zählimpulse eine Raste des Rings ergibt, muss am echten Gerät geprüft werden.
+- **Ampel draußen zeigt Countdown:** „Gleich geht's weiter · 0:40“.
+- **Warnung „Ampel draussen getrennt!“** am Dial, wenn das Ampel-Tablet länger als 10 Sekunden keinen Status mehr abruft (z. B. Akku leer, Energiesparen).
+- **„3 Karten fehlen“** am Dial, wenn 20 Minuten lang nicht gescannt wurde und noch Karten ausgegeben sind. Die Liste steht unter Betreuung.
+- **Sicherung einspielen:** unter **Gerät → Sicherung und Prüfung**. Danach Bestand bestätigen.
+- **Tagesbericht** unter Einlass & Messungen (Ausgaben, Gruppen, Eingriffe, fehlende Karten; CSV).

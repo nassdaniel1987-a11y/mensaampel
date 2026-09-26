@@ -26,5 +26,7 @@ export function useMensa(){
  }catch(e){setNotice({ok:false,text:(e as Error).message});}finally{setBusy(false);}}
  async function logout(){await fetch('/api/logout',{method:'POST',headers:{'X-Mensa-Token':token.current}}).catch(()=>{});token.current='';sessionStorage.removeItem('mensa-device-session');setState(null);setAuthRequired(true);}
  async function backup(){try{const r=await fetch('/api/backup',{headers:{'X-Mensa-Token':token.current}});if(!r.ok)throw Error('Bitte erneut anmelden.');const data=await r.blob();const url=URL.createObjectURL(data);const a=document.createElement('a');a.href=url;a.download='mensa-bestand.json';a.click();URL.revokeObjectURL(url);}catch(e){setNotice({ok:false,text:(e as Error).message});}}
- return {state,info,authRequired,authenticate,logout,backup,send,busy,notice,setNotice,connected:!!state&&tick-lastSeen<3000,lastSeen};
+ // Upload a downloaded backup; the service validates it and requires a fresh stock confirmation.
+ async function restore(file:File){setBusy(true);try{const backup=JSON.parse(await file.text());const r=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'application/json','X-Mensa-Token':token.current},body:JSON.stringify({confirmed:true,backup})});const result=await r.json();if(r.status===401)setAuthRequired(true);if(result.state){setState({...result.state,token:token.current});setLastSeen(Date.now());}setNotice({ok:!!result.ok,text:result.message||'Sicherung konnte nicht eingespielt werden.'});return !!result.ok;}catch{setNotice({ok:false,text:'Datei ist keine gültige Sicherung.'});return false;}finally{setBusy(false);}}
+ return {state,info,authRequired,authenticate,logout,backup,restore,send,busy,notice,setNotice,connected:!!state&&tick-lastSeen<3000,lastSeen};
 }
