@@ -13,6 +13,7 @@ extern "C" const char* mensa_call(const char* input){
         else if(op=="restore"){engine.restore(q.at("state"),q.value("preserveUndo",false));result={{"ok",true}};}
         else if(op=="snapshot")result=engine.snapshot();
         else if(op=="status")result=engine.status(q.at("now").get<long long>());
+        else if(op=="dial"){mensa::DialExtras x;x.blocked=q.value("blocked",false);x.hint=q.value("hint",std::string());x.feedback=q.value("feedback",std::string());x.feedbackOk=q.value("feedbackOk",true);result=engine.dialScreen(q.at("now").get<long long>(),x);}
         else if(op=="command")result=engine.command(q.at("command"),q.at("now").get<long long>());
         else throw std::runtime_error("Unbekannte Schnittstellenoperation.");
         output=result.dump();

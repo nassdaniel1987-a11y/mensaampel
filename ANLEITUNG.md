@@ -37,6 +37,8 @@ Mit **Mensaampel-beenden.cmd** wird der Hintergrunddienst beendet. Nur das Brows
 
 **Neustart testen:** Der Bestand bleibt erhalten, aber der Einlass ist bis zur Bestätigung gesperrt.
 
+**Dial in der Simulation:** Unter **Simulation** ist das Dial so abgebildet, wie sein runder Bildschirm am Gerät aussieht (gleiche Schrift, Farben und Texte). Orange Fläche anklicken = antippen, Ring oder **Taste drücken** = Gerätetaste, Karte auf das Dial ziehen = vorhalten. Rückmeldungen erscheinen wie am Gerät für 3,5 Sekunden mit Ton (abschaltbar).
+
 **Speicherfehler:** Fehler einschalten und eine Karte scannen. Es wird nichts gebucht. Fehler beenden und die Aktion erneut ausführen; erst eine erfolgreiche Speicherung beseitigt den Störungshinweis.
 
 Ungültige gespeicherte Daten sperren den Betrieb. Bei einer ausdrücklich bestätigten Wiederherstellung wird die beschädigte Datei aufbewahrt und ein leerer Grundbestand angelegt. Den tatsächlichen Bestand danach abgleichen.
@@ -66,3 +68,7 @@ Die technischen Prüfungen sind abgeschlossen. Probiere nun einen vollständigen
 Unter **Einlass & Messungen** stehen Gelbgrenze, begrenzte Einlassgruppen sowie Einzel- und Gruppenmessungen zur Verfügung. Startwert Gelb: fünf freie Plätze. Gruppenbegrenzung zunächst aus (0); beispielsweise auf fünf setzen und Einlass anschließend bewusst fortsetzen. Die Messungen bedient ihr am verbundenen Tablet. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
 
 Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Druck pausiert beziehungsweise setzt fort; bei einer noch laufenden Gruppenmessung zuerst den Messabschluss am Tablet bestätigen oder die Messung verwerfen.
+
+## Neu: Automatische Gruppenfreigabe
+
+Unter **Einlass & Messungen → Automatik** lässt sich die automatische Freigabe einschalten (Gruppengröße > 0 nötig). Nach einer vollen Gruppe zählt das Dial herunter und die Ampel öffnet von selbst. Zum Ausprobieren in der Simulation Karten ans Dial halten und vorspulen. Orange Fläche = zu voll, Taste im Countdown = früher frei; beides lernt das System. Die PC-Version übernimmt Wochentag und Uhrzeit automatisch. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).

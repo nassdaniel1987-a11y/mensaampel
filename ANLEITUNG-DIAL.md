@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.3.0 · Stand 24.09.2026**
+**Vorbereitete Geräteversion 0.6.0-preview · Stand 26.09.2026**
 
 Die Software, Tabletoberfläche und Windows-Übertragung sind vorbereitet. Der Gerätecode wurde erfolgreich für ESP32-S3 übersetzt. Die Erprobung an einem echten Dial steht noch aus. Dieses Paket ist für euren ersten begleiteten Hardwaretest vorgesehen.
 
@@ -134,3 +134,22 @@ Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Dr
 ## Erweiterung 0.4: Entlastung und frühe Hinweise
 
 Die orange Bildschirmtaste am Dial startet **Ausgabe entlasten**. Kurzer physischer Tastendruck setzt bewusst fort. Messungen bleiben am Betreuungstablet. Die neue Ampelanzeige und die zweistufigen Zeithinweise sind in [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md) beschrieben.
+
+## Neu in 0.6: Automatische Gruppenfreigabe
+
+Das Tablet steht als reine Ampel **vor** der Mensa, das Dial **drinnen** bei der Person an der Ausgabe. Mit eingeschalteter Automatik (Tablet: **Einlass & Messungen → Automatik**, Gruppengröße > 0) öffnet die Ampel nach einer vollen Gruppe **von selbst** nach der gelernten Zeit. Das Dial zeigt dabei „Naechste Gruppe in 0:42“.
+
+**Aufkleber neben das Dial:**
+
+> **Zu voll?** Orange Fläche antippen.
+> **Ausgabe schon frei?** Taste drücken.
+> Sonst nichts tun.
+
+- Orange Fläche nach einer automatischen Freigabe = „war zu früh“: Ampel sofort rot, das System wartet künftig länger. Weiter geht es mit der Taste.
+- Taste während des Countdowns = „Ausgabe war schon früher frei“: sofortige Freigabe, künftig etwas kürzer.
+- Ohne Eingriff wird das System vorsichtig etwas schneller, bis jemand „zu voll“ meldet.
+- Einlernphase: Anfangs misst eine zweite Person am Handy oder Tablet im Dial-WLAN Gruppen (**Gruppe messen → Alle haben Essen**). Jede Messung fließt direkt ein.
+- **Uhrzeit:** Einmal **Uhrzeit vom Tablet übernehmen** stellt auch die eingebaute Uhr des Dials. Danach übernimmt das Dial Wochentag und Uhrzeit nach Neustart und neuem Essenstag selbst (Uhr nach längerer Stromlosigkeit am Gerät prüfen).
+- Keine automatische Freigabe bei Pause, Entlastung, laufender Gruppenmessung, fehlenden Plätzen, Leser- oder Speicherstörung und unbestätigtem Bestand.
+
+Die Automatik ist eine lernende Heuristik und muss im begleiteten Probebetrieb erprobt werden. Die PC-Simulation zeigt das Dial Pixel für Pixel so, wie es auf dem Gerät erscheint; dort lässt sich der Ablauf vorher üben.

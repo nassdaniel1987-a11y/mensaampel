@@ -1,6 +1,7 @@
 #pragma once
 #include "vendor/json.hpp"
 #include "flow.hpp"
+#include "dial.hpp"
 #include <string>
 #include <set>
 #include <vector>
@@ -35,6 +36,26 @@ public:
  bool isReady()const{return ready;}bool isPaused()const{return paused||flow.waiting||flow.relief;}bool isYellow()const{return ready&&!isPaused()&&available(0)+available(1)>0&&available(0)+available(1)<=flow.yellow;}bool isGreen()const{return ready&&!isPaused()&&!isYellow()&&(available(0)+available(1)>0);}const std::string& heldUid()const{return held;}
  bool isRelieving()const{return flow.relief;}
  int groupRemaining()const{return flow.batch?std::min(std::max(0,flow.batch-flow.issued),available(0)+available(1)):-1;}
+ const Flow& flowState()const{return flow;}
+ // Automatic release is only due while the group waits and nothing else holds the entrance closed.
+ bool autoPending()const{return flow.autoOn&&flow.waiting&&ready&&!paused&&!flow.relief&&!(flow.started>=0&&flow.kind==1);}
+ bool autoDue(long long now)const{return autoPending()&&(flow.releaseAt<0||now>=flow.releaseAt);}
+ Json dialScreen(long long now,const DialExtras& x)const{
+  using namespace dial;bool g=!x.blocked&&isGreen(),y=!x.blocked&&isYellow(),measuringGroup=flow.started>=0&&flow.kind==1;Json list=Json::array();
+  list.push_back(Json::array({"c",120,38,13,g?green:y?yellow:red}));
+  list.push_back(text(120,76,2,white,g?"Platz frei":y?"Wenig Platz":"Einlass zu"));
+  list.push_back(text(120,107,1,white,"Küche: "+std::to_string(available(0))+"  Mensa: "+std::to_string(available(1))));
+  std::string status;long long left=flow.releaseIn(now);
+  if(flow.relief)status="Pause: Ausgabe entlasten";else if(paused)status="Einlass pausiert";
+  else if(flow.waiting)status=measuringGroup?"Gruppe voll - Messung läuft":flow.autoOn&&left>=0?"Nächste Gruppe in "+std::to_string(left/60)+":"+(left%60<10?"0":"")+std::to_string(left%60):"Gruppe voll";
+  else if(flow.batch)status="Noch "+std::to_string(groupRemaining())+" in dieser Gruppe"+(flow.autoOn?" (Auto)":"");else status="Ohne Gruppenbegrenzung";
+  list.push_back(text(120,128,1,white,status));
+  list.push_back(Json::array({"r",30,142,180,35,8,flow.relief?grey:orange}));list.push_back(text(120,159,1,black,flow.relief?"Taste: fortsetzen":"Ausgabe entlasten"));
+  if(!x.feedback.empty()){auto lines=wrap(x.feedback,{188,204});for(size_t i=0;i<lines.size();i++)list.push_back(text(120,i?204:188,1,x.feedbackOk?green:orange,lines[i]));}
+  else{std::string hint=!x.hint.empty()?x.hint:!ready?"Bestand am Tablet bestätigen":measuringGroup&&flow.waiting?"Tablet: Alle haben Essen":"";auto lines=wrap(hint,{188});if(!lines.empty())list.push_back(text(120,188,1,white,lines[0]));}
+  list.push_back(text(120,222,1,white,flow.relief||paused?"Taste: weiter":flow.waiting?"Taste: freigeben":"Taste: Pause"));
+  return list;
+ }
  Json snapshot()const{
   Json v={{"schema",1},{"ready",ready},{"paused",paused},{"cooldown",cooldown},{"held",held},{"day",day},{"undo",nullptr},{"rooms",Json::object()},{"cards",Json::array()},{"events",Json::array()}};
   for(int r=0;r<2;r++)v["rooms"][roomName(r)]={{"capacity",rooms[r].capacity},{"limit",rooms[r].limit},{"open",rooms[r].open}};
@@ -61,8 +82,9 @@ public:
    }else if(action=="trialFeedback"&&(!ready||paused||flow.relief)){throw std::runtime_error("Rückmeldung nur bei betriebsbereiter Gruppenpause möglich.");}
    else if(flow.command(cmd,now,isPaused(),message)){if(action=="flowSettings"&&before.flow.batch!=flow.batch)paused=true;}
    else if(action=="confirm"){ready=true;message="Bestand geprüft und bestätigt.";}
-   else if(action=="relief"){require(!flow.relief,"Ausgabe wird bereits entlastet.");flow.relief=true;flow.reliefAt=now;message="Ausgabe entlasten gestartet. Rückgaben bleiben möglich.";}
-   else if(action=="pause"){require(cmd.at("paused").is_boolean(),"Ungültige Pause.");bool requested=cmd["paused"];if(!requested&&isPaused()){require(!(flow.started>=0&&flow.kind==1),"Gruppenmessung zuerst beenden oder verwerfen.");if(flow.relief){log(flow.reliefAt>=0?"Ausgabe entlasten beendet: "+std::to_string((now-flow.reliefAt)/1000)+" Sekunden.":"Ausgabe entlasten beendet; Dauer nach Neustart unbekannt.",now);flow.relief=false;flow.reliefAt=-1;}flow.next();}paused=requested;message=paused?"Einlass pausiert. Rückgaben bleiben möglich.":"Einlasspause beendet.";}
+   else if(action=="tick"){if(!autoDue(now))return {{"ok",true},{"changed",false},{"message",""}};if(flow.releaseAt<0){flow.schedule(now);return {{"ok",true},{"changed",true},{"message",""}};}flow.autoRelease();message="Nächste Gruppe automatisch freigegeben.";}
+   else if(action=="relief"){require(!flow.relief,"Ausgabe wird bereits entlastet.");flow.complaint(now);flow.relief=true;flow.reliefAt=now;message="Ausgabe entlasten gestartet. Rückgaben bleiben möglich.";}
+   else if(action=="pause"){require(cmd.at("paused").is_boolean(),"Ungültige Pause.");bool requested=cmd["paused"];if(!requested&&isPaused()){require(!(flow.started>=0&&flow.kind==1),"Gruppenmessung zuerst beenden oder verwerfen.");if(flow.relief){log(flow.reliefAt>=0?"Ausgabe entlasten beendet: "+std::to_string((now-flow.reliefAt)/1000)+" Sekunden.":"Ausgabe entlasten beendet; Dauer nach Neustart unbekannt.",now);flow.relief=false;flow.reliefAt=-1;}flow.manualRelease(now);flow.next();}paused=requested;message=paused?"Einlass pausiert. Rückgaben bleiben möglich.":"Einlasspause beendet.";}
    else if(action=="room"){int r=roomId(cmd.at("room"));int cap=number(cmd,"capacity",0,128),lim=number(cmd,"limit",0,cap);require(lim>=occupied(r),"Freigabe darf nicht unter der aktuellen Belegung liegen. Zum Stoppen den Raum sperren.");require(cmd.at("open").is_boolean(),"Ungültige Freigabe.");rooms[r]={cap,lim,cmd["open"]};hasUndo=false;message=std::string(r==0?"Küche":"Mensa")+" aktualisiert.";}
    else if(action=="settings"){cooldown=number(cmd,"cooldown",1,600);hasUndo=false;message="Sperrzeit gespeichert.";}
    else if(action=="enroll"){auto uid=cmd.at("uid").get<std::string>(),label=cmd.at("label").get<std::string>();int r=roomId(cmd.at("room"));require(!uid.empty()&&uid.size()<=80&&!label.empty()&&label.size()<=20&&cards.size()<256,"Kartenkennung fehlt, ist zu lang oder Kartenbestand voll.");for(const auto& c:cards)require(c.uid!=uid&&c.label!=label,"Kennung oder Kartennummer bereits vorhanden.");cards.push_back({uid,label,r,false,false,-1});hasUndo=false;message=label+" eingelernt. Raumkapazität bleibt unverändert.";}
@@ -70,8 +92,8 @@ public:
    else if(action=="correct"){auto& c=card(cmd.at("uid"));require(cmd.at("out").is_boolean()&&cmd.at("lost").is_boolean(),"Ungültige Korrektur.");bool out=cmd["out"];require(!out||c.out||occupied(c.room)<rooms[c.room].limit,"Korrektur würde die Raumkapazität überschreiten.");flow.cancel();flow.clearTrial();c.out=out;c.lost=cmd["lost"];c.last=now;hasUndo=false;message=c.label+" manuell korrigiert.";}
    else if(action=="undo"){require(hasUndo,"Keine Buchung zum Rückgängigmachen vorhanden.");auto& c=card(undo.uid);require(!undo.out||c.out||occupied(c.room)<rooms[c.room].limit,"Rückgängig würde die Raumkapazität überschreiten.");flow.cancel();flow.clearTrial();c=undo;c.last=now;hasUndo=false;message="Letzte Buchung rückgängig gemacht.";}
    else if(action=="restart"){flow.restart();ready=false;held.clear();hasUndo=false;message="Gerät neu gestartet. Bestand bitte prüfen.";}
-   else if(action=="newDay"){require(cmd.value("confirmed",false),"Neuen Essenstag ausdrücklich bestätigen.");require(day<1000000,"Maximale Essenstage erreicht.");if(flow.relief)log("Entlastung durch neuen Essenstag beendet.",now);flow.relief=false;flow.reliefAt=-1;flow.cancel();flow.next();flow.clockValid=false;for(auto& c:cards){c.out=false;c.last=-1;}rooms[0].open=true;rooms[1].open=false;for(auto& r:rooms)r.limit=r.capacity;ready=true;paused=false;held.clear();day++;hasUndo=false;message="Neuer Essenstag nach Bestandsprüfung gestartet. Verlorene Karten bleiben gesperrt.";}
-   else throw std::runtime_error("Unbekannte Aktion.");log(message,now);return {{"ok",true},{"message",message},{"booking",booking}};
+   else if(action=="newDay"){require(cmd.value("confirmed",false),"Neuen Essenstag ausdrücklich bestätigen.");require(day<1000000,"Maximale Essenstage erreicht.");if(flow.relief)log("Entlastung durch neuen Essenstag beendet.",now);flow.relief=false;flow.reliefAt=-1;flow.cancel();flow.next();flow.clockValid=false;flow.autoReleased=false;flow.autoComplaint=false;flow.autoFaster=0;flow.autoSlower=0;for(auto& c:cards){c.out=false;c.last=-1;}rooms[0].open=true;rooms[1].open=false;for(auto& r:rooms)r.limit=r.capacity;ready=true;paused=false;held.clear();day++;hasUndo=false;message="Neuer Essenstag nach Bestandsprüfung gestartet. Verlorene Karten bleiben gesperrt.";}
+   else throw std::runtime_error("Unbekannte Aktion.");log(message,now);return {{"ok",true},{"message",message},{"booking",booking},{"changed",true}};
   }catch(const std::exception& e){*this=std::move(before);return {{"ok",false},{"message",e.what()}};}
  }
 };

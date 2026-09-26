@@ -81,3 +81,17 @@ Zweistufige Empfehlungen: mindestens drei gleiche Gruppengröße/Schlange über 
 ## Version 0.5.0-preview: Erprobung nur im Dial-Paket
 
 Festgelegter Prüfvorschlag nach längster passender Gruppenzeit plus Puffer, mindestens Puffer nach letztem Einlassscan. Bewertungen einmal pro Gruppe, getrennte begrenzte Historie (120), CSV-Export. Keine automatische Öffnung oder Parameteranpassung. Rückmeldungen beeinflussen Messmittelwerte nicht. Gemeinsamer Kern lokal getestet; Demo-HTML und PC-Auslieferung nicht neu erstellt.
+
+## Erweiterung 0.6.0-preview: Automatik und Dial-Simulation
+
+**Automatik** (`core/flow.hpp`): neue Snapshot-Felder `autoOn`, `autoStart`, `autoGlobal`, `autoGlobalN`, `autoSlots` (`[Wochentag, Halbstunde, Zehntelsekunden pro Kind, Anzahl]`, max. 336), `releaseAt`, `autoReleased`, `autoComplaint`, `autoFaster`, `autoSlower`; ältere Stände ohne diese Felder laden weiter und übernehmen ihre Gruppenmessungen. Neue Befehle `autoSettings` (`on`, `start` in Sekunden, optional `reset`) und `tick`. `tick` plant die Freigabe beziehungsweise gibt frei und meldet `changed`; Server, Demo und Firmware speichern nur bei Änderung. `Engine::autoDue(now)` verhindert unnötige Flash-Schreibvorgänge am Gerät. Lernregeln siehe `EINLASS-UND-MESSUNGEN.md`.
+
+**Dial-Anzeige** (`core/dial.hpp`, `Engine::dialScreen`): Der Hauptbildschirm entsteht als Zeichenliste (Kreis, abgerundetes Rechteck, Text mit RGB565-Farben) im gemeinsamen Kern. Die Firmware zeichnet sie mit M5GFX, die Simulation (`src/DialDevice.tsx`) pixelgenau mit der GLCD-Standardschrift (`src/glcdfont.ts`, erzeugt durch `scripts/extract-glcdfont.mjs`). Texte werden ASCII-transliteriert (die Schrift hat keine Umlaute) und auf die im runden Display sichtbare Zeilenbreite umbrochen; vorher ragten Rückmeldung und Fußzeile über den Rand. WASM-Operation `dial` mit `blocked`, `hint`, `feedback`, `feedbackOk`. PC-Server und Demo liefern `dial` und `feedback` im Status und lösen `tick` alle 500 ms bzw. 200 ms aus.
+
+**Firmware:** RTC (`M5.Rtc`) wird über `measurementContext` mit Feld `date` gestellt und liefert danach Wochentag/Uhrzeit, wenn keine gültige Zeit vorliegt. Build: 1312557 Bytes Flash (41,7 %), 50324 Bytes statischer RAM. Partitionstabelle unverändert, Update behält LittleFS.
+
+**Installationshelfer:** Espressif-Ports (USB-VID 0x303A) werden markiert und vorausgewählt; fehlt `mensa-flash.exe` oder stimmt seine Prüfsumme nicht, erscheint ein Hinweis auf Virenschutz/IT statt „Datei beschädigt“.
+
+**Werkzeuge in dieser Umgebung:** Emscripten 4.0.15 über emsdk (`EMSDK`, `EMSDK_PYTHON=python3`), PlatformIO per pip. `scripts/build-demo.mjs` schreibt nach `DEMO_OUT` (Standard `../outputs/…`).
+
+48 automatisierte Tests bestehen (neu `tests/auto.test.mjs`: Freigabe nach gelernter Zeit, Taste im Countdown, Entlasten, Sperrgründe, Halbstundenwerte, alte Stände, Dial-Anzeige, PC-Zeitgeber). Browserprüfung der Dial-Simulation mit Touchfläche, Taste und Countdown. Nicht geprüft: echtes Dial, Touch-Treffgenauigkeit, RTC-Gangreserve, Installationshelfer unter Windows.

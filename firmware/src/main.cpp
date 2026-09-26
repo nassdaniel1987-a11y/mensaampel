@@ -12,7 +12,7 @@
 using mensa::Json;
 mensa::Engine engine;BookStorage storage;DeviceConfig config;CardReader reader;WebServer web(80);
 bool configValid=false,needsReview=false;std::string session,loginNonce,captureTarget,capturedUid,feedback="Bereit zur Einrichtung.";
-uint64_t sessionUntil=0,loginAfter=0,captureUntil=0,restartAt=0,showCredentialsUntil=0,resetConfirmUntil=0;unsigned loginFailures=0;
+uint64_t sessionUntil=0,loginAfter=0,captureUntil=0,restartAt=0,showCredentialsUntil=0,resetConfirmUntil=0,clockCheckAt=0;unsigned loginFailures=0;
 bool feedbackOk=true;uint64_t feedbackAt=0,drawAt=0;
 uint64_t nowMs(){return uint64_t(esp_timer_get_time()/1000);}
 void note(const std::string& text,bool ok){feedback=text;feedbackOk=ok;feedbackAt=nowMs();M5.Speaker.tone(ok?1800:400,ok?90:220);}
@@ -26,8 +26,15 @@ Json publicSignal(){
 }
 Json state(){auto s=engine.status(nowMs());
  s["storageError"]=storage.error;s["recoveryRequired"]=false;s["sim"]={{"offset",0},{"offline",false},{"forceWriteFailure",false}};
- s["device"]={{"version","0.5.0-preview"},{"configured",config.configured},{"reader",config.reader},{"readerHealthy",reader.healthy},{"readerError",reader.error},{"ssid",config.ssid},{"captureTarget",captureTarget},{"capturedUid",capturedUid},{"captureUntil",captureUntil},{"feedback",feedback},{"feedbackOk",feedbackOk},{"needsReview",needsReview},{"freeHeap",ESP.getFreeHeap()},{"minimumHeap",ESP.getMinFreeHeap()},{"clients",WiFi.softAPgetStationNum()},{"uptime",nowMs()}};
+ s["device"]={{"version","0.6.0-preview"},{"configured",config.configured},{"reader",config.reader},{"readerHealthy",reader.healthy},{"readerError",reader.error},{"ssid",config.ssid},{"captureTarget",captureTarget},{"capturedUid",capturedUid},{"captureUntil",captureUntil},{"feedback",feedback},{"feedbackOk",feedbackOk},{"needsReview",needsReview},{"freeHeap",ESP.getFreeHeap()},{"minimumHeap",ESP.getMinFreeHeap()},{"clients",WiFi.softAPgetStationNum()},{"uptime",nowMs()}};
  if(blocked())s["signal"]={{"green",false},{"reason","device"},{"free",0}};return s;
+}
+// Built-in RTC: plausible once it was set from the tablet; supplies weekday and time for the learned half-hour values.
+bool rtcTime(m5::rtc_datetime_t& t){return M5.Rtc.isEnabled()&&M5.Rtc.getDateTime(&t)&&t.date.year>=2025&&t.date.year<2100&&t.time.hours>=0&&t.time.hours<24&&t.time.minutes>=0&&t.time.minutes<60&&t.date.weekDay>=0&&t.date.weekDay<7;}
+void setRtc(const Json& d){
+ if(!M5.Rtc.isEnabled()||!d.is_array()||d.size()!=6)return;for(auto& v:d)if(!v.is_number_integer())return;
+ int y=d[0],mo=d[1],day=d[2],h=d[3],mi=d[4],se=d[5];if(y<2025||y>2099||mo<1||mo>12||day<1||day>31||h<0||h>23||mi<0||mi>59||se<0||se>59)return;
+ tm t{};t.tm_year=y-1900;t.tm_mon=mo-1;t.tm_mday=day;t.tm_hour=h;t.tm_min=mi;t.tm_sec=se;mktime(&t);M5.Rtc.setDateTime(&t);
 }
 Json result(bool ok,const std::string& message){return {{"ok",ok},{"message",message}};}
 Json transact(const Json& command){
@@ -51,7 +58,7 @@ Json command(const Json& j){
  }
  if(type=="reader"){
   std::string selected=j.at("reader");if(selected!="internal"&&selected!="external")return result(false,"Ungültige Leserauswahl.");
-  auto r=transact({{"type","restart"}});if(!r["ok"].get<bool>())return r;clearCapture();auto next=config;next.reader=selected;
+  auto r=transact({{"type","restart"}});if(!r["ok"].get<bool>())return r;clearCapture();clockCheckAt=0;auto next=config;next.reader=selected;
   if(!next.save())return result(false,"Leserauswahl konnte nicht gespeichert werden.");config=next;bool ok=reader.begin(selected);
   return result(ok,ok?"Leser umgestellt und erreichbar. Karte entfernen und Bestand erneut bestätigen.":reader.error);
  }
@@ -79,12 +86,13 @@ Json command(const Json& j){
  if(type=="trialFeedback"&&blocked())return result(false,"Gerät zuerst betriebsbereit machen.");
  if(type=="confirm"&&blocked())return result(false,"Einrichtung, Leser und Speicherung zuerst prüfen.");
  if(type=="correct"&&j.at("uid").get<std::string>().rfind("sim:",0)==0)return result(false,"Dieser Nummer zuerst eine echte Karte zuordnen.");
- if(type=="trialSettings"||type=="trialFeedback"||type=="relief"||type=="confirm"||type=="pause"||type=="correct"||type=="room"||type=="settings"||type=="undo"||type=="newDay"||type=="flowSettings"||type=="measurementContext"||type=="queueState"||type=="measurementArm"||type=="measurementFinish"||type=="measurementCancel"||type=="measurementDeleteLast")return transact(j);
+ if(type=="measurementContext"&&j.contains("date"))setRtc(j["date"]);
+ if(type=="autoSettings"||type=="trialSettings"||type=="trialFeedback"||type=="relief"||type=="confirm"||type=="pause"||type=="correct"||type=="room"||type=="settings"||type=="undo"||type=="newDay"||type=="flowSettings"||type=="measurementContext"||type=="queueState"||type=="measurementArm"||type=="measurementFinish"||type=="measurementCancel"||type=="measurementDeleteLast")return transact(j);
  return result(false,"Diese Aktion ist am Gerät nicht verfügbar.");
 }
 void configureWeb(){
  const char* headers[]={"Origin","X-Mensa-Token"};web.collectHeaders(headers,2);
- web.on("/api/info",HTTP_GET,[]{if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));reply(200,{{"mode","device"},{"configured",config.configured},{"nonce",loginNonce},{"version","0.5.0-preview"}});});
+ web.on("/api/info",HTTP_GET,[]{if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));reply(200,{{"mode","device"},{"configured",config.configured},{"nonce",loginNonce},{"version","0.6.0-preview"}});});
  web.on("/api/signal",HTTP_GET,[]{reply(200,publicSignal());});
  web.on("/api/login",HTTP_POST,[]{
   if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));if(nowMs()<loginAfter)return reply(429,result(false,"Zu viele Versuche. Bitte 30 Sekunden warten."));
@@ -112,13 +120,15 @@ void draw(){
  if(resetConfirmUntil>now){d.drawString("Zugang zuruecksetzen?",120,85);d.drawString("Kurz druecken: JA",120,120);d.drawString("Bestand bleibt erhalten",120,145);return;}
  if(!configValid){d.drawString("Konfiguration defekt",120,85);d.drawString("Taste 10 s halten",120,120);return;}
  if(credentials){d.drawString(config.ssid.c_str(),120,55);d.drawString(("WLAN: "+config.wifiPassword).c_str(),120,80);d.drawString("http://192.168.4.1",120,108);if(!config.configured){d.drawString("Einrichtungscode:",120,137);d.drawString(config.setupCode.c_str(),120,158);}else d.drawString("Kennwort im Browser eingeben",120,146);return;}
- bool green=!blocked()&&engine.isGreen(),yellow=!blocked()&&engine.isYellow();d.fillCircle(120,38,13,green?TFT_GREEN:yellow?TFT_YELLOW:TFT_RED);d.setTextSize(2);d.drawString(green?"Platz frei":yellow?"Wenig Platz":"Einlass zu",120,76);d.setTextSize(1);
- d.drawString(("Kueche: "+std::to_string(engine.available(0))+"  Mensa: "+std::to_string(engine.available(1))).c_str(),120,107);
- d.drawString(engine.isRelieving()?"Pause: Ausgabe entlasten":engine.isPaused()?"Einlass pausiert":engine.groupRemaining()>=0?("Noch "+std::to_string(engine.groupRemaining())+" in dieser Gruppe").c_str():"Ohne Gruppenbegrenzung",120,128);
- d.fillRoundRect(30,142,180,35,8,engine.isRelieving()?TFT_DARKGREY:TFT_ORANGE);d.setTextColor(TFT_BLACK);d.drawString(engine.isRelieving()?"Taste: fortsetzen":"Ausgabe entlasten",120,159);d.setTextColor(TFT_WHITE);
- if(!reader.healthy)d.drawString("Leser pruefen!",120,188);else if(!storage.error.empty())d.drawString("Speicher pruefen!",120,188);else if(!engine.isReady())d.drawString("Bestand am Tablet bestaetigen",120,188);else if(!captureTarget.empty())d.drawString("Karte einlernen am Tablet",120,188);
- if(feedbackAt&&now-feedbackAt<3500){d.setTextColor(feedbackOk?TFT_GREEN:TFT_ORANGE);d.drawString(feedback.substr(0,32).c_str(),120,204);d.setTextColor(TFT_WHITE);}
- d.drawString("Taste: Pause / weiter",120,222);
+ // Main screen: same draw list as the PC simulation (core/dial.hpp).
+ mensa::DialExtras x;x.blocked=blocked();x.hint=!reader.healthy?"Leser pruefen!":!storage.error.empty()?"Speicher pruefen!":!captureTarget.empty()?"Karte einlernen am Tablet":"";
+ if(feedbackAt&&now-feedbackAt<3500){x.feedback=feedback;x.feedbackOk=feedbackOk;}
+ for(auto& i:engine.dialScreen(now,x)){const std::string kind=i[0];
+  if(kind=="c")d.fillCircle(i[1].get<int>(),i[2].get<int>(),i[3].get<int>(),uint16_t(i[4].get<int>()));
+  else if(kind=="r")d.fillRoundRect(i[1].get<int>(),i[2].get<int>(),i[3].get<int>(),i[4].get<int>(),i[5].get<int>(),uint16_t(i[6].get<int>()));
+  else{d.setTextSize(i[3].get<int>());d.setTextColor(uint16_t(i[4].get<int>()));d.drawString(i[5].get<std::string>().c_str(),i[1].get<int>(),i[2].get<int>());}
+ }
+ d.setTextSize(1);d.setTextColor(TFT_WHITE);
 }
 void setup(){
  Serial.begin(115200);auto cfg=M5.config();cfg.fallback_board=m5::board_t::board_M5Dial;M5Dial.begin(cfg,false,false);pinMode(46,OUTPUT);digitalWrite(46,HIGH);M5.Display.setRotation(0);M5.Speaker.setVolume(90);
@@ -139,6 +149,10 @@ void loop(){
   if(resetConfirmUntil>now){auto next=config;if(!configValid)next.fresh();else{next.configured=false;next.setupCode=randomKey(10);next.salt=randomKey();next.adminHash=passwordHash(next.setupCode,next.salt);}if(next.save()){engine.command({{"type","restart"}},now);restartAt=now+500;}resetConfirmUntil=0;}
   else if(configValid&&config.configured&&!needsReview){auto r=transact({{"type","pause"},{"paused",!engine.isPaused()}});note(r.value("message",std::string()),r.value("ok",false));}
  }
+ // Automatic group release: only transact (and write flash) when a release or its scheduling is due.
+ if(configValid&&config.configured&&!needsReview&&storage.error.empty()&&!blocked()&&engine.autoDue(now)){auto r=transact({{"type","tick"}});if(r.value("ok",false)&&!r.value("message",std::string()).empty())note(r["message"],true);}
+ if(configValid&&config.configured&&!needsReview&&now>=clockCheckAt){clockCheckAt=now+5000;const auto& f=engine.flowState();m5::rtc_datetime_t t;
+  if(!f.clockReady(now)&&!f.armed&&f.started<0&&f.issued==0&&rtcTime(t))transact({{"type","measurementContext"},{"weekday",t.date.weekDay},{"minute",t.time.hours*60+t.time.minutes},{"queue",f.queue}});}
  if(configValid){mensa::Edge edge;if(reader.poll(now,edge)&&edge.kind){
   if(edge.kind<0)engine.command({{"type","remove"}},now);
   else if(!captureTarget.empty()){capturedUid=edge.uid;note("Karte erkannt. Zuordnung am Tablet speichern.",true);}

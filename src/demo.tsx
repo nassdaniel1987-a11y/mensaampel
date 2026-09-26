@@ -6,11 +6,11 @@ declare global {interface Window {createMensaBrowserCore:(options?:unknown)=>Pro
 async function start(){
  const module=await window.createMensaBrowserCore();
  const call=(q:unknown)=>JSON.parse(module.ccall('mensa_call','string',['string'],[JSON.stringify(q)]));
- const engine={status:(now:number)=>call({op:'status',now}),command:(command:Command,now:number)=>call({op:'command',command,now}),snapshot:()=>call({op:'snapshot'}),restore:(state:unknown,preserveUndo:boolean)=>call({op:'restore',state,preserveUndo}),reset:()=>call({op:'reset'})};
+ const engine={call,status:(now:number)=>call({op:'status',now}),command:(command:Command,now:number)=>call({op:'command',command,now}),snapshot:()=>call({op:'snapshot'}),restore:(state:unknown,preserveUndo:boolean)=>call({op:'restore',state,preserveUndo}),reset:()=>call({op:'reset'})};
  const controller=createDemoController(engine);
  function Demo(){
   const [state,setState]=useState<State>(controller.state()),[view,setView]=useState('management'),[notice,setNotice]=useState<{ok:boolean;text:string}|null>(null),[connected,setConnected]=useState(true),[reset,setReset]=useState(false),[uid,setUid]=useState('sim:K01');
-  useEffect(()=>{let lastSeen=Date.now();const timer=setInterval(()=>{if(controller.online()){setState(controller.state());lastSeen=Date.now();}setConnected(Date.now()-lastSeen<3000);},200);return()=>clearInterval(timer);},[]);
+  useEffect(()=>{let lastSeen=Date.now();const timer=setInterval(()=>{if(controller.online()){controller.tick();setState(controller.state());lastSeen=Date.now();}setConnected(Date.now()-lastSeen<3000);},200);return()=>clearInterval(timer);},[]);
   const send=async(c:Command)=>{const r=controller.send(c);setState(r.state);setNotice({ok:r.ok,text:r.message});return r.ok;};
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(null),6000);return()=>clearTimeout(timer);},[notice]);
   const navigate=(next:string)=>{setView(next);window.scrollTo(0,0);};

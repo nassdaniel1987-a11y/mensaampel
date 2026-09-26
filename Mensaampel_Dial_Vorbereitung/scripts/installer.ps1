@@ -9,12 +9,15 @@ function File-Sha256([string]$Path){
 }
 function Test-Bundle {
     $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    # A missing or changed USB tool is usually removed or blocked by antivirus software on managed PCs.
+    $blocked='Das USB-Werkzeug tools\mensa-flash.exe fehlt oder wurde veraendert - vermutlich vom Virenschutz blockiert oder entfernt. ZIP erneut vollstaendig entpacken; auf Schul-PCs die IT bitten, den Ordner freizugeben.'
+    if(!(Test-Path -LiteralPath $flasher)){throw $blocked}
     foreach($entry in $manifest.files){
         $path=Join-Path $bundleRoot $entry.path
-        if(!(Test-Path -LiteralPath $path)){throw "Datei fehlt: $($entry.path)"}
-        if((File-Sha256 $path) -ne $entry.sha256){throw "Datei beschaedigt: $($entry.path)"}
+        $isTool=$entry.path -eq 'tools/mensa-flash.exe'
+        if(!(Test-Path -LiteralPath $path)){if($isTool){throw $blocked};throw "Datei fehlt: $($entry.path). Bitte das gesamte ZIP entpacken."}
+        if((File-Sha256 $path) -ne $entry.sha256){if($isTool){throw $blocked};throw "Datei beschaedigt: $($entry.path). ZIP erneut herunterladen und vollstaendig entpacken."}
     }
-    if(!(Test-Path -LiteralPath $flasher)){throw 'USB-Werkzeug fehlt. Bitte das gesamte ZIP entpacken.'}
 }
 try{Test-Bundle}catch{Write-Error $_;exit 1}
 if($CheckOnly){Write-Output 'Installationspaket vollstaendig; Pruefsummen stimmen.';exit 0}
@@ -39,7 +42,7 @@ $confirm=New-Object Windows.Forms.CheckBox;$confirm.Text='Ich verwende einen M5S
 $start=New-Object Windows.Forms.Button;$start.Text='Software uebertragen';$start.Location=New-Object Drawing.Point(24,305);$start.Size=New-Object Drawing.Size(230,40);$form.Controls.Add($start)
 $log=New-Object Windows.Forms.TextBox;$log.Location=New-Object Drawing.Point(24,366);$log.Size=New-Object Drawing.Size(686,225);$log.Multiline=$true;$log.ReadOnly=$true;$log.ScrollBars='Vertical';$log.Font=New-Object Drawing.Font('Consolas',9);$form.Controls.Add($log)
 $script:portRecords=@();$script:running=$false
-$updatePorts={try{$script:portRecords=@((& $flasher ports | ConvertFrom-Json));$ports.Items.Clear();foreach($p in $script:portRecords){[void]$ports.Items.Add("$($p.port) - $($p.description)")};if($ports.Items.Count){$ports.SelectedIndex=0}else{$log.Text='Kein USB-Geraet erkannt. Datenkabel und G0-Modus pruefen, dann aktualisieren.'}}catch{$log.Text=$_.Exception.Message}}
+$updatePorts={try{$script:portRecords=@((& $flasher ports | ConvertFrom-Json));$ports.Items.Clear();$dial=-1;for($i=0;$i -lt $script:portRecords.Count;$i++){$p=$script:portRecords[$i];$espressif=$p.vid -eq 0x303A;if($espressif -and $dial -lt 0){$dial=$i};[void]$ports.Items.Add("$($p.port) - $($p.description)"+$(if($espressif){' (ESP32-S3, vermutlich das Dial)'}else{''}))};if($ports.Items.Count){$ports.SelectedIndex=[Math]::Max(0,$dial)}else{$log.Text='Kein USB-Geraet erkannt. Datenkabel und G0-Modus pruefen, dann aktualisieren.'}}catch{$log.Text=$_.Exception.Message}}
 $refresh.Add_Click($updatePorts)
 $mode.Add_SelectedIndexChanged({$confirm.Checked=$false;if($mode.SelectedIndex -eq 1){$notice.Text='Erstinstallation loescht vorhandene Software, Zugangsdaten und Karten auf dem Dial. Vorher sichern.'}else{$notice.Text='Update nur fuer eine bereits installierte Mensaampel mit diesem Speicherlayout.'}})
 function Run-Flash([string[]]$Arguments){

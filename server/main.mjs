@@ -8,7 +8,7 @@ import {createEngine} from './engine.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export async function createApp({dataDir=resolve(root,'data')}={}){
  const engine=await createEngine();mkdirSync(dataDir,{recursive:true});
- const file=resolve(dataDir,'bestand.json');let offset=0,offlineUntil=0,storageError='',loadError='',forceWriteFailure=false;
+ const file=resolve(dataDir,'bestand.json');let offset=0,offlineUntil=0,storageError='',loadError='',forceWriteFailure=false,feedback={text:'',ok:true,at:0};
  const now=()=>Date.now()+offset;
  const hash=s=>createHash('sha256').update(s).digest('hex');
  function save(){
@@ -29,7 +29,16 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
  }else {try{save();}catch(e){storageError='Bestand kann nicht gespeichert werden: '+e.message;}}
  const token=randomBytes(24).toString('hex');
  function state(){
-  const s=engine.status(now());return {...s,storageError:storageError||loadError,recoveryRequired:!!loadError,sim:{offset,offline:Date.now()<offlineUntil,forceWriteFailure}};
+  const s=engine.status(now()),error=storageError||loadError;
+  // Same main screen as the Dial; the note stays visible for 3.5 s like on the device.
+  const dial=engine.call({op:'dial',now:now(),blocked:!!error,hint:error?'Speicher pruefen!':'',...(Date.now()-feedback.at<3500?{feedback:feedback.text,feedbackOk:feedback.ok}:{})});
+  return {...s,dial,feedback,storageError:error,recoveryRequired:!!loadError,sim:{offset,offline:Date.now()<offlineUntil,forceWriteFailure}};
+ }
+ const note=(text,ok)=>{if(text)feedback={text,ok:!!ok,at:Date.now()};};
+ // The PC has a reliable clock: take weekday and time for the learned half-hour values automatically.
+ function syncClock(){
+  const f=engine.status(now()).flow;if(loadError||f.clockValid||f.armed||f.started>=0||f.issued>0)return;
+  const t=new Date(now());engine.command({type:'measurementContext',weekday:t.getDay(),minute:t.getHours()*60+t.getMinutes(),queue:f.queue},now());
  }
  // Commands are processed synchronously after body collection; memory and disk form one transaction.
  function transact(command){
@@ -50,9 +59,12 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
    result=engine.command({type:'scan',uid:command.uid},now());
    engine.command({type:'remove'},now());
   }else result=engine.command(command,now());
+  if(command.type!=='advance')note(result.message,result.ok);
+  if(command.type==='tick'&&!result.changed)return {...result,state:state()};
+  syncClock();if(command.type==='advance'){const r=engine.command({type:'tick'},now());if(r.changed)note(r.message,r.ok);}
   try{save();storageError='';}
   catch(e){
-   engine.restore(previous,true);offset=oldOffset;storageError='Speicherfehler. Aktion nicht übernommen. Bitte Speicher prüfen.';
+   engine.restore(previous,true);offset=oldOffset;storageError='Speicherfehler. Aktion nicht übernommen. Bitte Speicher prüfen.';note(storageError,false);
    return {ok:false,message:storageError,state:state()};
   }
   return {...result,state:state()};
@@ -65,7 +77,7 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
   let url,decodedPath;
   try{url=new URL(req.url,`http://${req.headers.host}`);decodedPath=decodeURIComponent(url.pathname);}catch{return reply(400,{message:'Ungültige Adresse.'});}
   if(url.pathname==='/api/health')return reply(200,{app:'mensaampel',version:1});
-  if(url.pathname==='/api/info')return reply(200,{mode:'pc',version:'0.2.0'});
+  if(url.pathname==='/api/info')return reply(200,{mode:'pc',version:'0.6.0-preview'});
   if(url.pathname==='/api/signal'){
    if(Date.now()<offlineUntil)return reply(503,{message:'Simulierte Verbindungsunterbrechung.'});
    const s=state();return reply(200,{signal:s.signal,storageError:s.storageError,now:s.now});
@@ -92,7 +104,9 @@ export async function createApp({dataDir=resolve(root,'data')}={}){
    res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"});res.end(content);
   }catch{res.writeHead(404);res.end('Nicht gefunden. Anwendung zuerst bauen.');}
  });
- return {server,engine,state,transact};
+ syncClock();
+ const timer=setInterval(()=>{if(!loadError&&!forceWriteFailure)transact({type:'tick'});},500);timer.unref();
+ return {server,engine,state,transact,stop:()=>clearInterval(timer)};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const app=await createApp({dataDir:process.env.MENSA_DATA_DIR||undefined});
