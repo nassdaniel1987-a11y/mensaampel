@@ -26,7 +26,7 @@ Json publicSignal(){
 }
 Json state(){auto s=engine.status(nowMs());
  s["storageError"]=storage.error;s["recoveryRequired"]=false;s["sim"]={{"offset",0},{"offline",false},{"forceWriteFailure",false}};
- s["device"]={{"version","0.7.0-preview"},{"configured",config.configured},{"reader",config.reader},{"readerHealthy",reader.healthy},{"readerError",reader.error},{"ssid",config.ssid},{"captureTarget",captureTarget},{"capturedUid",capturedUid},{"captureUntil",captureUntil},{"feedback",feedback},{"feedbackOk",feedbackOk},{"needsReview",needsReview},{"freeHeap",ESP.getFreeHeap()},{"minimumHeap",ESP.getMinFreeHeap()},{"clients",WiFi.softAPgetStationNum()},{"uptime",nowMs()}};
+ s["device"]={{"version","0.8.0-preview"},{"configured",config.configured},{"reader",config.reader},{"readerHealthy",reader.healthy},{"readerError",reader.error},{"ssid",config.ssid},{"captureTarget",captureTarget},{"capturedUid",capturedUid},{"captureUntil",captureUntil},{"feedback",feedback},{"feedbackOk",feedbackOk},{"needsReview",needsReview},{"freeHeap",ESP.getFreeHeap()},{"minimumHeap",ESP.getMinFreeHeap()},{"clients",WiFi.softAPgetStationNum()},{"uptime",nowMs()}};
  if(blocked())s["signal"]={{"green",false},{"reason","device"},{"free",0}};return s;
 }
 // Built-in RTC: plausible once it was set from the tablet; supplies weekday and time for the learned half-hour values.
@@ -88,13 +88,13 @@ Json command(const Json& j){
  if(type=="trialFeedback"&&blocked())return result(false,"Gerät zuerst betriebsbereit machen.");
  if(type=="confirm"&&blocked())return result(false,"Einrichtung, Leser und Speicherung zuerst prüfen.");
  if(type=="correct"&&j.at("uid").get<std::string>().rfind("sim:",0)==0)return result(false,"Dieser Nummer zuerst eine echte Karte zuordnen.");
- if(type=="measurementContext"&&j.contains("date"))setRtc(j["date"]);
- if(type=="autoSettings"||type=="trialSettings"||type=="trialFeedback"||type=="relief"||type=="confirm"||type=="pause"||type=="correct"||type=="room"||type=="settings"||type=="undo"||type=="newDay"||type=="flowSettings"||type=="measurementContext"||type=="queueState"||type=="measurementArm"||type=="measurementFinish"||type=="measurementCancel"||type=="measurementDeleteLast")return transact(j);
+ if((type=="measurementContext"||type=="clockSync")&&j.contains("date"))setRtc(j["date"]);
+ if(type=="clockSync"||type=="autoSettings"||type=="trialSettings"||type=="trialFeedback"||type=="relief"||type=="confirm"||type=="pause"||type=="correct"||type=="room"||type=="settings"||type=="undo"||type=="newDay"||type=="flowSettings"||type=="measurementContext"||type=="queueState"||type=="measurementArm"||type=="measurementFinish"||type=="measurementCancel"||type=="measurementDeleteLast")return transact(j);
  return result(false,"Diese Aktion ist am Gerät nicht verfügbar.");
 }
 void configureWeb(){
  const char* headers[]={"Origin","X-Mensa-Token"};web.collectHeaders(headers,2);
- web.on("/api/info",HTTP_GET,[]{if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));reply(200,{{"mode","device"},{"configured",config.configured},{"nonce",loginNonce},{"version","0.7.0-preview"}});});
+ web.on("/api/info",HTTP_GET,[]{if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));reply(200,{{"mode","device"},{"configured",config.configured},{"nonce",loginNonce},{"version","0.8.0-preview"}});});
  web.on("/api/signal",HTTP_GET,[]{reply(200,publicSignal());});
  web.on("/api/login",HTTP_POST,[]{
   if(!localOrigin())return reply(403,result(false,"Fremder Zugriff."));if(nowMs()<loginAfter)return reply(429,result(false,"Zu viele Versuche. Bitte 30 Sekunden warten."));
@@ -117,7 +117,7 @@ void configureWeb(){
  web.on("/api/logout",HTTP_POST,[]{if(!authorized())return reply(401,result(false,"Bitte anmelden."));session.clear();reply(200,result(true,"Abgemeldet."));});
  web.on("/api/command",HTTP_POST,[]{
   if(!authorized())return reply(401,result(false,"Bitte anmelden."));try{
-   if(web.arg("plain").length()>2048)throw std::runtime_error("Anfrage zu groß.");auto j=Json::parse(web.arg("plain").c_str());auto r=command(j);note(r.value("message",std::string()),r.value("ok",false));r["state"]=state();reply(200,r);
+   if(web.arg("plain").length()>2048)throw std::runtime_error("Anfrage zu groß.");auto j=Json::parse(web.arg("plain").c_str());auto r=command(j);M5.Speaker.setVolume(engine.volumeLevel()*25);if(j.value("type",std::string())!="clockSync")note(r.value("message",std::string()),r.value("ok",false));r["state"]=state();reply(200,r);
   }catch(const std::exception& e){reply(400,result(false,e.what()));}
  });
  web.on("/api/backup",HTTP_GET,[]{if(!authorized())return reply(401,result(false,"Bitte anmelden."));web.sendHeader("Content-Disposition","attachment; filename=mensa-bestand.json");reply(200,{{"format","mensa-device-backup-1"},{"state",engine.snapshot()},{"reader",config.reader}});});
@@ -127,25 +127,32 @@ void configureWeb(){
   reply(404,result(false,"Nicht gefunden."));
  });web.begin();
 }
-void draw(){
- uint64_t now=nowMs();if(now-drawAt<500)return;drawAt=now;auto& d=M5.Display;
- bool credentials=!config.configured||now<showCredentialsUntil;d.fillScreen(TFT_BLACK);d.setTextColor(TFT_WHITE);d.setTextSize(1);d.setTextDatum(middle_center);
- if(resetConfirmUntil>now){d.drawString("Zugang zuruecksetzen?",120,85);d.drawString("Kurz druecken: JA",120,120);d.drawString("Bestand bleibt erhalten",120,145);return;}
- if(!configValid){d.drawString("Konfiguration defekt",120,85);d.drawString("Taste 10 s halten",120,120);return;}
- if(credentials){d.drawString(config.ssid.c_str(),120,55);d.drawString(("WLAN: "+config.wifiPassword).c_str(),120,80);d.drawString("http://192.168.4.1",120,108);if(!config.configured){d.drawString("Einrichtungscode:",120,137);d.drawString(config.setupCode.c_str(),120,158);}else d.drawString("Kennwort im Browser eingeben",120,146);return;}
- // Main screen: same draw list as the PC simulation (core/dial.hpp).
- mensa::DialExtras x;x.blocked=blocked();x.hint=!reader.healthy?"Leser pruefen!":!storage.error.empty()?"Speicher pruefen!":!captureTarget.empty()?"Karte einlernen am Tablet":ampelLost()?"Ampel draussen getrennt!":"";
- if(feedbackAt&&now-feedbackAt<3500){x.feedback=feedback;x.feedbackOk=feedbackOk;}
- for(auto& i:engine.dialScreen(now,x)){const std::string kind=i[0];
-  if(kind=="c")d.fillCircle(i[1].get<int>(),i[2].get<int>(),i[3].get<int>(),uint16_t(i[4].get<int>()));
+// Draws the core's draw list. Redraws only on change; uses an off-screen sprite (about 115 KB) against flicker when memory allows.
+M5Canvas frame(&M5.Display);bool frameReady=false;std::string lastScreen;
+template<typename G> void paint(G& d,const Json& list){
+ d.setTextDatum(middle_center);
+ for(auto& i:list){const std::string kind=i[0];
+  if(kind=="f")d.fillScreen(uint16_t(i[1].get<int>()));
+  else if(kind=="c")d.fillCircle(i[1].get<int>(),i[2].get<int>(),i[3].get<int>(),uint16_t(i[4].get<int>()));
   else if(kind=="r")d.fillRoundRect(i[1].get<int>(),i[2].get<int>(),i[3].get<int>(),i[4].get<int>(),i[5].get<int>(),uint16_t(i[6].get<int>()));
+  else if(kind=="a")d.fillArc(i[1].get<int>(),i[2].get<int>(),i[3].get<int>(),i[4].get<int>(),float(i[5].get<int>()),float(i[6].get<int>()),uint16_t(i[7].get<int>()));
   else{d.setTextSize(i[3].get<int>());d.setTextColor(uint16_t(i[4].get<int>()));d.drawString(i[5].get<std::string>().c_str(),i[1].get<int>(),i[2].get<int>());}
  }
- d.setTextSize(1);d.setTextColor(TFT_WHITE);
+}
+void draw(){
+ uint64_t now=nowMs();if(now-drawAt<250)return;drawAt=now;
+ mensa::DialExtras x;
+ if(resetConfirmUntil>now)x.screen="reset";else if(!configValid)x.screen="broken";
+ else if(!config.configured||now<showCredentialsUntil){x.screen="credentials";x.ssid=config.ssid;x.wifi=config.wifiPassword;x.setupCode=config.setupCode;x.configured=config.configured;}
+ else{x.blocked=blocked();x.hint=!reader.healthy?"Leser pruefen!":!storage.error.empty()?"Speicher pruefen!":!captureTarget.empty()?"Karte einlernen am Tablet":ampelLost()?"Ampel draussen getrennt!":"";if(feedbackAt&&now-feedbackAt<3500){x.feedback=feedback;x.feedbackOk=feedbackOk;}}
+ auto list=engine.dialScreen(now,x);auto dump=list.dump();if(dump==lastScreen)return;lastScreen=dump;
+ // Only take the sprite with enough reserve for WLAN and web server; otherwise draw directly (may flicker slightly).
+ static bool frameTried=false;if(!frameTried&&ESP.getMaxAllocHeap()>150000){frameTried=true;frame.setColorDepth(16);frameReady=frame.createSprite(240,240)!=nullptr;}
+ if(frameReady){paint(frame,list);frame.pushSprite(0,0);}else paint(M5.Display,list);
 }
 void setup(){
- Serial.begin(115200);auto cfg=M5.config();cfg.fallback_board=m5::board_t::board_M5Dial;M5Dial.begin(cfg,true,false);encoderBase=M5Dial.Encoder.read();pinMode(46,OUTPUT);digitalWrite(46,HIGH);M5.Display.setRotation(0);M5.Speaker.setVolume(90);
- configValid=config.load();needsReview=!storage.load(engine);engine.rebootClock(nowMs());
+ Serial.begin(115200);auto cfg=M5.config();cfg.fallback_board=m5::board_t::board_M5Dial;M5Dial.begin(cfg,true,false);encoderBase=M5Dial.Encoder.read();pinMode(46,OUTPUT);digitalWrite(46,HIGH);M5.Display.setRotation(0);
+ configValid=config.load();needsReview=!storage.load(engine);engine.rebootClock(nowMs());M5.Speaker.setVolume(engine.volumeLevel()*25);
  loginNonce=randomKey();if(configValid){reader.begin(config.reader);WiFi.mode(WIFI_AP);WiFi.setSleep(false);WiFi.softAPConfig(IPAddress(192,168,4,1),IPAddress(192,168,4,1),IPAddress(255,255,255,0));if(!WiFi.softAP(config.ssid.c_str(),config.wifiPassword.c_str(),1,false,4)){configValid=false;feedback="WLAN konnte nicht gestartet werden.";}else configureWeb();}
  draw();
 }

@@ -127,7 +127,7 @@ Die „Erprobung der Freigabe“ bleibt als zusätzliche Bewertungsmöglichkeit 
 - **Startgruppe:** Erste Gruppe des Essenstags und jede Gruppe nach einer Pause von `idleMinutes` (Standard 5) ohne Einlass. Größe: eingestellter Startwert (0 = doppelte Gruppengröße), später der gelernte Wert.
 - **Takt:** Jede folgende Gruppe wird *Größe der nächsten Gruppe × Sekunden pro Kind* nach dem ersten Einlass der vorherigen Gruppe freigegeben. So bleibt die aufgebaute Schlange erhalten, statt nach der Startgruppe leerzulaufen.
 - **Größe lernen:** Taste im Countdown = +1 Kind (bei Startgruppe: Startgruppe +1). Orange Fläche nach automatischer Freigabe = −1 (nach Startgruppe: Startgruppe −1). Normale Gruppen bleiben zwischen kleinster und größter Gruppe (0 = feste Gruppengröße, also zunächst kein Größenlernen). Je Wochentag und halbe Stunde gespeichert.
-- **Neuer Essenstag automatisch** zur eingestellten Uhrzeit (einmal pro Wochentag, nur mit gültiger Uhrzeit). Beim ersten Einschalten der Funktion zählt der laufende Tag als bereits begonnen.
+- **Neuer Essenstag automatisch** zur eingestellten Uhrzeit (einmal pro Wochentag, nur mit gültiger Uhrzeit). Beim ersten Einschalten der Funktion zählt der laufende Tag als bereits begonnen. Zusätzlich müssen seit dem letzten Scan mindestens 30 Minuten vergangen sein, damit eine falsch gehende Uhr nicht mitten im Mittag zurücksetzt.
 - **Tagesbericht:** je Essenstag Ausgaben, Rückgaben, Gruppen, automatische Freigaben, „früher frei“, „zu voll“, Entlastungen, erste/letzte Ausgabe und nicht zurückgegebene Karten; 60 Tage, CSV-Export.
 
 Ohne Automatik verhält sich alles wie bisher mit fester Gruppengröße.

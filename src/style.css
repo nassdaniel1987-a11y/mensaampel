@@ -34,3 +34,12 @@ header nav{height:auto;min-height:48px}
 .auto-status{font-size:22px;font-weight:700;margin:8px 0}
 .learn-table td,.learn-table th{text-align:center}
 .learn-table td:first-child,.learn-table th:first-child{text-align:left}
+.sound-button{right:auto;left:50%;transform:translateX(-50%)}
+.help-section{margin-bottom:22px}
+.help-list,.help-grid{display:grid;gap:14px}
+.help-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.help-row{display:flex;gap:16px;align-items:center}
+.help-row p{margin:4px 0}
+.help-do{font-weight:700;color:var(--teal)}
+.help-dial{width:150px;height:150px;border-radius:50%;box-shadow:0 0 0 6px #2e373a;flex:none;margin:6px}
+.help-dial.small{width:128px;height:128px}

@@ -17,7 +17,7 @@ class Engine {
  struct Event {long long at;std::string message;};
  Flow flow;
  std::vector<Card> cards;std::vector<Event> events;std::array<Room,2> rooms;
- bool ready=false,paused=false,hasUndo=false;int cooldown=10,day=1;std::string held;Card undo;
+ bool ready=false,paused=false,hasUndo=false;int cooldown=10,day=1,volume=7;std::string held;Card undo;
  // Transient Dial state (not stored): Mensa seats being set with the rotary ring.
  int mensaEdit=-1;long long mensaEditUntil=0;
  static void require(bool b,const std::string& m){if(!b)throw std::runtime_error(m);}
@@ -42,38 +42,51 @@ public:
  int outCards()const{int n=0;for(const auto& c:cards)if(c.out)n++;return n;}
  // Cards still out 20 minutes after the last scan are probably missing.
  bool cardsMissing(long long now)const{return flow.lastScan>=0&&now-flow.lastScan>=1200000&&outCards()>0;}
- bool dayDue(long long now)const{return flow.dayStart>=0&&flow.clockReady(now)&&flow.weekday!=flow.dayWeekday&&flow.currentMinute(now)>=flow.dayStart;}
+ // A wrong clock must not reset the stock during lunch: only after 30 minutes without any scan.
+ bool dayDue(long long now)const{return flow.dayStart>=0&&flow.clockReady(now)&&flow.weekday!=flow.dayWeekday&&flow.currentMinute(now)>=flow.dayStart&&(flow.lastScan<0||now-flow.lastScan>=1800000);}
+ int volumeLevel()const{return volume;}
  const Flow& flowState()const{return flow;}
  // Automatic release is only due while the group waits and nothing else holds the entrance closed.
  bool autoPending()const{return flow.autoOn&&flow.waiting&&ready&&!paused&&!flow.relief&&!(flow.started>=0&&flow.kind==1);}
  bool autoDue(long long now)const{return autoPending()&&(flow.releaseAt<0||now>=flow.releaseAt);}
+ // Dial main screen: whole background in the signal colour, large text readable from a distance.
  Json dialScreen(long long now,const DialExtras& x)const{
-  using namespace dial;bool g=!x.blocked&&isGreen(),y=!x.blocked&&isYellow(),measuringGroup=flow.started>=0&&flow.kind==1;Json list=Json::array();
-  list.push_back(Json::array({"c",120,38,13,g?green:y?yellow:red}));
-  list.push_back(text(120,76,2,white,g?"Platz frei":y?"Wenig Platz":"Einlass zu"));
-  list.push_back(text(120,107,1,white,"Küche: "+std::to_string(available(0))+"  Mensa: "+std::to_string(available(1))));
-  if(editingMensa(now)){list.erase(list.begin()+1,list.end());list.push_back(text(120,76,2,white,"Mensa: "+std::to_string(mensaEdit)));list.push_back(text(120,107,1,white,"belegt "+std::to_string(occupied(1))+" von "+std::to_string(rooms[1].capacity)));list.push_back(text(120,128,1,white,"Ring drehen: Plaetze"));list.push_back(Json::array({"r",30,142,180,35,8,grey}));list.push_back(text(120,159,1,black,mensaEdit?"Mensa freigeben":"Mensa sperren"));list.push_back(text(120,188,1,white,"Ohne Eingabe: Abbruch"));list.push_back(text(120,222,1,white,"Taste: OK"));return list;}
-  std::string status;long long left=flow.releaseIn(now);int next=flow.target(now);
-  if(flow.relief)status="Pause: Ausgabe entlasten";else if(paused)status="Einlass pausiert";
-  else if(flow.waiting)status=measuringGroup?"Gruppe voll - Messung läuft":flow.autoOn&&left>=0?"Nächste Gruppe in "+std::to_string(left/60)+":"+(left%60<10?"0":"")+std::to_string(left%60):"Gruppe voll";
-  else if(flow.batch&&flow.issued==0&&flow.autoOn)status=(flow.startDue(now)?"Startgruppe: ":"Naechste Gruppe: ")+std::to_string(next)+" Kinder";
-  else if(flow.batch)status="Noch "+std::to_string(groupRemaining(now))+" in dieser Gruppe"+(flow.autoOn?(flow.groupIsStart?" (Start)":" (Auto)"):"");else status="Ohne Gruppenbegrenzung";
-  list.push_back(text(120,128,1,white,status));
-  list.push_back(Json::array({"r",30,142,180,35,8,flow.relief?grey:orange}));list.push_back(text(120,159,1,black,flow.relief?"Taste: fortsetzen":"Ausgabe entlasten"));
-  if(!x.feedback.empty()){auto lines=wrap(x.feedback,{188,204});for(size_t i=0;i<lines.size();i++)list.push_back(text(120,i?204:188,1,x.feedbackOk?green:orange,lines[i]));}
-  else{std::string hint=!x.hint.empty()?x.hint:!ready?"Bestand ok? Taste 3 s halten":measuringGroup&&flow.waiting?"Tablet: Alle haben Essen":cardsMissing(now)?std::to_string(outCards())+(outCards()==1?" Karte fehlt":" Karten fehlen"):"";auto lines=wrap(hint,{188});if(!lines.empty())list.push_back(text(120,188,1,white,lines[0]));}
-  if(ready)list.push_back(text(120,222,1,white,flow.relief||paused?"Taste: weiter":flow.waiting?"Taste: freigeben":"Taste: Pause"));
+  using namespace dial;Json list=Json::array();
+  auto info=[&](const std::vector<std::string>& lines,int color){if(lines.empty())return;list.push_back(rect(22,181,196,34,8,black));for(size_t i=0;i<lines.size()&&i<2;i++)list.push_back(text(120,lines.size()==1?198:i?205:191,1,color,lines[i]));};
+  if(x.screen=="reset"){list.push_back(fill(red));list.push_back(text(120,70,2,white,"ZUGANG"));list.push_back(text(120,94,2,white,"ZURUECKSETZEN?"));list.push_back(text(120,132,1,white,"Kurz druecken: JA"));list.push_back(text(120,150,1,white,"Warten: abbrechen"));list.push_back(text(120,178,1,white,"Bestand bleibt erhalten"));return list;}
+  if(x.screen=="broken"){list.push_back(fill(red));list.push_back(text(120,80,2,white,"KONFIGURATION"));list.push_back(text(120,104,2,white,"DEFEKT"));list.push_back(text(120,145,1,white,"Taste 10 s halten"));return list;}
+  if(x.screen=="credentials"){list.push_back(fill(black));list.push_back(text(120,46,2,white,"WLAN"));list.push_back(text(120,74,1,white,x.ssid));auto pw=wrap("Kennwort: "+x.wifi,{94,106});for(size_t i=0;i<pw.size();i++)list.push_back(text(120,i?106:94,1,white,pw[i]));list.push_back(text(120,130,1,yellow,"http://192.168.4.1"));
+   if(!x.configured){list.push_back(text(120,158,1,white,"Einrichtungscode:"));list.push_back(text(120,180,2,yellow,x.setupCode));}else list.push_back(text(120,164,1,white,"Kennwort im Browser"));return list;}
+  bool g=!x.blocked&&isGreen(),y=!x.blocked&&isYellow(),measuringGroup=flow.started>=0&&flow.kind==1;
+  if(editingMensa(now)){list.push_back(fill(black));list.push_back(text(120,56,2,white,"MENSA"));list.push_back(text(120,96,4,yellow,std::to_string(mensaEdit)));list.push_back(text(120,128,1,white,"belegt "+std::to_string(occupied(1))+" von "+std::to_string(rooms[1].capacity)));
+   list.push_back(rect(30,142,180,35,8,grey));list.push_back(text(120,160,2,white,mensaEdit?"FREIGEBEN":"SPERREN"));info({"Ring drehen: Anzahl","Ohne Eingabe: Abbruch"},white);list.push_back(text(120,224,1,white,"Taste: OK"));return list;}
+  int bg=g?green:y?yellow:red,fg=bg==red?white:black;long long left=flow.releaseIn(now);int next=flow.target(now);
+  list.push_back(fill(bg));
+  bool countdown=flow.waiting&&flow.autoOn&&left>=0&&!flow.relief&&!paused&&ready&&!measuringGroup&&!x.blocked;if(countdown)ring(list,flow.releaseShare(now),black); // black ring on red: visible, and the white footer text stays readable on top
+  list.push_back(text(120,62,3,fg,g?"PLATZ FREI":y?"FAST VOLL":"EINLASS ZU"));
+  std::string main;
+  if(x.blocked)main="Stoerung";else if(!ready)main="Bestand pruefen";else if(flow.relief)main="Entlastung";else if(paused)main="Pause";
+  else if(flow.waiting)main=measuringGroup?"Messung laeuft":countdown?"Weiter in "+std::to_string(left/60)+":"+(left%60<10?"0":"")+std::to_string(left%60):"Gruppe voll";
+  else if(flow.batch&&flow.issued==0&&flow.autoOn)main=(flow.startDue(now)?"Startgruppe ":"Gruppe ")+std::to_string(next);
+  else if(flow.batch){int r=groupRemaining(now);main="Noch "+std::to_string(r)+(r==1?" Kind":" Kinder");}
+  else if(available(0)+available(1)==0)main="Kein Platz";
+  list.push_back(text(120,98,2,fg,main));
+  list.push_back(text(120,124,2,fg,"K "+std::to_string(available(0))+"  M "+std::to_string(available(1))));
+  list.push_back(rect(28,140,184,39,9,black));list.push_back(rect(30,142,180,35,8,flow.relief?grey:orange));list.push_back(text(120,160,2,flow.relief?white:black,flow.relief?"ENTLASTUNG":"ENTLASTEN"));
+  if(!x.feedback.empty())info(wrap(x.feedback,{191,205}),x.feedbackOk?green:orange);
+  else{std::string hint=!x.hint.empty()?x.hint:!ready?"Bestand ok?":measuringGroup&&flow.waiting?"Tablet: Alle haben Essen":cardsMissing(now)?std::to_string(outCards())+(outCards()==1?" Karte fehlt":" Karten fehlen"):"";info(wrap(hint,{198}),white);}
+  list.push_back(text(120,224,1,fg,!ready?"Taste 3 s halten":flow.relief||paused?"Taste: weiter":flow.waiting?"Taste: freigeben":"Taste: Pause"));
   return list;
  }
  Json snapshot()const{
-  Json v={{"schema",1},{"ready",ready},{"paused",paused},{"cooldown",cooldown},{"held",held},{"day",day},{"undo",nullptr},{"rooms",Json::object()},{"cards",Json::array()},{"events",Json::array()}};
+  Json v={{"schema",1},{"ready",ready},{"paused",paused},{"cooldown",cooldown},{"volume",volume},{"held",held},{"day",day},{"undo",nullptr},{"rooms",Json::object()},{"cards",Json::array()},{"events",Json::array()}};
   for(int r=0;r<2;r++)v["rooms"][roomName(r)]={{"capacity",rooms[r].capacity},{"limit",rooms[r].limit},{"open",rooms[r].open}};
   for(const auto& c:cards)v["cards"].push_back(asJson(c));for(const auto& e:events)v["events"].push_back({{"at",e.at},{"message",e.message}});
   v["flow"]=flow.snapshot();if(hasUndo)v["undo"]={{"uid",undo.uid},{"before",asJson(undo)}};return v;
  }
  void restore(const Json& v,bool preserveUndo=false){
   require(v.is_object()&&v.at("schema")==1,"Unbekanntes Speicherformat.");Engine next;
-  require(v.at("ready").is_boolean()&&v.at("paused").is_boolean(),"Ungültiger Betriebszustand.");next.ready=v["ready"];next.paused=v["paused"];next.cooldown=number(v,"cooldown",1,600);next.day=number(v,"day",1,1000000);next.held=v.at("held").get<std::string>();require(next.held.size()<=80,"Ungültiger Leserzustand.");
+  require(v.at("ready").is_boolean()&&v.at("paused").is_boolean(),"Ungültiger Betriebszustand.");next.ready=v["ready"];next.paused=v["paused"];next.cooldown=number(v,"cooldown",1,600);next.volume=v.contains("volume")?number(v,"volume",0,10):7;next.day=number(v,"day",1,1000000);next.held=v.at("held").get<std::string>();require(next.held.size()<=80,"Ungültiger Leserzustand.");
   require(v.at("events").is_array()&&v["events"].size()<=80,"Ungültiges Protokoll.");next.events.clear();for(auto& e:v["events"]){require(e.at("at").is_number_integer()&&e.at("message").is_string()&&e["message"].get<std::string>().size()<500,"Ungültiger Protokolleintrag.");next.events.push_back({e["at"],e["message"]});}
   for(int r=0;r<2;r++){auto& x=v.at("rooms").at(roomName(r));int cap=number(x,"capacity",0,128),lim=number(x,"limit",0,cap);require(x.at("open").is_boolean(),"Ungültige Freigabe.");next.rooms[r]={cap,lim,x["open"]};}
   require(v.at("cards").is_array()&&v["cards"].size()<=256,"Ungültiger Kartenbestand.");next.cards.clear();std::set<std::string> ids,labels;for(const auto& j:v["cards"]){auto c=fromJson(j);require(ids.insert(c.uid).second&&labels.insert(c.label).second,"Doppelte Kartenkennung.");next.cards.push_back(c);}
@@ -107,7 +120,7 @@ public:
    else if(action=="relief"){require(!editingMensa(now),"Erst die Mensa-Einstellung mit der Taste abschließen.");require(!flow.relief,"Ausgabe wird bereits entlastet.");flow.complaint(now);flow.relief=true;flow.reliefAt=now;message="Ausgabe entlasten gestartet. Rückgaben bleiben möglich.";}
    else if(action=="pause"){require(cmd.at("paused").is_boolean(),"Ungültige Pause.");bool requested=cmd["paused"];if(!requested&&isPaused()){require(!(flow.started>=0&&flow.kind==1),"Gruppenmessung zuerst beenden oder verwerfen.");if(flow.relief){log(flow.reliefAt>=0?"Ausgabe entlasten beendet: "+std::to_string((now-flow.reliefAt)/1000)+" Sekunden.":"Ausgabe entlasten beendet; Dauer nach Neustart unbekannt.",now);flow.relief=false;flow.reliefAt=-1;}flow.manualRelease(now);flow.next();}paused=requested;message=paused?"Einlass pausiert. Rückgaben bleiben möglich.":"Einlasspause beendet.";}
    else if(action=="room"){int r=roomId(cmd.at("room"));int cap=number(cmd,"capacity",0,128),lim=number(cmd,"limit",0,cap);require(lim>=occupied(r),"Freigabe darf nicht unter der aktuellen Belegung liegen. Zum Stoppen den Raum sperren.");require(cmd.at("open").is_boolean(),"Ungültige Freigabe.");rooms[r]={cap,lim,cmd["open"]};hasUndo=false;message=std::string(r==0?"Küche":"Mensa")+" aktualisiert.";}
-   else if(action=="settings"){cooldown=number(cmd,"cooldown",1,600);hasUndo=false;message="Sperrzeit gespeichert.";}
+   else if(action=="settings"){cooldown=number(cmd,"cooldown",1,600);if(cmd.contains("volume"))volume=number(cmd,"volume",0,10);hasUndo=false;message="Sperrzeit und Lautstärke gespeichert.";}
    else if(action=="enroll"){auto uid=cmd.at("uid").get<std::string>(),label=cmd.at("label").get<std::string>();int r=roomId(cmd.at("room"));require(!uid.empty()&&uid.size()<=80&&!label.empty()&&label.size()<=20&&cards.size()<256,"Kartenkennung fehlt, ist zu lang oder Kartenbestand voll.");for(const auto& c:cards)require(c.uid!=uid&&c.label!=label,"Kennung oder Kartennummer bereits vorhanden.");cards.push_back({uid,label,r,false,false,-1});hasUndo=false;message=label+" eingelernt. Raumkapazität bleibt unverändert.";}
    else if(action=="bind"){auto old=cmd.at("uid").get<std::string>(),uid=cmd.at("newUid").get<std::string>();auto& c=card(old);require(!c.out,"Ausgegebene Karte zuerst manuell klären.");require(!uid.empty()&&uid.size()<=80&&uid.rfind("sim:",0)!=0,"Echte Kartenkennung erforderlich.");for(const auto& x:cards)require(x.uid!=uid||x.uid==old,"Karte ist bereits einer anderen Nummer zugeordnet.");c.uid=uid;c.lost=false;c.last=now;hasUndo=false;message=c.label+" mit echter Karte verknüpft.";}
    else if(action=="correct"){auto& c=card(cmd.at("uid"));require(cmd.at("out").is_boolean()&&cmd.at("lost").is_boolean(),"Ungültige Korrektur.");bool out=cmd["out"];require(!out||c.out||occupied(c.room)<rooms[c.room].limit,"Korrektur würde die Raumkapazität überschreiten.");flow.cancel();flow.clearTrial();c.out=out;c.lost=cmd["lost"];c.last=now;hasUndo=false;message=c.label+" manuell korrigiert.";}

@@ -10,7 +10,7 @@ async function setup({auto=true,start=20}={}){
 const texts=list=>list.filter(i=>i[0]==='t').map(i=>i[5]);
 test('Automatik: volle Gruppe wird nach gelernter Zeit von selbst freigegeben',async()=>{
  const x=await setup();x.group();assert.equal(x.state().signal.reason,'batch');
- assert.equal(x.state().flow.auto.releaseIn,60);assert.ok(texts(x.dial()).includes('Naechste Gruppe in 1:00'));
+ assert.equal(x.state().flow.auto.releaseIn,60);assert.ok(texts(x.dial()).includes('Weiter in 1:00'));
  x.wait(59000);assert.equal(x.tick().changed,false);assert.equal(x.state().signal.reason,'batch');
  x.wait(1000);const r=x.tick();assert.equal(r.ok,true);assert.equal(r.changed,true);assert.equal(x.state().signal.reason,'free');
  assert.match(x.state().events.at(-1).message,/automatisch freigegeben/);
@@ -55,13 +55,17 @@ test('Alte Speicherstände übernehmen Gruppenmessungen, Neustart verwirft Count
  const y=await setup();y.group();assert.ok(y.state().flow.releaseAt>0);y.cmd({type:'restart'});assert.equal(y.state().flow.releaseAt,-1);
  const bad=y.e.snapshot();bad.flow.autoSlots=[[9,0,100,1]];assert.equal((await createEngine()).restore(bad).ok,false);
 });
-test('Dial-Anzeige: nur ASCII, passt in die runde Anzeige, Rückmeldung umbrochen',async()=>{
+test('Dial-Anzeige: groß, farbig, alles passt in die runde Anzeige',async()=>{
  const x=await setup();const fits=(y,size,t)=>{const h=8*size,top=y-h/2,bottom=top+h-1,dy=Math.max(Math.abs(top-120),Math.abs(bottom-119)),half=Math.floor(Math.sqrt(14400-dy*dy));return t.length*6*size<=2*half;};
- const list=x.dial({feedback:'Einlass pausiert. Nur Rückgaben möglich, bitte später erneut versuchen.',feedbackOk:false});
- for(const i of list.filter(i=>i[0]==='t')){assert.match(i[5],/^[\x20-\x7e]*$/);assert.ok(fits(i[2],i[3],i[5]),i[5]);}
- assert.ok(texts(list).includes('Einlass pausiert. Nur Rueckgaben'));assert.ok(list.some(i=>i[0]==='t'&&i[2]===204&&i[4]===0xFDA0));
- assert.deepEqual(list[0],['c',120,38,13,0x07E0]);assert.ok(texts(list).includes('Kueche: 48  Mensa: 0'));
- assert.equal(x.dial({blocked:true})[0][4],0xF800);assert.ok(texts(x.dial({hint:'Leser pruefen!'})).includes('Leser pruefen!'));
+ const check=list=>{for(const i of list.filter(i=>i[0]==='t')){assert.match(i[5],/^[\x20-\x7e]*$/);assert.ok(fits(i[2],i[3],i[5]),`${i[5]} (Größe ${i[3]})`);}return list;};
+ let list=check(x.dial());assert.deepEqual(list[0],['f',0x07E0]);assert.ok(texts(list).includes('PLATZ FREI'));assert.ok(texts(list).includes('K 48  M 0'));assert.ok(list.some(i=>i[0]==='t'&&i[3]===3&&i[4]===0));
+ list=check(x.dial({feedback:'Einlass pausiert. Nur Rückgaben möglich, bitte später erneut versuchen.',feedbackOk:false}));assert.ok(texts(list).includes('Einlass pausiert. Nur'));assert.ok(list.some(i=>i[0]==='t'&&i[2]===205&&i[4]===0xFDA0));
+ assert.deepEqual(x.dial({blocked:true})[0],['f',0xF800]);assert.ok(texts(x.dial({hint:'Leser pruefen!'})).includes('Leser pruefen!'));
+ x.group();list=check(x.dial());assert.equal(list[0][1],0xF800);const arcs=list.filter(i=>i[0]==='a');assert.equal(arcs.length,2);assert.deepEqual(arcs[0].slice(1,7),[120,120,110,119,270,360]);assert.ok(texts(list).includes('Weiter in 1:00'));
+ x.wait(45000);assert.deepEqual(x.dial().filter(i=>i[0]==='a').map(i=>i.slice(5,7)),[[270,360]]);
+ x.cmd({type:'relief'});check(x.dial());assert.ok(!x.dial().some(i=>i[0]==='a'));assert.ok(texts(x.dial()).includes('Entlastung'));
+ check(x.dial({screen:'credentials',ssid:'Mensaampel-1234',wifi:'geheim-lang-und-sicher-2026',setupCode:'AB12CD34EF',configured:false}));check(x.dial({screen:'reset'}));check(x.dial({screen:'broken'}));
+ x.cmd({type:'dialTurn',steps:10});check(x.dial());x.cmd({type:'restart'});check(x.dial());
 });
 test('PC-Dienst: Zeitgeber gibt Gruppe frei, speichert und meldet am Dial',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'mensa-auto-'));try{
@@ -77,10 +81,10 @@ test('PC-Dienst: Zeitgeber gibt Gruppe frei, speichert und meldet am Dial',async
 // Start group builds the queue; later groups follow at the pace of their own size.
 async function sized(){const x=await setup({auto:false});x.cmd({type:'autoSettings',on:true,start:20,startGroup:6,sizeMin:2,sizeMax:5,idleMinutes:5});let card=1;const take=n=>{for(let i=0;i<n;i++)assert.equal(x.tap(`sim:K${String(card++).padStart(2,'0')}`).ok,true);};return {...x,take};}
 test('Startgruppe zu Beginn, danach normale Gruppen im Takt',async()=>{
- const x=await sized();let f=x.state().flow;assert.equal(f.auto.nextSize,6);assert.equal(f.auto.nextIsStart,true);assert.ok(texts(x.dial()).includes('Startgruppe: 6 Kinder'));
- x.take(5);assert.equal(x.state().signal.reason,'free');assert.ok(texts(x.dial()).includes('Noch 1 in dieser Gruppe (Start)'));x.take(1);assert.equal(x.state().signal.reason,'batch');
+ const x=await sized();let f=x.state().flow;assert.equal(f.auto.nextSize,6);assert.equal(f.auto.nextIsStart,true);assert.ok(texts(x.dial()).includes('Startgruppe 6'));
+ x.take(5);assert.equal(x.state().signal.reason,'free');assert.ok(texts(x.dial()).includes('Noch 1 Kind'));x.take(1);assert.equal(x.state().signal.reason,'batch');
  assert.equal(x.state().flow.auto.releaseIn,60);assert.equal(x.state().signal.releaseIn,60);
- x.wait(60000);x.tick();f=x.state().flow;assert.equal(f.auto.nextSize,3);assert.equal(f.auto.nextIsStart,false);assert.ok(texts(x.dial()).includes('Naechste Gruppe: 3 Kinder'));
+ x.wait(60000);x.tick();f=x.state().flow;assert.equal(f.auto.nextSize,3);assert.equal(f.auto.nextIsStart,false);assert.ok(texts(x.dial()).includes('Gruppe 3'));
  x.take(3);assert.equal(x.state().signal.reason,'batch');x.wait(60000);x.tick();assert.equal(x.state().signal.reason,'free');
  x.wait(300000);assert.equal(x.state().flow.auto.nextIsStart,true);assert.equal(x.state().flow.auto.nextSize,6);
  const r=x.state().flow.today;assert.equal(r[2],9);assert.equal(r[4],2);assert.equal(r[5],2);
@@ -101,10 +105,10 @@ test('Neuer Essenstag automatisch, Bestand bleibt unbestätigt nach Neustart, Ta
  const e=await createEngine();assert.equal(e.restore(x.e.snapshot()).ok,true);assert.equal(e.status(0).flow.history.length,1);
 });
 test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis',async()=>{
- const x=await setup({auto:false});x.cmd({type:'restart'});assert.ok(texts(x.dial()).includes('Bestand ok? Taste 3 s halten'));
+ const x=await setup({auto:false});x.cmd({type:'restart'});assert.ok(texts(x.dial()).includes('Bestand ok?'));
  assert.equal(x.cmd({type:'dialPress'}).ok,false);assert.equal(x.cmd({type:'dialHold'}).ok,true);assert.equal(x.state().ready,true);assert.equal(x.cmd({type:'dialHold'}).handled,false);
  x.cmd({type:'room',room:'M',capacity:64,limit:5,open:true});x.tap('sim:M01');x.tap('sim:M02');
- assert.equal(x.cmd({type:'dialTurn',steps:-10}).changed,false);assert.equal(x.state().mensaEdit,2);assert.ok(texts(x.dial()).includes('Mensa: 2'));assert.ok(!texts(x.dial()).some(t=>t.startsWith('Kueche')||t==='Platz frei'||t==='Einlass zu'));assert.equal(x.cmd({type:'relief'}).ok,false);
+ assert.equal(x.cmd({type:'dialTurn',steps:-10}).changed,false);assert.equal(x.state().mensaEdit,2);assert.ok(texts(x.dial()).includes('2')&&texts(x.dial()).includes('MENSA'));assert.ok(!texts(x.dial()).some(t=>t.startsWith('Kueche')||t==='PLATZ FREI'||t==='EINLASS ZU'));assert.equal(x.cmd({type:'relief'}).ok,false);
  x.cmd({type:'dialTurn',steps:28});assert.equal(x.cmd({type:'dialPress'}).ok,true);let m=x.state().rooms.M;assert.equal(m.limit,30);assert.equal(m.open,true);assert.equal(x.state().mensaEdit,-1);
  x.cmd({type:'dialTurn',steps:3});x.wait(16000);assert.equal(x.state().mensaEdit,-1);assert.equal(x.cmd({type:'dialPress'}).ok,true);assert.equal(x.state().paused,true);
  x.wait(1200000);assert.equal(x.state().cardsMissing,true);assert.ok(texts(x.dial()).includes('2 Karten fehlen'));assert.deepEqual(x.state().outCards,['M01','M02']);
@@ -125,4 +129,13 @@ test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Än
   app.server.closeAllConnections();const realNow=Date.now;Date.now=()=>realNow()+11000;try{assert.ok(app.state().dial.some(i=>i[5]==='Ampel draussen getrennt!'));}finally{Date.now=realNow;}
   app.server.closeAllConnections();app.server.close();app.stop();
  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Tagesstart erst nach 30 Minuten ohne Scan, Uhr stellen ohne Gruppe zu stören, Lautstärke',async()=>{
+ const x=await setup();x.cmd({type:'autoSettings',on:true,start:20,startGroup:3,dayStart:600});x.group();
+ x.cmd({type:'clockSync',weekday:2,minute:700});let f=x.state().flow;assert.equal(f.issued,3);assert.equal(f.waiting,true);assert.ok(f.releaseAt>0);
+ x.wait(60000);assert.equal(x.tick().changed,true);assert.equal(x.state().day,1);assert.match(x.state().events.at(-1).message,/automatisch freigegeben/);
+ x.wait(28*60000);x.tick();assert.equal(x.state().day,1);x.wait(2*60000);const r=x.tick();assert.match(r.message,/Essenstag automatisch/);assert.equal(x.state().day,2);
+ assert.equal(x.state().volume,7);assert.equal(x.cmd({type:'settings',cooldown:10,volume:11}).ok,false);assert.equal(x.cmd({type:'settings',cooldown:10,volume:3}).ok,true);assert.equal(x.state().volume,3);
+ const snap=x.e.snapshot();delete snap.volume;const e=await createEngine();assert.equal(e.restore(snap).ok,true);assert.equal(e.status(0).volume,7);
 });

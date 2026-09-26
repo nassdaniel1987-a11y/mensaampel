@@ -1,5 +1,8 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.7.0-preview · Stand 26.09.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.8.0-preview · Stand 26.09.2026</strong></p>
+<blockquote>
+<p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
+</blockquote>
 <p>Die Software, Tabletoberfläche und Windows-Übertragung sind vorbereitet. Der Gerätecode wurde erfolgreich für ESP32-S3 übersetzt. Die Erprobung an einem echten Dial steht noch aus. Dieses Paket ist für euren ersten begleiteten Hardwaretest vorgesehen.</p>
 <h2>Was du brauchst</h2>
 <ul>
@@ -177,46 +180,83 @@
 <li><a href="https://docs.m5stack.com/en/arduino/m5dial/program">Übertragungsmodus des Dial</a></li>
 <li><a href="https://community.m5stack.com/topic/6628/m5dial-wifi-not-work-when-rfid-is-enabled">Erfahrungsbericht zu WLAN und RFID</a></li>
 </ul>
-<h2>Neu: Einlassgruppen, Gelb und Messungen</h2>
-<p>Unter <strong>Einlass &amp; Messungen</strong> stehen Gelbgrenze, begrenzte Einlassgruppen sowie Einzel- und Gruppenmessungen zur Verfügung. Startwert Gelb: fünf freie Plätze. Gruppenbegrenzung zunächst aus (0); beispielsweise auf fünf setzen und Einlass anschließend bewusst fortsetzen. Die Messungen bedient ihr am verbundenen Tablet. Einzelheiten: <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a>.</p>
-<p>Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Druck pausiert beziehungsweise setzt fort; bei einer noch laufenden Gruppenmessung zuerst den Messabschluss am Tablet bestätigen oder die Messung verwerfen.</p>
-<h2>Erweiterung 0.4: Entlastung und frühe Hinweise</h2>
-<p>Die orange Bildschirmtaste am Dial startet <strong>Ausgabe entlasten</strong>. Kurzer physischer Tastendruck setzt bewusst fort. Messungen bleiben am Betreuungstablet. Die neue Ampelanzeige und die zweistufigen Zeithinweise sind in <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a> beschrieben.</p>
-<h2>Neu in 0.6: Automatische Gruppenfreigabe</h2>
-<p>Das Tablet steht als reine Ampel <strong>vor</strong> der Mensa, das Dial <strong>drinnen</strong> bei der Person an der Ausgabe. Mit eingeschalteter Automatik (Tablet: <strong>Einlass &amp; Messungen → Automatik</strong>, Gruppengröße &gt; 0) öffnet die Ampel nach einer vollen Gruppe <strong>von selbst</strong> nach der gelernten Zeit. Das Dial zeigt dabei „Naechste Gruppe in 0:42“.</p>
-<p><strong>Aufkleber neben das Dial:</strong></p>
-<blockquote>
-<p><strong>Zu voll?</strong> Orange Fläche antippen.
-<strong>Ausgabe schon frei?</strong> Taste drücken.
-Sonst nichts tun.</p>
-</blockquote>
-<ul>
-<li>Orange Fläche nach einer automatischen Freigabe = „war zu früh“: Ampel sofort rot, das System wartet künftig länger. Weiter geht es mit der Taste.</li>
-<li>Taste während des Countdowns = „Ausgabe war schon früher frei“: sofortige Freigabe, künftig etwas kürzer.</li>
-<li>Ohne Eingriff wird das System vorsichtig etwas schneller, bis jemand „zu voll“ meldet.</li>
-<li>Einlernphase: Anfangs misst eine zweite Person am Handy oder Tablet im Dial-WLAN Gruppen (<strong>Gruppe messen → Alle haben Essen</strong>). Jede Messung fließt direkt ein.</li>
-<li><strong>Uhrzeit:</strong> Einmal <strong>Uhrzeit vom Tablet übernehmen</strong> stellt auch die eingebaute Uhr des Dials. Danach übernimmt das Dial Wochentag und Uhrzeit nach Neustart und neuem Essenstag selbst (Uhr nach längerer Stromlosigkeit am Gerät prüfen).</li>
-<li>Keine automatische Freigabe bei Pause, Entlastung, laufender Gruppenmessung, fehlenden Plätzen, Leser- oder Speicherstörung und unbestätigtem Bestand.</li>
-</ul>
-<p>Die Automatik ist eine lernende Heuristik und muss im begleiteten Probebetrieb erprobt werden. Die PC-Simulation zeigt das Dial Pixel für Pixel so, wie es auf dem Gerät erscheint; dort lässt sich der Ablauf vorher üben.</p>
-<h2>Neu in 0.7: Startgruppe, Tagesstart am Dial, Mensa per Drehring</h2>
-<p><strong>Aufkleber neben das Dial (vollständig):</strong></p>
-<blockquote>
-<p><strong>Morgens / nach dem Einschalten:</strong> Bestand ok? <strong>Taste 3 Sekunden halten.</strong>
-<strong>Mensa freigeben:</strong> Ring drehen bis zur Platzzahl, <strong>Taste</strong> drücken.
-<strong>Zu voll?</strong> Orange Fläche antippen.
-<strong>Ausgabe schon frei?</strong> Taste drücken.
-Sonst nichts tun.</p>
-</blockquote>
-<ul>
-<li><strong>Startgruppe:</strong> Zu Beginn des Essenstags und nach einer längeren Pause (Standard 5 Minuten ohne Einlass) kommt eine größere erste Gruppe, damit sich an der Ausgabe eine Schlange aufbaut. Das Dial zeigt „Startgruppe: 6 Kinder“. Danach folgen die Gruppen im Takt.</li>
-<li><strong>Gruppengröße lernt mit:</strong> Unter <strong>Einlass &amp; Messungen → Automatik</strong> kleinste und größte Gruppe einstellen. Taste im Countdown = Gruppen dürfen größer werden, orange Fläche = kleiner. Die Startgruppe lernt getrennt.</li>
-<li><strong>Neuer Essenstag automatisch:</strong> Uhrzeit unter Automatik einstellen (z. B. 6:00). Belegungen werden zurückgesetzt, die Mensa gesperrt, nicht zurückgegebene Karten ins Protokoll geschrieben. Nach einem Neustart muss der Bestand trotzdem bestätigt werden (Taste 3 s halten).</li>
-<li><strong>Bestand bestätigen am Dial:</strong> Solange der Bestand unbestätigt ist, zeigt das Dial „Bestand ok? Taste 3 s halten“. Sonst zeigt 3 s Halten wie bisher die WLAN-Daten.</li>
-<li><strong>Mensa am Dial:</strong> Ring drehen öffnet die Einstellung „Mensa: 30“, Taste übernimmt, 15 s ohne Eingabe bricht ab. 0 sperrt die Mensa. Weniger als die belegten Plätze geht nicht. Wie viele Zählimpulse eine Raste des Rings ergibt, muss am echten Gerät geprüft werden.</li>
-<li><strong>Ampel draußen zeigt Countdown:</strong> „Gleich geht's weiter · 0:40“.</li>
-<li><strong>Warnung „Ampel draussen getrennt!“</strong> am Dial, wenn das Ampel-Tablet länger als 10 Sekunden keinen Status mehr abruft (z. B. Akku leer, Energiesparen).</li>
-<li><strong>„3 Karten fehlen“</strong> am Dial, wenn 20 Minuten lang nicht gescannt wurde und noch Karten ausgegeben sind. Die Liste steht unter Betreuung.</li>
-<li><strong>Sicherung einspielen:</strong> unter <strong>Gerät → Sicherung und Prüfung</strong>. Danach Bestand bestätigen.</li>
-<li><strong>Tagesbericht</strong> unter Einlass &amp; Messungen (Ausgaben, Gruppen, Eingriffe, fehlende Karten; CSV).</li>
-</ul></main></html>
+<h2>Bedienung im Alltag (Stand 0.8)</h2>
+<p>Ausführlich und mit echten Bildschirmbildern in <a href="BEDIENUNG-DIAL.html">BEDIENUNG-DIAL.html</a> bzw. <code>BEDIENUNG-DIAL.pdf</code>. Die Kurzkarte <code>DIAL-KURZKARTE.pdf</code> (zwei Karten pro A4-Seite) neben das Dial kleben. Dieselben Inhalte stehen am Tablet unter <strong>Hilfe</strong>.</p>
+<p><strong>Anzeige:</strong> Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Große Schrift zeigt den Zustand, darunter die freien Plätze „K 45 M 0“ (Küche/Mensa). Wartet die Automatik auf die nächste Gruppe, läuft ein schwarzer Ring am Rand ab („Weiter in 0:42“). Rückmeldungen und Hinweise erscheinen im schwarzen Feld unten.</p>
+<table>
+<thead>
+<tr>
+<th>Handgriff</th>
+<th>Wirkung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Taste (Dial-Front drücken) kurz</td>
+<td>Grün: Pause · Pause/Entlastung: weiter · Countdown: nächste Gruppe sofort · Mensa-Einstellung: übernehmen</td>
+</tr>
+<tr>
+<td>Taste 3 s halten</td>
+<td>Bestand unbestätigt: bestätigen · sonst WLAN-Daten</td>
+</tr>
+<tr>
+<td>Taste 10 s halten</td>
+<td>Zugang zurücksetzen (mit kurzem Druck bestätigen)</td>
+</tr>
+<tr>
+<td>Ring drehen</td>
+<td>Mensaplätze einstellen (0 = sperren), Taste übernimmt, 15 s ohne Eingabe = Abbruch</td>
+</tr>
+<tr>
+<td>Fläche „ENTLASTEN“</td>
+<td>Einlass sofort stoppen, weil die Ausgabe zu voll ist</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Automatik, Startgruppe, Tagesstart:</strong> unter <strong>Einlass &amp; Messungen → Automatik</strong> am Tablet. Einzelheiten in <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a>. Der automatische neue Essenstag setzt nur zurück, wenn mindestens 30 Minuten nicht gescannt wurde – eine falsch gehende Uhr kann so nicht mitten im Mittag zurücksetzen.</p>
+<p><strong>Uhrzeit:</strong> Die angemeldete Betreuungsansicht stellt die Dial-Uhr automatisch nach, wenn sie mehr als 2 Minuten abweicht (auch nach der Zeitumstellung). Einmal im Monat kurz die Betreuungsseite öffnen genügt.</p>
+<p><strong>Lautstärke:</strong> Betreuung → Einstellungen (0 = stumm). <strong>Gong an der Ampel:</strong> Auf dem Ampel-Tablet unten „Ton an“ tippen; beim Wechsel auf Grün klingt ein kurzer Gong.</p>
+<p><strong>Warnungen am Dial:</strong> „Ampel draussen getrennt!“ (Ampel-Tablet fragt nicht mehr nach), „2 Karten fehlen“ (20 Minuten kein Scan, aber Karten ausgegeben), „Stoerung“ (Leser oder Speicher).</p>
+<p><strong>Sicherung:</strong> unter Gerät herunterladen und wieder einspielen (enthält auch Lernwerte und Tagesberichte, keine Kennwörter). <strong>Tagesbericht:</strong> unter Einlass &amp; Messungen, als CSV.</p>
+<h3>Zusätzlich am echten Gerät prüfen (0.8)</h3>
+<table>
+<thead>
+<tr>
+<th>Prüfung</th>
+<th>Erwartung</th>
+<th>Erledigt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Taste = Dial-Front drücken</td>
+<td>kurz / 3 s / 10 s wie beschrieben</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Drehring</td>
+<td>eine Raste = eine Platzzahl, Richtung sinnvoll</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Lesbarkeit aus 1–2 m</td>
+<td>Farbe und große Schrift erkennbar</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Anzeige ohne Flackern</td>
+<td>Bildwechsel ruhig (Zwischenspeicher aktiv)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Uhr nach Stromlosigkeit</td>
+<td>Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ampel-Tablet ausschalten</td>
+<td>nach 10 s „Ampel draussen getrennt!“ am Dial</td>
+<td>☐</td>
+</tr>
+</tbody>
+</table></main></html>

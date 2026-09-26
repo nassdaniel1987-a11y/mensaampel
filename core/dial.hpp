@@ -42,7 +42,12 @@ inline std::vector<std::string> wrap(const std::string& text,const std::vector<i
  return lines;
 }
 inline nlohmann::json text(int x,int y,int size,int color,const std::string& t){return nlohmann::json::array({"t",x,y,size,color,ascii(t)});}
+inline nlohmann::json fill(int color){return nlohmann::json::array({"f",color});}
+inline nlohmann::json rect(int x,int y,int w,int h,int r,int color){return nlohmann::json::array({"r",x,y,w,h,r,color});}
+// Countdown ring clockwise from the top; angles as in M5GFX fillArc (0 = right, clockwise), split so that each arc stays within 0..360.
+inline void ring(nlohmann::json& list,double share,int color){if(share<=0)return;int end=270+int(std::lround(360*std::min(share,1.0)));list.push_back(nlohmann::json::array({"a",120,120,110,119,270,std::min(end,360),color}));if(end>360)list.push_back(nlohmann::json::array({"a",120,120,110,119,0,end-360,color}));}
 }
 // Device-specific additions supplied by firmware or simulation host.
-struct DialExtras {bool blocked=false;std::string hint,feedback;bool feedbackOk=true;};
+// screen: "" main screen, "credentials" WLAN data, "reset" access reset question, "broken" invalid configuration.
+struct DialExtras {bool blocked=false;std::string hint,feedback;bool feedbackOk=true;std::string screen,ssid,wifi,setupCode;bool configured=true;};
 }

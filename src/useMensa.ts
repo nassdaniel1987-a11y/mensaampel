@@ -10,8 +10,10 @@ export function useMensa(){
    if(!infoRef.current){const r=await fetch('/api/info',{signal:AbortSignal.any([abort.signal,AbortSignal.timeout(1800)])});if(!r.ok)throw Error();const value=await r.json();if(!alive)return;infoRef.current=value;setInfo(value);}
    const r=await fetch(publicView?'/api/signal':'/api/state',{cache:'no-store',headers:{'X-Mensa-Token':token.current},signal:AbortSignal.any([abort.signal,AbortSignal.timeout(1800)])});
    if(r.status===401){if(alive){setAuthRequired(true);setState(null);}return;}if(!r.ok)return;
-   const s=await r.json();if(alive&&generation===epoch.current&&!locked.current){if(s.token)token.current=s.token;setState(s);setAuthRequired(false);setLastSeen(Date.now());}
+   const s=await r.json();if(alive&&generation===epoch.current&&!locked.current){if(s.token)token.current=s.token;setState(s);setAuthRequired(false);setLastSeen(Date.now());if(!publicView)syncClock(s);}
   }catch{/* after three seconds, stale public state is red */}finally{inFlight=false;}};
+  // The Dial has no network time: the signed-in supervision view quietly corrects its clock (e.g. after daylight saving time changes).
+  let lastSync=0;const syncClock=(s:{flow?:{clockValid:boolean;weekday:number;currentMinute:number};device?:unknown})=>{if(!s.device||!s.flow||Date.now()-lastSync<60000)return;const t=new Date(),minute=t.getHours()*60+t.getMinutes(),f=s.flow;if(f.clockValid&&f.weekday===t.getDay()&&Math.abs(f.currentMinute-minute)<=2)return;lastSync=Date.now();void fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json','X-Mensa-Token':token.current},body:JSON.stringify({type:'clockSync',weekday:t.getDay(),minute,date:[t.getFullYear(),t.getMonth()+1,t.getDate(),t.getHours(),t.getMinutes(),t.getSeconds()]})}).catch(()=>{});};
   void read();const poll=setInterval(read,700),clock=setInterval(()=>setTick(Date.now()),250);return()=>{alive=false;abort.abort();clearInterval(poll);clearInterval(clock);};
  },[publicView]);
  async function send(command:Command){

@@ -1,13 +1,14 @@
-# Publishes the Dial device package and the offline demo as a GitHub release.
-# Runs when the package changes on the development branch or main, or manually.
+# Publishes the Dial device package (zipped from the folder), the printable Dial guide and the offline demo as a GitHub release.
 name: Release
 
 on:
   push:
     branches: [main, claude/youthful-sagan-v8j6hx]
     paths:
-      - Mensaampel_Dial_Vorbereitung.zip
+      - Mensaampel_Dial_Vorbereitung/**
       - Mensaampel_Tablet_Demo.html
+      - BEDIENUNG-DIAL.pdf
+      - DIAL-KURZKARTE.pdf
       - .github/workflows/release.yml
   workflow_dispatch:
 
@@ -19,25 +20,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Gerätepaket packen
+        run: zip -qr -9 Mensaampel_Dial_Vorbereitung.zip Mensaampel_Dial_Vorbereitung && unzip -tq Mensaampel_Dial_Vorbereitung.zip
       - name: Release anlegen oder aktualisieren
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(jq -r .version Mensaampel_Dial_Vorbereitung/firmware/manifest.json)
           tag="v${version}"
+          files="Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html BEDIENUNG-DIAL.pdf DIAL-KURZKARTE.pdf"
           cat > notes.md <<NOTES
           ## Mensaampel ${version}
 
           **Dial einrichten:** \`Mensaampel_Dial_Vorbereitung.zip\` herunterladen, auf einem Windows-PC vollständig entpacken und \`ANLEITUNG-DIAL.html\` folgen (G0-Taste halten, USB-Datenkabel, \`Dial-Installieren.cmd\`).
 
-          **Ausprobieren ohne Installation:** \`Mensaampel_Tablet_Demo.html\` herunterladen und im Browser öffnen, dann oben auf „Simulation“.
+          **Bedienung am Dial:** \`BEDIENUNG-DIAL.pdf\` (bebilderte Anleitung, A4) und \`DIAL-KURZKARTE.pdf\` (zwei Karten pro A4-Seite zum Aufkleben neben das Dial).
 
-          Vorabversion: Die Software ist gebaut und automatisch getestet, aber noch nicht auf einem echten M5Stack Dial abgenommen. Firmware-Version ${version}, Quelle: Commit ${GITHUB_SHA}.
+          **Ausprobieren ohne Installation:** \`Mensaampel_Tablet_Demo.html\` herunterladen und im Browser öffnen, dann oben auf „Simulation“ oder „Hilfe“.
+
+          Vorabversion: gebaut und automatisch getestet, aber noch nicht auf einem echten M5Stack Dial abgenommen. Firmware ${version}, Commit ${GITHUB_SHA}.
           NOTES
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html --clobber
+            gh release upload "$tag" $files --clobber
             gh release edit "$tag" --notes-file notes.md
           else
-            gh release create "$tag" Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html \
-              --title "Mensaampel ${version}" --notes-file notes.md --prerelease --target "$GITHUB_SHA"
+            gh release create "$tag" $files --title "Mensaampel ${version}" --notes-file notes.md --prerelease --target "$GITHUB_SHA"
           fi

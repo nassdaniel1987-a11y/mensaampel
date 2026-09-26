@@ -63,19 +63,11 @@ Die Geräteversion ist jetzt als separates Paket vorbereitet: **Mensaampel_Dial_
 
 Die technischen Prüfungen sind abgeschlossen. Probiere nun einen vollständigen Mittag mit euren Abläufen: Küche füllen, Karten zurückgeben, Mensa teilweise freigeben, Pause, Verlustkorrektur und Neustart. Erst damit ist die Bedienung für euren Alltag gemeinsam abgenommen.
 
-## Neu: Einlassgruppen, Gelb und Messungen
+## Einlass, Automatik und Dial
 
-Unter **Einlass & Messungen** stehen Gelbgrenze, begrenzte Einlassgruppen sowie Einzel- und Gruppenmessungen zur Verfügung. Startwert Gelb: fünf freie Plätze. Gruppenbegrenzung zunächst aus (0); beispielsweise auf fünf setzen und Einlass anschließend bewusst fortsetzen. Die Messungen bedient ihr am verbundenen Tablet. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
-
-Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Druck pausiert beziehungsweise setzt fort; bei einer noch laufenden Gruppenmessung zuerst den Messabschluss am Tablet bestätigen oder die Messung verwerfen.
-
-## Neu: Automatische Gruppenfreigabe
-
-Unter **Einlass & Messungen → Automatik** lässt sich die automatische Freigabe einschalten (Gruppengröße > 0 nötig). Nach einer vollen Gruppe zählt das Dial herunter und die Ampel öffnet von selbst. Zum Ausprobieren in der Simulation Karten ans Dial halten und vorspulen. Orange Fläche = zu voll, Taste im Countdown = früher frei; beides lernt das System. Die PC-Version übernimmt Wochentag und Uhrzeit automatisch. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
-
-## Neu in 0.7
-
-- **Dial in der Simulation:** Mausrad über dem Dial oder die Pfeilknöpfe drehen den Ring (Mensaplätze einstellen), **Taste 3 s halten** bestätigt einen unbestätigten Bestand.
-- **Startgruppe und lernende Gruppengröße** unter Einlass & Messungen → Automatik; Einzelheiten in [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
-- **Sicherung** herunterladen und wieder einspielen: Betreuung → Einstellungen.
-- **Noch nicht zurückgegebene Karten** stehen unter Betreuung; **Tagesbericht** unter Einlass & Messungen.
+- **Einlass & Messungen:** Gelbgrenze, Einlassgruppen, Messungen, Automatik mit Startgruppe und lernender Gruppengröße, automatischer neuer Essenstag, Lernwerte und Tagesbericht. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
+- **Simulation:** Das Dial ist genau so abgebildet, wie sein runder Bildschirm am Gerät aussieht. Orange Fläche anklicken = antippen, **Taste drücken** bzw. Klick auf den Ring = Gerätetaste, **Taste 3 s halten**, Mausrad oder Pfeilknöpfe = Drehring, Karte auf das Dial ziehen = vorhalten.
+- **Hilfe:** bebilderte Bedienung des Dials. Zum Ausdrucken: `BEDIENUNG-DIAL.pdf` und `DIAL-KURZKARTE.pdf`.
+- **Betreuung → Einstellungen:** Sperrzeit, Dial-Lautstärke, Sicherung herunterladen und einspielen. Nicht zurückgegebene Karten stehen unter Betreuung.
+- **Große Ampel:** zeigt bei laufender Automatik „Gleich geht's weiter · 0:40“; unten „Ton an“ für einen Gong bei Grün.
+- Die PC-Version übernimmt Wochentag und Uhrzeit automatisch vom PC.
