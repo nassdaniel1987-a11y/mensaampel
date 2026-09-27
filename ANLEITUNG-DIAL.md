@@ -59,7 +59,7 @@ Die echte Funkstabilität muss mit Tablet und Karten geprüft werden. Interner R
 
 ## 4 · Karten einmalig zuordnen
 
-**Am schnellsten: Karten am Stück einlernen.** Unter **Betreuung → Karten am Stück einlernen** „Küche“ oder „Mensa“ starten. Das Dial zeigt groß die nächste freie Nummer (z. B. „K07“). Karte vorhalten → sie gehört nun zu K07 → mit dem passenden Etikett bekleben (`KARTEN-ETIKETTEN.pdf`, 70 × 37 mm, 24 pro A4-Bogen, Küche blau, Mensa rot). Das Dial springt selbst weiter. Taste = Nummer überspringen, 3 s halten = Ende. Doppelte Karten werden erkannt, gebucht wird nichts. Der Einzelweg unten bleibt für Nachträge.
+**Am schnellsten: Karten am Stück einlernen.** Unter **Betreuung → Karten am Stück einlernen** „Küche“ oder „Mensa“ starten. Das Dial zeigt groß die nächste freie Nummer (z. B. „K07“). Karte vorhalten → sie gehört nun zu K07 → mit dem passenden Etikett bekleben (aus dem **Etiketten-Tool**, siehe unten). Das Dial springt selbst weiter. Taste = Nummer überspringen, 3 s halten = Ende. Doppelte Karten werden erkannt, gebucht wird nichts. Der Einzelweg unten bleibt für Nachträge.
 
 Die Nummern **K01–K48** und **M01–M64** sind vorbereitet. Auf einem echten Gerät zählen noch nicht zugeordnete Nummern zunächst nicht als verfügbare Karten.
 
@@ -71,6 +71,16 @@ Die Nummern **K01–K48** und **M01–M64** sind vorbereitet. Auf einem echten G
 6. Zum Schluss unter **Betreuung** den Bestand prüfen und bestätigen; eine bestehende Einlasspause ausdrücklich beenden.
 
 Für den ersten Test genügen z. B. zwei Küchen- und zwei Mensakarten. Die maximal mögliche Ausgabe ergibt sich sowohl aus Raumfreigabe als auch verfügbaren zugeordneten Karten. Zusätzliche Kartennummern vergrößern die Raumkapazität nicht automatisch.
+
+### Etiketten drucken
+
+`Etiketten-Tool.html` am PC im Browser öffnen (funktioniert ohne Internet):
+
+1. **Bogen wählen.** Empfohlen: Avery Zweckform **3474** (70 × 37 mm, 24 pro A4). Das Etikett passt mit Rand auf die Karte. Weitere Bögen, kartengroße und runde Etiketten oder eigene Maße sind möglich.
+2. **Testseite** auf Normalpapier drucken, auf den Etikettenbogen legen und gegen das Licht halten. Bei Bedarf „nach rechts / nach unten“ verschieben. Das rote Lineal muss genau 10 cm lang sein. Die Einstellung bleibt im Browser gespeichert.
+3. **Karten wählen:** Küche K01–K48, Mensa M01–M64 oder einzelne Ersatzkarten (z. B. `K03, M10-M12`). Bei einem angefangenen Bogen in der Vorschau die schon benutzten Felder anklicken.
+4. **Aussehen:** Tiere, Monster & Weltraum, Gemischt oder Schlicht. Jede Nummer hat immer dasselbe Motiv, auch beim Nachdruck. So finden auch Kinder, die noch nicht sicher lesen, ihre Karte wieder.
+5. **Drucken:** im Druckdialog **„Tatsächliche Größe / 100 %“** und **„Ränder: keine“** wählen.
 
 ## 5 · So läuft der Mittag
 

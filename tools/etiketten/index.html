@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mensaampel · Etiketten-Tool</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="ui top">
+      <h1>Etiketten für die Platzkarten</h1>
+      <p>
+        Bogen wählen, Testseite auf Normalpapier drucken und an den Etikettenbogen halten, bei Bedarf verschieben –
+        dann die Etiketten drucken. Im Druckdialog immer <b>„Tatsächliche Größe“ bzw. „100 %“</b> und
+        <b>„Ränder: keine“</b> wählen, nicht „An Seite anpassen“.
+      </p>
+    </header>
+    <main>
+      <form class="ui panel" id="form" autocomplete="off">
+        <fieldset>
+          <legend>1 · Etikettenbogen</legend>
+          <label>Vorlage <select id="sheet"></select></label>
+          <details id="geo">
+            <summary>Maße anzeigen / eigene Maße</summary>
+            <div class="grid">
+              <label>Breite mm <input id="w" type="number" step="0.1" /></label>
+              <label>Höhe mm <input id="h" type="number" step="0.1" /></label>
+              <label>Spalten <input id="cols" type="number" min="1" max="10" /></label>
+              <label>Zeilen <input id="rows" type="number" min="1" max="20" /></label>
+              <label>Rand links mm <input id="left" type="number" step="0.1" /></label>
+              <label>Rand oben mm <input id="top" type="number" step="0.1" /></label>
+              <label>Abstand waagerecht mm <input id="gapX" type="number" step="0.01" /></label>
+              <label>Abstand senkrecht mm <input id="gapY" type="number" step="0.01" /></label>
+              <label>Eckenradius mm <input id="radius" type="number" step="0.5" /></label>
+              <label class="check"><input id="round" type="checkbox" /> rund</label>
+            </div>
+          </details>
+          <p class="hint">Maße laut Hersteller. Vor dem ersten großen Druck immer die Testseite prüfen.</p>
+        </fieldset>
+        <fieldset>
+          <legend>2 · Drucker einstellen</legend>
+          <div class="grid">
+            <label>nach rechts mm <input id="calX" type="number" step="0.1" /></label>
+            <label>nach unten mm <input id="calY" type="number" step="0.1" /></label>
+            <label>Maßstab % <input id="calS" type="number" step="0.1" min="90" max="110" /></label>
+          </div>
+          <button type="button" id="printTest">Testseite drucken</button>
+          <p class="hint">
+            Testseite auf Normalpapier drucken, auf den Etikettenbogen legen und gegen das Licht halten. Sitzen die
+            Rahmen zu weit links, „nach rechts“ erhöhen (negativ = nach links). Das 100-mm-Lineal muss genau 10 cm
+            lang sein, sonst Maßstab anpassen. Die Werte bleiben in diesem Browser gespeichert.
+          </p>
+        </fieldset>
+        <fieldset>
+          <legend>3 · Welche Karten?</legend>
+          <div class="range">
+            <label class="check"><input id="kOn" type="checkbox" /> Küche K</label>
+            <input id="kFrom" type="number" min="1" max="99" aria-label="Küche von" /> bis
+            <input id="kTo" type="number" min="1" max="99" aria-label="Küche bis" />
+          </div>
+          <div class="range">
+            <label class="check"><input id="mOn" type="checkbox" /> Mensa M</label>
+            <input id="mFrom" type="number" min="1" max="99" aria-label="Mensa von" /> bis
+            <input id="mTo" type="number" min="1" max="99" aria-label="Mensa bis" />
+          </div>
+          <label>Einzelne Karten (z. B. Ersatz) <input id="list" placeholder="K03, M10-M12" /></label>
+          <label>Kopien je Karte <input id="copies" type="number" min="1" max="10" /></label>
+          <p class="hint" id="skipHint">
+            Angefangener Bogen? In der Vorschau auf Bogen 1 die schon benutzten Felder anklicken – sie bleiben frei.
+            <button type="button" id="clearSkip" class="link">Alle Felder wieder frei</button>
+          </p>
+        </fieldset>
+        <fieldset>
+          <legend>4 · Aussehen</legend>
+          <div id="themes" class="themes"></div>
+        </fieldset>
+        <div class="actions">
+          <button type="button" id="printLabels" class="primary">Etiketten drucken</button>
+          <span id="summary"></span>
+        </div>
+        <div id="problems" class="problems" role="alert"></div>
+      </form>
+      <section class="preview" id="preview" aria-label="Vorschau"></section>
+    </main>
+    <div id="testPage" class="testpage"></div>
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>

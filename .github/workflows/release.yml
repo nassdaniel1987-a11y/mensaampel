@@ -9,7 +9,7 @@ on:
       - Mensaampel_Tablet_Demo.html
       - BEDIENUNG-DIAL.pdf
       - DIAL-KURZKARTE.pdf
-      - KARTEN-ETIKETTEN.pdf
+      - Etiketten-Tool.html
       - hardware/**
       - .github/workflows/release.yml
   workflow_dispatch:
@@ -32,13 +32,13 @@ jobs:
         run: |
           version=$(jq -r .version Mensaampel_Dial_Vorbereitung/firmware/manifest.json)
           tag="v${version}"
-          files="Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html BEDIENUNG-DIAL.pdf DIAL-KURZKARTE.pdf KARTEN-ETIKETTEN.pdf Mensaampel_Gehaeuse.zip"
+          files="Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html BEDIENUNG-DIAL.pdf DIAL-KURZKARTE.pdf Etiketten-Tool.html Mensaampel_Gehaeuse.zip"
           cat > notes.md <<NOTES
           ## Mensaampel ${version}
 
           **Dial einrichten:** \`Mensaampel_Dial_Vorbereitung.zip\` herunterladen, auf einem Windows-PC vollständig entpacken und \`ANLEITUNG-DIAL.html\` folgen (G0-Taste halten, USB-Datenkabel, \`Dial-Installieren.cmd\`).
 
-          **Bedienung am Dial:** \`BEDIENUNG-DIAL.pdf\` (bebilderte Anleitung, A4) und \`DIAL-KURZKARTE.pdf\` (zwei Karten pro A4-Seite zum Aufkleben neben das Dial), \`KARTEN-ETIKETTEN.pdf\` (Nummern-Etiketten 70 × 37 mm für alle Platzkarten).
+          **Bedienung am Dial:** \`BEDIENUNG-DIAL.pdf\` (bebilderte Anleitung, A4) und \`DIAL-KURZKARTE.pdf\` (zwei Karten pro A4-Seite zum Aufkleben neben das Dial), \`Etiketten-Tool.html\` (am PC im Browser öffnen: bunte Etiketten für alle Platzkarten, passend für gängige Etikettenbögen, mit Testseite).
 
           **Gehäuse:** \`Mensaampel_Gehaeuse.zip\` enthält die Tischkonsole zum 3D-Druck (STL, OpenSCAD, Anleitung) mit fest eingebauter RFID2 Unit unter der Kartenfläche.
 
