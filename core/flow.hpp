@@ -39,6 +39,10 @@ struct Flow {
       groupTarget = 0, dayWeekday = -1;
   bool groupIsStart = false, lastGroupStart = false;
   long long lastEntry = -1, lastScan = -1, releaseFrom = -1;
+  // Calendar from the clock source: days since 1970 and seconds since midnight at clockAt (-1: unknown). The release
+  // time is also kept as wall-clock seconds so that a countdown survives a reboot.
+  int date = -1, dayDate = -1;
+  long long secondAt = -1, releaseWall = -1, releaseSpan = 0;
   // Daily report: day, weekday, issued, returned, groups, automatic releases, earlier, too full, reliefs, first/last
   // issue minute, missing cards, learned tenths per child.
   using Day = std::array<int, 13>;
@@ -61,7 +65,43 @@ struct Flow {
     check(value >= low && value <= high, "Mess- oder Einlasseinstellung außerhalb des Bereichs.");
     return int(value);
   }
-  int currentMinute(long long now) const { return minute + int(std::max(0LL, now - clockAt) / 60000); }
+  int currentMinute(long long now) const {
+    return secondAt >= 0 ? int((secondAt + std::max(0LL, now - clockAt) / 1000) / 60)
+                         : minute + int(std::max(0LL, now - clockAt) / 60000);
+  }
+  int currentDate(long long now) const { return clockReady(now) ? date : -1; }
+  // Wall-clock seconds (days since 1970 x 86400 + seconds of the day), -1 without a calendar date.
+  long long wall(long long now) const {
+    return clockReady(now) && date >= 0 && secondAt >= 0 ? date * 86400LL + secondAt + (now - clockAt) / 1000 : -1;
+  }
+  static int civilDays(int y, int m, int d) {
+    y -= m <= 2;
+    int era = (y >= 0 ? y : y - 399) / 400, yoe = y - era * 400, doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1,
+        doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+  }
+  // Optional "date": [year, month, day, hour, minute, second] as sent by tablet, PC and RTC.
+  void setCalendar(const J &c, long long now) {
+    date = -1;
+    secondAt = -1;
+    if (!c.contains("date") || !c["date"].is_array() || c["date"].size() != 6) return;
+    for (auto &v : c["date"])
+      if (!v.is_number_integer()) return;
+    int y = c["date"][0], mo = c["date"][1], d = c["date"][2], h = c["date"][3], mi = c["date"][4], se = c["date"][5];
+    if (y < 2020 || y > 2099 || mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59 ||
+        se < 0 || se > 59 || h * 60 + mi != minute)
+      return;
+    date = civilDays(y, mo, d);
+    secondAt = h * 3600LL + mi * 60 + se;
+    // A countdown that was running before a reboot continues with its remaining time.
+    if (waiting && autoOn && releaseAt < 0 && releaseWall >= 0) {
+      long long left = releaseWall - wall(now);
+      if (left > -3600 && left <= releaseSpan / 1000 + 5) {
+        releaseAt = now + std::max(0LL, left) * 1000;
+        releaseFrom = releaseAt - releaseSpan;
+      }
+    }
+  }
   bool clockReady(long long now) const { return clockValid && now >= clockAt && currentMinute(now) < 1440; }
   void cancel() {
     armed = false;
@@ -88,6 +128,8 @@ struct Flow {
     groupAt = -1;
     releaseAt = -1;
     releaseFrom = -1;
+    releaseWall = -1;
+    releaseSpan = 0;
     groupTarget = 0;
     groupIsStart = false;
   }
@@ -179,6 +221,8 @@ struct Flow {
     long long at = groupAt >= 0 ? groupAt : now, due = 100LL * normalSize(at) * perChild(at);
     releaseAt = std::max(groupAt >= 0 ? groupAt + due : now + due, now + 10000);
     releaseFrom = now;
+    releaseSpan = releaseAt - now;
+    releaseWall = wall(now) >= 0 ? wall(now) + (releaseAt - now) / 1000 : -1;
   }
   // Share of the countdown still to go (1 = just started), for the ring on the Dial.
   double releaseShare(long long now) const {
@@ -301,6 +345,11 @@ struct Flow {
             {"lastEntry", lastEntry},
             {"lastScan", lastScan},
             {"releaseFrom", releaseFrom},
+            {"date", date},
+            {"dayDate", dayDate},
+            {"secondAt", secondAt},
+            {"releaseWall", releaseWall},
+            {"releaseSpan", releaseSpan},
             {"today", today},
             {"history", days},
             {"autoOn", autoOn},
@@ -477,6 +526,18 @@ struct Flow {
               "Ungültige Freigabezeit.");
         n.releaseFrom = v["releaseFrom"];
       }
+      if (v.contains("date")) {
+        n.date = integer(v, "date", -1, 50000);
+        n.dayDate = integer(v, "dayDate", -1, 50000);
+        for (auto key : {"secondAt", "releaseWall", "releaseSpan"})
+          check(v.at(key).is_number_integer() && v[key].get<long long>() >= -1 &&
+                    v[key].get<long long>() <= 9007199254740991LL,
+                "Ungültige Uhrzeit.");
+        n.secondAt = v["secondAt"];
+        n.releaseWall = v["releaseWall"];
+        n.releaseSpan = v["releaseSpan"];
+        check(n.secondAt < 86400 && n.releaseSpan >= 0, "Ungültige Uhrzeit.");
+      }
       auto day = [&](const J &d) {
         check(d.is_array() && (d.size() == 12 || d.size() == 13), "Ungültiger Tagesbericht.");
         Day r;
@@ -589,7 +650,10 @@ struct Flow {
           ds = c.contains("dayStart") ? integer(c, "dayStart", -1, 1439) : dayStart;
       check(!lo || !hi || lo <= hi, "Kleinste Gruppe darf nicht größer als die größte sein.");
       check(issued == 0 || waiting, "Automatik-Einstellungen zwischen zwei Gruppen ändern.");
-      if (ds != dayStart && ds >= 0 && clockReady(now)) dayWeekday = weekday;
+      if (ds != dayStart && ds >= 0 && clockReady(now)) {
+        dayWeekday = weekday;
+        dayDate = date;
+      }
       startSize = ss;
       sizeMin = lo;
       sizeMax = hi;
@@ -618,6 +682,7 @@ struct Flow {
       minute = integer(c, "minute", 0, 1439);
       clockAt = now;
       clockValid = true;
+      setCalendar(c, now);
       groupAt = -1;
       clearTrial();
       queue = integer(c, "queue", 0, 2);
@@ -629,6 +694,7 @@ struct Flow {
       minute = integer(c, "minute", 0, 1439);
       clockAt = now;
       clockValid = true;
+      setCalendar(c, now);
       message = "Uhrzeit abgeglichen.";
     } else if (type == "queueState") {
       check(started < 0 && !armed, "Schlangensituation der laufenden Messung bleibt unverändert.");

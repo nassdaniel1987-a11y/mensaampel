@@ -63,15 +63,18 @@ export function Help() {
               </tr>
               <tr>
                 <th>Taste 3 s halten</th>
-                <td>Bestand unbestätigt: Bestand bestätigen · sonst: WLAN-Daten anzeigen</td>
+                <td>
+                  Weißer Ring zeigt den Fortschritt. Bestand unbestätigt: Bestand bestätigen · „Neuer Tag?“: neuen
+                  Essenstag starten · sonst: WLAN-Daten anzeigen
+                </td>
               </tr>
               <tr>
                 <th>Taste 10 s halten</th>
-                <td>Zugang zurücksetzen (nur bei vergessenem Kennwort, mit kurzem Druck bestätigen)</td>
+                <td>Zugang zurücksetzen (nur bei vergessenem Kennwort, zur Bestätigung nochmal 3 s halten)</td>
               </tr>
               <tr>
                 <th>Ring drehen</th>
-                <td>Mensaplätze einstellen, Taste übernimmt, 0 = Mensa sperren</td>
+                <td>Ab zwei Rasten: Mensaplätze einstellen, Taste übernimmt, 0 = Mensa sperren</td>
               </tr>
               <tr>
                 <th>Fläche „ENTLASTEN“</th>

@@ -40,6 +40,7 @@ extern "C" const char *mensa_call(const char *input) {
       x.wifi = q.value("wifi", std::string());
       x.setupCode = q.value("setupCode", std::string());
       x.configured = q.value("configured", true);
+      x.holdMs = q.value("holdMs", 0);
       if (q.contains("lines"))
         for (auto &l : q["lines"])
           x.lines.push_back(l.get<std::string>());

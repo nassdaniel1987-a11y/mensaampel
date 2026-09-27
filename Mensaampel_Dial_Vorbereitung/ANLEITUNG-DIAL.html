@@ -10,7 +10,7 @@
 <li>Windows-PC zum einmaligen Aufspielen und ein USB-C-<strong>Datenkabel</strong>. Ein reines Ladekabel reicht dafür nicht.</li>
 <li>Tablet mit aktuellem Browser für Betreuung oder große Ampel.</li>
 <li>Passende 13,56-MHz-Karten, deren UID der WS1850S lesen kann; zunächst mit wenigen Karten testen, bevor ihr alle beschriftet oder kauft.</li>
-<li>Optional: M5Stack RFID2 Unit (WS1850S, U031-B) am <strong>Port A</strong>, mit passendem Grove-Kabel. Vor dem Anstecken die Stromversorgung trennen.</li>
+<li>M5Stack RFID2 Unit (WS1850S, U031-B) am <strong>Port A</strong>, mit passendem Grove-Kabel. Vor dem Anstecken die Stromversorgung trennen. In der Tischkonsole ist sie fest unter der Kartenfläche eingebaut: <a href="hardware/gehaeuse/README.md">hardware/gehaeuse</a> (3D-Druck).</li>
 <li>Für den späteren Betrieb eine zuverlässige USB-Stromversorgung. Bei einer Powerbank prüfen, ob sie bei der geringen Last eingeschaltet bleibt.</li>
 </ul>
 <p>Nach dem Aufspielen läuft die Buchungslogik auf dem Dial. Der PC wird im Alltag nicht gebraucht. Das Dial stellt sein eigenes WLAN und die Webseiten bereit; Internet und zusätzliche Router sind dafür nicht nötig. Das Tablet ist Anzeige und Bedienung, der Dial speichert den Bestand.</p>
@@ -63,7 +63,7 @@
 <p>Im externen Modus wird das interne RFID-Feld abgeschaltet und dessen Abschaltung überwacht. Ein fehlender oder nicht erreichbarer Leser führt zu Rot. Nach dem Einschalten oder Wechsel den Leser etwa eine Sekunde frei lassen. Ein Leserfehler oder eine Lesepause gilt nicht als bestätigtes Entfernen einer Karte.</p>
 <p>Die echte Funkstabilität muss mit Tablet und Karten geprüft werden. Interner RFID-Leser und WLAN nutzen unterschiedliche Frequenzen; dennoch sind beim Dial Berichte über gegenseitige Störungen bekannt. Eine externe Unit ist eine prüfbare Alternative, keine bereits nachgewiesene Garantie.</p>
 <h2>4 · Karten einmalig zuordnen</h2>
-<p><strong>Am schnellsten: Karten am Stück einlernen.</strong> Unter <strong>Betreuung → Karten am Stück einlernen</strong> „Küche“ oder „Mensa“ starten. Das Dial zeigt groß die nächste freie Nummer (z. B. „K07“). Karte vorhalten → sie gehört nun zu K07 → mit dem passenden Etikett bekleben (<code>KARTEN-ETIKETTEN.pdf</code>, 70 × 37 mm, 24 pro A4-Bogen, Küche blau, Mensa rot). Das Dial springt selbst weiter. Taste = Nummer überspringen, 3 s halten = Ende. Doppelte Karten werden erkannt, gebucht wird nichts. Der Einzelweg unten bleibt für Nachträge.</p>
+<p><strong>Am schnellsten: Karten am Stück einlernen.</strong> Unter <strong>Betreuung → Karten am Stück einlernen</strong> „Küche“ oder „Mensa“ starten. Das Dial zeigt groß die nächste freie Nummer (z. B. „K07“). Karte vorhalten → sie gehört nun zu K07 → mit dem passenden Etikett bekleben (aus dem <strong>Etiketten-Tool</strong>, siehe unten). Das Dial springt selbst weiter. Taste = Nummer überspringen, 3 s halten = Ende. Doppelte Karten werden erkannt, gebucht wird nichts. Der Einzelweg unten bleibt für Nachträge.</p>
 <p>Die Nummern <strong>K01–K48</strong> und <strong>M01–M64</strong> sind vorbereitet. Auf einem echten Gerät zählen noch nicht zugeordnete Nummern zunächst nicht als verfügbare Karten.</p>
 <ol>
 <li>Unter <strong>Gerät → Platzkarten zuordnen</strong> beispielsweise K01 auswählen.</li>
@@ -74,9 +74,18 @@
 <li>Zum Schluss unter <strong>Betreuung</strong> den Bestand prüfen und bestätigen; eine bestehende Einlasspause ausdrücklich beenden.</li>
 </ol>
 <p>Für den ersten Test genügen z. B. zwei Küchen- und zwei Mensakarten. Die maximal mögliche Ausgabe ergibt sich sowohl aus Raumfreigabe als auch verfügbaren zugeordneten Karten. Zusätzliche Kartennummern vergrößern die Raumkapazität nicht automatisch.</p>
+<h3>Etiketten drucken</h3>
+<p><code>Etiketten-Tool.html</code> am PC im Browser öffnen (funktioniert ohne Internet):</p>
+<ol>
+<li><strong>Bogen wählen.</strong> Empfohlen: Avery Zweckform <strong>3474</strong> (70 × 37 mm, 24 pro A4). Das Etikett passt mit Rand auf die Karte. Weitere Bögen, kartengroße und runde Etiketten oder eigene Maße sind möglich.</li>
+<li><strong>Testseite</strong> auf Normalpapier drucken, auf den Etikettenbogen legen und gegen das Licht halten. Bei Bedarf „nach rechts / nach unten“ verschieben. Das rote Lineal muss genau 10 cm lang sein. Die Einstellung bleibt im Browser gespeichert.</li>
+<li><strong>Karten wählen:</strong> Küche K01–K48, Mensa M01–M64 oder einzelne Ersatzkarten (z. B. <code>K03, M10-M12</code>). Bei einem angefangenen Bogen in der Vorschau die schon benutzten Felder anklicken.</li>
+<li><strong>Aussehen:</strong> Tiere, Monster &amp; Weltraum, Gemischt oder Schlicht. Jede Nummer hat immer dasselbe Motiv, auch beim Nachdruck. So finden auch Kinder, die noch nicht sicher lesen, ihre Karte wieder.</li>
+<li><strong>Drucken:</strong> im Druckdialog <strong>„Tatsächliche Größe / 100 %“</strong> und <strong>„Ränder: keine“</strong> wählen.</li>
+</ol>
 <h2>5 · So läuft der Mittag</h2>
 <ul>
-<li>Nach jedem Neustart den tatsächlichen Bestand prüfen und <strong>Bestand bestätigen</strong>. Es wird nichts automatisch auf null gesetzt.</li>
+<li>Nach dem Einschalten den tatsächlichen Bestand prüfen und <strong>Bestand bestätigen</strong> (Taste 3 s halten). Ausnahme: Ein kurzer Neustart am selben Tag (z. B. Stecker kurz raus) übernimmt den heute schon bestätigten Bestand, sobald die Uhr gelesen ist; ein laufender Gruppen-Countdown läuft dann weiter. Es wird nichts automatisch auf null gesetzt.</li>
 <li>Die Küche hat zunächst 48 Plätze; die Mensa bleibt für das freie Essen geschlossen. Die 61 begleiteten Kinder werden nicht einzeln gebucht.</li>
 <li>Karte vorhalten: verfügbare Karte wird ausgegeben. Dieselbe Karte später erneut vorhalten: Rückgabe.</li>
 <li>Nach einer erfolgreichen Buchung gelten zehn Sekunden Sperre für diese Karte. Andere Karten bleiben nutzbar. Dauerhaftes Vorhalten erzeugt keine zweite Buchung.</li>
@@ -84,17 +93,23 @@
 <li><strong>Einlass pausieren</strong> stoppt Ausgaben, lässt Rückgaben zu. Ein kurzer Tastendruck am Dial schaltet die Pause ebenfalls um.</li>
 <li>Tatsächlich freie Mensaplätze später unter <strong>Betreuung → Mensa → Anpassen</strong> teilweise oder vollständig freigeben.</li>
 <li>Eine verlorene ausgegebene Karte bleibt belegt, bis der Platz geprüft und die Karte manuell korrigiert wurde.</li>
+<li><strong>Karten, die am Tagesende fehlen,</strong> werden beim neuen Essenstag als verloren <strong>gesperrt</strong> (sie zählen nicht als freie Plätze). Taucht eine Karte wieder auf, einfach ans Dial halten: „K07 ist wieder da und frei“. Alternativ am Tablet unter „Gesperrte Karten“ → „gefunden“.</li>
 <li>Ein erneuter Scan nach Ablauf der Sperrzeit zählt als Gegenbuchung, auch wenn er versehentlich war. Dann „Letzte Buchung rückgängig“ oder gezielt „Bearbeiten“ verwenden.</li>
-<li><strong>Neuer Essenstag</strong> wird ausdrücklich gestartet. Dabei werden Belegungen zurückgesetzt, Verlustmarkierungen bleiben erhalten und die Mensa wird wieder gesperrt.</li>
+<li><strong>Neuer Essenstag:</strong> startet mit eingestellter Uhrzeit von selbst (frühestens 30 Minuten nach dem letzten Scan, am nächsten Kalendertag). Sind noch Karten draußen, wartet das Dial stattdessen auf eine Person: „Neuer Tag? Taste 3 s halten“. Am Tablet geht es jederzeit über „Neuer Essenstag“. Belegungen werden zurückgesetzt, fehlende Karten gesperrt, die Mensa wieder geschlossen. Tage ohne ein einziges Essen (Wochenende, Ferien) zählen nicht im Tagesbericht.</li>
+<li><strong>Erinnerung:</strong> Wartet eine Pause, Entlastung oder volle Gruppe länger als 3 Minuten auf jemanden, piept das Dial kurz und zeigt z. B. „Noch Pause? Taste: weiter“ (einstellbar unter Einstellungen, auch „aus“).</li>
 </ul>
 <h2>6 · Große Ampel anzeigen</h2>
 <p>Auf dem Tablet <strong>Ampel öffnen</strong> und bei Bedarf <strong>Vollbild</strong> wählen. Grün bedeutet: betriebsbereit, keine Pause und mindestens eine verfügbare Karte für einen freigegebenen Platz. Bei Pause, vollem Bestand oder Störung erscheint Rot.</p>
 <p>Nach mehr als drei Sekunden ohne erfolgreiche Statusmeldung schaltet die laufende Browseranzeige auf Rot. Das gilt nicht für einen eingefrorenen Browser oder ausgeschalteten Bildschirm: Energiesparen und automatische Bildschirmsperre für euren Einsatz passend einstellen und testen. Die getrennte Ampel sollte vor dem Mensaeingang sichtbar sein.</p>
+<p><strong>Ampel-Tablet dauerhaft an:</strong> Am einfachsten mit einer Kiosk-App (z. B. „Fully Kiosk Browser“ auf Android): Startseite <code>http://192.168.4.1/ampel</code>, „Bildschirm anlassen“ und „bei Absturz neu laden“ einschalten. Ohne Kiosk-App: in den Tablet-Einstellungen die automatische Bildschirmsperre abschalten und das Tablet am Netzteil lassen. Ist „Ton an“ gewählt, nach jedem Neuladen einmal auf den Bildschirm tippen (die Ampel zeigt dazu einen Hinweis) – Browser erlauben Töne erst nach einer Berührung.</p>
+<p><strong>Uhr:</strong> Das Dial hat eine eingebaute Uhr (RTC). Sie wird automatisch von jedem angemeldeten Tablet gestellt. Ist sie nach einem langen Stromausfall leer, übernimmt das Dial die Uhrzeit auch von der Ampel-Seite; bis dahin steht am Dial „Uhr nicht gestellt“.</p>
+<p>Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial „Ampel nicht verbunden!“.</p>
 <h2>7 · Sicherung, Zugang und Updates</h2>
-<p><strong>Bestand sichern:</strong> Unter Gerät die JSON-Sicherung herunterladen. Sie enthält Kartenzuordnungen und Belegungen, keine Zugangskennwörter. Derzeit ist dies eine Sicherung zur Kontrolle und technischen Wiederherstellung; ein automatischer Importknopf ist noch nicht enthalten.</p>
-<p><strong>WLAN anzeigen:</strong> Taste am Dial drei Sekunden halten und loslassen. Die Zugangsdaten werden vorübergehend angezeigt.</p>
-<p><strong>Betreuungskennwort vergessen:</strong> Taste zehn Sekunden halten, loslassen und die Rückfrage mit einem kurzen Druck bestätigen. Danach erscheint ein neuer Einrichtungscode. Der Kartenbestand bleibt erhalten. Dies setzt den Betreuungszugang zurück; bei gültiger Konfiguration bleibt das WLAN-Kennwort unverändert.</p>
-<p><strong>Update:</strong> Bestand vorher sichern. Im Installationshelfer „Update“ wählen. Der Helfer liest zunächst das Speicherlayout aus; bei Abweichung bricht er ab, ohne die Firmware zu schreiben. Bei passendem Layout wird nur die Programmdatei aktualisiert. Die Option ist für die bereits installierte Mensaampel vorgesehen. Nach Neustart ist erneut eine Bestandsbestätigung erforderlich. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.</p>
+<p><strong>Bestand sichern:</strong> Unter Gerät die JSON-Sicherung herunterladen – spätestens direkt nach dem Einlernen der Karten und danach etwa alle zwei Wochen (das Tablet erinnert daran). Sie enthält Kartenzuordnungen, Belegungen, Einstellungen und Lernwerte, keine Zugangskennwörter. Mit „Sicherung einspielen“ lässt sie sich wiederherstellen, z. B. auf einem Ersatzgerät; danach den Bestand bestätigen.</p>
+<p><strong>WLAN anzeigen:</strong> Taste am Dial drei Sekunden halten und loslassen (ein weißer Ring zeigt den Fortschritt). Die Zugangsdaten werden 30 Sekunden angezeigt; ein kurzer Druck schließt die Anzeige, ohne etwas anderes auszulösen. <strong>WLAN-Kanal</strong> (1, 6 oder 11) unter Gerät → Geräteeinstellungen wählen, falls das WLAN in der Schule durch Nachbarnetze gestört wird.</p>
+<p><strong>Betreuungskennwort vergessen:</strong> Taste zehn Sekunden halten, loslassen und die Rückfrage zur Sicherheit mit <strong>nochmal 3 Sekunden Halten</strong> bestätigen (ein kurzer Druck bricht ab). Danach erscheint ein neuer Einrichtungscode. Der Kartenbestand bleibt erhalten. Dies setzt den Betreuungszugang zurück; bei gültiger Konfiguration bleibt das WLAN-Kennwort unverändert.</p>
+<p><strong>Update:</strong> Bestand vorher sichern. Im Installationshelfer „Update“ wählen. Der Helfer liest zunächst das Speicherlayout aus; bei Abweichung bricht er ab, ohne die Firmware zu schreiben. Bei passendem Layout wird nur die Programmdatei aktualisiert. Die Option ist für die bereits installierte Mensaampel vorgesehen. Am besten nach dem Mittag updaten; am selben Tag bleibt der Bestand danach bestätigt, sonst einmal bestätigen.</p>
+<p><strong>Update für den Hausmeister in Kürze:</strong> 1. Tablet: Sicherung herunterladen. 2. Dial per USB-Datenkabel an den Windows-PC. 3. Neue <code>Mensaampel_Dial_Vorbereitung.zip</code> entpacken, <code>Dial-Installieren.cmd</code> starten, „Update“ wählen. 4. Warten, bis das Dial neu startet. 5. Am Tablet unter Gerät die Version prüfen. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.</p>
 <p><strong>Speicherstörung:</strong> Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.</p>
 <h2>Abnahme am echten Gerät</h2>
 <table>
@@ -158,7 +173,22 @@
 </tr>
 <tr>
 <td>Strom nach bestätigter Buchung trennen</td>
-<td>Belegung bleibt, Einlass fordert Bestätigung</td>
+<td>Belegung bleibt; am selben Tag bleibt der Bestand bestätigt und der Countdown läuft weiter</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Tagesstart mit einer nicht zurückgegebenen Karte</td>
+<td>Dial wartet („Neuer Tag? 3 s halten“), Karte danach gesperrt, Scan gibt sie frei</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ring um eine Raste anstoßen</td>
+<td>Mensa-Einstellung öffnet sich nicht</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Taste halten</td>
+<td>Weißer Fortschrittsring, nach 3 s „Loslassen“</td>
 <td>☐</td>
 </tr>
 <tr>
@@ -266,6 +296,14 @@
 </tr>
 </tbody>
 </table>
+<h2>Neu in 0.10</h2>
+<ul>
+<li><strong>Etiketten-Tool</strong> (<code>Etiketten-Tool.html</code>): bunte Etiketten mit Tieren oder Monstern &amp; Weltraum, passend für gängige Etikettenbögen, mit Testseite (siehe Abschnitt 4).</li>
+<li><strong>Tagesstart sicherer:</strong> nach Kalenderdatum statt nur Wochentag; wartet bei Karten draußen auf eine Person; fehlende Karten werden gesperrt und per Scan wieder frei; Wochenenden zählen nicht im Tagesbericht. Die Uhr wird auch mit laufender Gruppe gestellt (vorher konnte der automatische Tagesstart nach einer angebrochenen letzten Gruppe ausfallen).</li>
+<li><strong>Neustart mitten im Mittag:</strong> Bestand bleibt am selben Tag bestätigt, Countdown läuft weiter; 30-Minuten-Schutz zählt ab Neustart.</li>
+<li><strong>Bedienung:</strong> Eine einzelne Raste am Ring öffnet die Mensa nicht mehr; ein Tastendruck direkt beim Drehen speichert nicht aus Versehen; Fortschrittsring beim Halten; Zurücksetzen nur mit zweitem langen Halten; das Touch-Feld wirkt in Menü, Einlernen und Mensa-Einstellung wie die Taste; Erinnerungs-Piep bei langer Pause.</li>
+<li><strong>Wartung:</strong> Sicherungs-Erinnerung am Tablet, WLAN-Kanal wählbar, Ampel-Warnung auch wenn sich nach dem Start nie eine Ampel meldet, Ton-Hinweis auf der Ampel nach dem Neuladen.</li>
+</ul>
 <h2>Neu in 0.9</h2>
 <ul>
 <li><strong>Leser automatisch</strong> (siehe Abschnitt 3), <strong>Karten am Stück einlernen</strong> (Abschnitt 4), <strong>Kartenetiketten</strong> zum Drucken.</li>

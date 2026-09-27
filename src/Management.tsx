@@ -140,6 +140,42 @@ export function Management({
               <CalendarDays size={17} /> Neuer Essenstag
             </button>
           </div>
+          {s.dayWaiting && (
+            <div className="banner" role="status">
+              <div>
+                <strong>Neuer Essenstag wartet</strong>
+                <p>
+                  Es sind noch Karten draußen. Nach dem Einsammeln am Dial die Taste 3 Sekunden halten oder hier „Neuer
+                  Essenstag“ wählen. Fehlende Karten werden dann gesperrt, bis sie wieder auftauchen.
+                </p>
+              </div>
+            </div>
+          )}
+          {!!s.lostCards?.length && (
+            <div className="banner" role="status">
+              <div>
+                <strong>Gesperrte (verlorene) Karten: {s.lostCards.length}</strong>
+                <p>Taucht eine Karte wieder auf, einfach ans Dial halten – oder hier freigeben:</p>
+                <div className="action-row lost-cards">
+                  {s.lostCards.map(label => {
+                    const c = s.cards.find(x => x.label === label);
+                    return (
+                      c && (
+                        <button
+                          key={label}
+                          className="outline"
+                          disabled={blocked}
+                          onClick={() => send({ type: 'correct', uid: c.uid, out: false, lost: false })}
+                        >
+                          {label} gefunden
+                        </button>
+                      )
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
           {!!s.outCards?.length && (
             <div className={`banner ${s.cardsMissing ? 'error' : ''}`} role="status">
               <div>
@@ -192,6 +228,12 @@ export function Management({
                   Nur Nummern ohne echte Karte werden belegt. In der PC-Simulation mit „Unbekannte Karte testen“
                   ausprobieren.
                 </p>
+                {s.cards.some(c => !c.uid.startsWith('sim:')) && (
+                  <p className="hint">
+                    Nach dem Einlernen eine <b>Sicherung herunterladen</b> (Einstellungen bzw. Gerät → Sicherung). Ohne
+                    Sicherung müssten nach einem Defekt alle Karten neu eingelernt werden.
+                  </p>
+                )}
               </>
             )}
           </section>
@@ -399,7 +441,12 @@ export function Management({
                   open: d.get('open') === 'on',
                 });
               else if (modal === 'settings')
-                void apply({ type: 'settings', cooldown: Number(d.get('cooldown')), volume: Number(d.get('volume')) });
+                void apply({
+                  type: 'settings',
+                  cooldown: Number(d.get('cooldown')),
+                  volume: Number(d.get('volume')),
+                  remind: Number(d.get('remind')),
+                });
               else if (modal === 'enroll')
                 void apply({
                   type: 'enroll',
@@ -473,6 +520,17 @@ export function Management({
                 <label>
                   Lautstärke am Dial (0 = stumm, 10 = laut)
                   <input name="volume" type="range" min="0" max="10" step="1" defaultValue={s.volume ?? 7} />
+                </label>
+                <label>
+                  Erinnerung, wenn Pause, Entlastung oder volle Gruppe auf jemanden warten
+                  <select name="remind" defaultValue={s.remind ?? 3}>
+                    <option value="0">aus</option>
+                    {[1, 2, 3, 5, 10].map(m => (
+                      <option key={m} value={m}>
+                        alle {m} Minuten piepen
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <div className="staff-cards">
                   <strong>Betreuerkarten: {s.staffCount ?? 0} von 5</strong>

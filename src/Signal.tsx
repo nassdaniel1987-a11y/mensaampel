@@ -43,7 +43,22 @@ export function Signal({
   full?: boolean;
 }) {
   const [sound, setSound] = useState(() => full && readChime()),
+    // After a reload the browser keeps sound blocked until someone taps the page once.
+    [locked, setLocked] = useState(() => full && readChime()),
     was = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!locked) return;
+    const unlock = () => {
+      try {
+        chimeAudio ??= new AudioContext();
+        void chimeAudio.resume().then(() => setLocked(chimeAudio?.state !== 'running'));
+      } catch {
+        setLocked(false);
+      }
+    };
+    document.addEventListener('pointerdown', unlock);
+    return () => document.removeEventListener('pointerdown', unlock);
+  }, [locked]);
   const reason = !connected ? 'offline' : state?.storageError ? 'storage' : state?.signal.reason;
   const green = reason === 'free',
     yellow = reason === 'low',
@@ -111,6 +126,9 @@ export function Signal({
           <button className="fullscreen-button sound-button" onClick={toggleSound} aria-pressed={sound}>
             {sound ? <Bell size={18} /> : <BellOff size={18} />} {sound ? 'Ton an' : 'Ton aus'}
           </button>
+          {sound && locked && (
+            <p className="signal-tap">Ton ist an: einmal auf den Bildschirm tippen, damit er klingt.</p>
+          )}
           <span className="signal-brand">Mensaampel</span>
         </>
       )}

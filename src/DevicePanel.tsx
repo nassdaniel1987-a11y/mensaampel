@@ -110,6 +110,7 @@ export function DevicePanel({
                 type: d.configured ? 'deviceSettings' : 'deviceSetup',
                 ssid: String(data.get('ssid')),
                 wifiPassword: String(data.get('wifiPassword')),
+                channel: Number(data.get('channel') || 1),
                 adminPassword: password,
               });
             }}
@@ -117,6 +118,14 @@ export function DevicePanel({
             <label>
               WLAN-Name
               <input name="ssid" defaultValue={d.ssid} required maxLength={32} />
+            </label>
+            <label>
+              WLAN-Kanal
+              <select name="channel" defaultValue={String(d.channel ?? 1)}>
+                <option value="1">1 (Standard)</option>
+                <option value="6">6</option>
+                <option value="11">11</option>
+              </select>
             </label>
             <label>
               Neues WLAN-Kennwort

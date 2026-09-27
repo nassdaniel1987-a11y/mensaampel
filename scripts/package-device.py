@@ -57,7 +57,7 @@ with ZipFile(output/'source/Mensaampel-Quellcode.zip','w',ZIP_DEFLATED) as archi
         if lib.is_dir():
             for f in lib.rglob('*'):
                 if f.is_file() and '.git' not in f.parts:archive.write(f,Path('vendor')/lib.name/f.relative_to(lib))
-manifest={'version':__import__('re').search(r'"version",\s*"([^"]+)"',(root/'firmware/src/main.cpp').read_text(encoding='utf-8')).group(1),'board':'M5Stack Dial v1.1 / ESP32-S3 / 8MB','hardwareTested':False,'files':[]}
+manifest={'version':__import__('re').search(r'MENSA_VERSION\s+"([^"]+)"',(root/'firmware/src/version.hpp').read_text(encoding='utf-8')).group(1),'board':'M5Stack Dial v1.1 / ESP32-S3 / 8MB','hardwareTested':False,'files':[]}
 for f in sorted((output/'firmware').glob('*.bin')):
     manifest['files'].append({'path':f.relative_to(output).as_posix(),'sha256':hashlib.sha256(f.read_bytes()).hexdigest()})
 manifest['files'].append({'path':'tools/mensa-flash.exe','sha256':hashlib.sha256((output/'tools/mensa-flash.exe').read_bytes()).hexdigest()})

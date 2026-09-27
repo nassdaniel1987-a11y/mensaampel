@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { Download, Upload } from 'lucide-react';
 // Download and restore of the complete stock including learned values (PC service and Dial).
+// When this browser last downloaded a backup (per device; only for the reminder).
+export function lastBackup() {
+  try {
+    return Number(localStorage.getItem('mensa-letzte-sicherung')) || 0;
+  } catch {
+    return 0;
+  }
+}
 export function Backup({
   backup,
   restore,
@@ -12,8 +20,19 @@ export function Backup({
 }) {
   const [file, setFile] = useState<File | null>(null),
     [confirm, setConfirm] = useState(false);
+  const last = lastBackup(),
+    days = last ? Math.floor((Date.now() - last) / 86400000) : -1;
   return (
     <div className="backup">
+      <p className={`backup-age ${days < 0 || days >= 14 ? 'warn' : ''}`} role="status">
+        {days < 0
+          ? 'Auf diesem Gerät wurde noch keine Sicherung heruntergeladen.'
+          : days === 0
+            ? 'Letzte Sicherung: heute.'
+            : `Letzte Sicherung: vor ${days} ${days === 1 ? 'Tag' : 'Tagen'}.`}
+        {(days < 0 || days >= 14) &&
+          ' Bitte jetzt sichern – sonst müssten nach einem Defekt alle Karten neu eingelernt werden.'}
+      </p>
       <div className="action-row">
         <button className="outline" type="button" disabled={disabled} onClick={() => void backup()}>
           <Download size={18} /> Sicherung herunterladen

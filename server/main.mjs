@@ -13,6 +13,7 @@ import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { createEngine } from './engine.mjs';
+import { VERSION } from '../src/version.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
@@ -26,6 +27,7 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
     forceWriteFailure = false,
     feedback = { text: '', ok: true, at: 0 },
     ampelSeenAt = 0,
+    readySince = 0,
     ampelWarned = false,
     test = null;
   const now = () => Date.now() + offset;
@@ -85,7 +87,7 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
         'Tablets: 1  Ampel: ' + (ampelSeenAt && !ampelLost() ? 'ok' : '-'),
         'Speicher frei: PC',
         'Uhr: ' + new Date(now()).toLocaleTimeString('de-DE'),
-        'Version 0.9.0-preview',
+        'Version ' + VERSION,
       ];
       return {
         ...s,
@@ -101,7 +103,13 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       op: 'dial',
       now: now(),
       blocked: !!error,
-      hint: error ? 'Speicher pruefen!' : ampelLost() ? 'Ampel draussen getrennt!' : '',
+      hint: error
+        ? 'Speicher pruefen!'
+        : ampelLost()
+          ? ampelSeenAt
+            ? 'Ampel draussen getrennt!'
+            : 'Ampel nicht verbunden!'
+          : '',
       ...(Date.now() - feedback.at < 3500 ? { feedback: feedback.text, feedbackOk: feedback.ok } : {}),
     });
     return {
@@ -116,17 +124,32 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
   const note = (text, ok) => {
     if (text) feedback = { text, ok: !!ok, at: Date.now() };
   };
-  // Like the Dial: once an outside signal display has polled, missing polls for more than 10 s are reported inside.
-  const ampelLost = () => ampelSeenAt > 0 && Date.now() - ampelSeenAt > 10000;
+  // Like the Dial: missing polls for more than 10 s are reported inside, and no Ampel at all a minute after the stock
+  // was confirmed.
+  const ampelLost = () => {
+    const ready = engine.status(now()).ready;
+    if (!ready) readySince = 0;
+    else if (!readySince) readySince = Date.now();
+    return ampelSeenAt > 0 ? Date.now() - ampelSeenAt > 10000 : readySince > 0 && Date.now() - readySince > 60000;
+  };
   // The PC has a reliable clock: take weekday and time for the learned half-hour values automatically.
+  // Also while a group runs: then only the clock (clockSync), so the running group stays untouched.
   function syncClock() {
     const f = engine.status(now()).flow;
-    if (loadError || f.clockValid || f.armed || f.started >= 0 || f.issued > 0) return;
-    const t = new Date(now());
-    engine.command(
-      { type: 'measurementContext', weekday: t.getDay(), minute: t.getHours() * 60 + t.getMinutes(), queue: f.queue },
+    if (loadError || f.clockValid) return;
+    const t = new Date(now()),
+      idle = !f.armed && f.started < 0 && f.issued === 0;
+    const r = engine.command(
+      {
+        type: idle ? 'measurementContext' : 'clockSync',
+        weekday: t.getDay(),
+        minute: t.getHours() * 60 + t.getMinutes(),
+        date: [t.getFullYear(), t.getMonth() + 1, t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()],
+        ...(idle ? { queue: f.queue } : {}),
+      },
       now(),
     );
+    if (/Neustart/.test(r.message || '')) note(r.message, true);
   }
   // Commands are processed synchronously after body collection; memory and disk form one transaction.
   function transact(command) {
@@ -234,12 +257,12 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       return reply(400, { message: 'Ungültige Adresse.' });
     }
     if (url.pathname === '/api/health') return reply(200, { app: 'mensaampel', version: 1 });
-    if (url.pathname === '/api/info') return reply(200, { mode: 'pc', version: '0.7.0-preview' });
+    if (url.pathname === '/api/info') return reply(200, { mode: 'pc', version: VERSION });
     if (url.pathname === '/api/signal') {
       if (Date.now() < offlineUntil) return reply(503, { message: 'Simulierte Verbindungsunterbrechung.' });
       ampelSeenAt = Date.now();
       const s = state();
-      return reply(200, { signal: s.signal, storageError: s.storageError, now: s.now });
+      return reply(200, { signal: s.signal, storageError: s.storageError, now: s.now, clockValid: s.flow.clockValid });
     }
     if (url.pathname === '/api/state') {
       if (Date.now() < offlineUntil) return reply(503, { message: 'Simulierte Verbindungsunterbrechung.' });

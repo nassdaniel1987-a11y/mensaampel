@@ -44,6 +44,11 @@ class Engine {
   int menuSel = -1;
   long long menuUntil = 0;
   bool staffLearning = false;
+  // Calendar day on which the stock was confirmed; after a reboot on the same day it stays confirmed (resumeDate until
+  // the clock is known again). Transient: ring detents before the Mensa setting opens, and when something last needed
+  // a person (pause, relief, full group without automatic release) for reminders every `remind` minutes (0 = off).
+  int readyDate = -1, resumeDate = -1, remind = 3, turnAcc = 0;
+  long long turnAt = -1, mensaTurnAt = -1, attentionAt = -1;
   // Staff cards (UIDs) open the supervision menu on the Dial instead of booking; stored.
   std::vector<std::string> staff;
   static void require(bool b, const std::string &m) {
@@ -115,11 +120,20 @@ public:
     hasUndo = false;
     held.clear();
   }
+  void markReady(long long now) {
+    ready = true;
+    readyDate = flow.currentDate(now);
+  }
+  // After a reboot the monotonic clock starts again: scan times restart, the 30-minute protection counts from now when
+  // cards are out, and a stock confirmed today is taken over once the clock shows the same date.
   void rebootClock(long long now) {
+    resumeDate = ready ? readyDate : -1;
     flow.restart();
+    if (outCards() > 0) flow.lastScan = now;
     for (auto &c : cards)
       if (c.last >= 0) c.last = now;
     ready = false;
+    attentionAt = -1;
     hasUndo = false;
     held.clear();
   }
@@ -152,7 +166,7 @@ public:
   bool seriesActive() const { return seriesRoom >= 0; }
   bool isStaff(const std::string &uid) const { return std::find(staff.begin(), staff.end(), uid) != staff.end(); }
   // Holding the button is used by the core in these situations; otherwise the device shows the WLAN data.
-  bool wantsHold(long long now) const { return !ready || seriesActive() || menuOpen(now); }
+  bool wantsHold(long long now) const { return !ready || seriesActive() || menuOpen(now) || dayWaiting(now); }
   // Next number of the room without a real card (placeholder uid "sim:"), after the given label; empty when done.
   std::string nextUnbound(int room, const std::string &after) const {
     std::string best;
@@ -194,10 +208,28 @@ public:
   bool cardsMissing(long long now) const {
     return flow.lastScan >= 0 && now - flow.lastScan >= 1200000 && outCards() > 0;
   }
+  // Same serving day: by calendar date when known, otherwise (older clock sources) by weekday.
+  bool sameDay() const {
+    return flow.date >= 0 && flow.dayDate >= 0 ? flow.date == flow.dayDate : flow.weekday == flow.dayWeekday;
+  }
   // A wrong clock must not reset the stock during lunch: only after 30 minutes without any scan.
-  bool dayDue(long long now) const {
-    return flow.dayStart >= 0 && flow.clockReady(now) && flow.weekday != flow.dayWeekday &&
-           flow.currentMinute(now) >= flow.dayStart && (flow.lastScan < 0 || now - flow.lastScan >= 1800000);
+  bool dayBase(long long now) const {
+    return flow.dayStart >= 0 && flow.clockReady(now) && !sameDay() && flow.currentMinute(now) >= flow.dayStart &&
+           (flow.lastScan < 0 || now - flow.lastScan >= 1800000);
+  }
+  bool dayDue(long long now) const { return dayBase(now) && outCards() == 0; }
+  // Cards still out: the new day waits for a person (hold 3 s) instead of freeing their seats automatically.
+  bool dayWaiting(long long now) const { return dayBase(now) && outCards() > 0; }
+  // Something needs a person: manual pause, relief, or a full group without automatic release.
+  bool needsAttention() const {
+    return ready && !seriesActive() && (paused || flow.relief || (flow.waiting && !autoPending()));
+  }
+  // Number of reminders due so far (the Dial beeps whenever it grows).
+  int reminders(long long now) const {
+    return remind > 0 && attentionAt >= 0 ? int((now - attentionAt) / (remind * 60000LL)) : 0;
+  }
+  bool turnHint(long long now) const {
+    return turnAcc != 0 && turnAt >= 0 && now - turnAt < 1500 && !editingMensa(now);
   }
   int volumeLevel() const { return volume; }
   const Flow &flowState() const { return flow; }
@@ -206,8 +238,23 @@ public:
     return flow.autoOn && flow.waiting && ready && !paused && !flow.relief && !(flow.started >= 0 && flow.kind == 1);
   }
   bool autoDue(long long now) const { return autoPending() && (flow.releaseAt < 0 || now >= flow.releaseAt); }
-  // Dial main screen: whole background in the signal colour, large text readable from a distance.
+  // Dial screen plus, while the button is held, a white progress ring (3 s: confirm/WLAN, 10 s: access reset).
   Json dialScreen(long long now, const DialExtras &x) const {
+    using namespace dial;
+    auto list = dialBase(now, x);
+    if (x.holdMs >= 400 && x.screen != "reset") {
+      bool longHold = x.holdMs >= 3000;
+      list.push_back(rect(22, 181, 196, 34, 8, black));
+      list.push_back(text(120, 198, 1, white,
+                          x.holdMs >= 10000 ? "Loslassen: Zugang zuruecksetzen"
+                          : longHold        ? "Loslassen: 3 s erreicht"
+                                            : "Halten ..."));
+      ring(list, longHold ? std::min(1.0, (x.holdMs - 3000) / 7000.0) : x.holdMs / 3000.0, longHold ? orange : white);
+    }
+    return list;
+  }
+  // Dial main screen: whole background in the signal colour, large text readable from a distance.
+  Json dialBase(long long now, const DialExtras &x) const {
     using namespace dial;
     Json list = Json::array();
     auto info = [&](const std::vector<std::string> &lines, int color) {
@@ -230,8 +277,8 @@ public:
       list.push_back(fill(red));
       list.push_back(text(120, 70, 2, white, "ZUGANG"));
       list.push_back(text(120, 94, 2, white, "ZURUECKSETZEN?"));
-      list.push_back(text(120, 132, 1, white, "Kurz druecken: JA"));
-      list.push_back(text(120, 150, 1, white, "Warten: abbrechen"));
+      list.push_back(text(120, 132, 1, white, "Nochmal 3 s halten: JA"));
+      list.push_back(text(120, 150, 1, white, "Kurz druecken: abbrechen"));
       list.push_back(text(120, 178, 1, white, "Bestand bleibt erhalten"));
       return list;
     }
@@ -341,19 +388,25 @@ public:
     if (!x.feedback.empty())
       info(wrap(x.feedback, {191, 205}), x.feedbackOk ? green : orange);
     else {
+      bool remindNow = reminders(now) > 0 && needsAttention();
       std::string hint = !x.hint.empty()                  ? x.hint
+                         : dayWaiting(now)                ? "Neuer Tag? Taste 3 s halten"
                          : !ready                         ? "Bestand ok?"
+                         : turnHint(now)                  ? "Mensa: weiter drehen"
                          : measuringGroup && flow.waiting ? "Tablet: Alle haben Essen"
                          : cardsMissing(now)
                              ? std::to_string(outCards()) + (outCards() == 1 ? " Karte fehlt" : " Karten fehlen")
-                             : "";
+                         : remindNow ? flow.relief ? "Noch Entlastung? Taste"
+                                       : paused    ? "Noch Pause? Taste: weiter"
+                                                   : "Gruppe wartet: Taste"
+                                     : "";
       info(wrap(hint, {198}), white);
     }
     list.push_back(text(120, 224, 1, fg,
-                        !ready                  ? "Taste 3 s halten"
-                        : flow.relief || paused ? "Taste: weiter"
-                        : flow.waiting          ? "Taste: freigeben"
-                                                : "Taste: Pause"));
+                        !ready || dayWaiting(now) ? "Taste 3 s halten"
+                        : flow.relief || paused   ? "Taste: weiter"
+                        : flow.waiting            ? "Taste: freigeben"
+                                                  : "Taste: Pause"));
     return list;
   }
   Json snapshot() const {
@@ -362,6 +415,8 @@ public:
               {"paused", paused},
               {"cooldown", cooldown},
               {"volume", volume},
+              {"remind", remind},
+              {"readyDate", readyDate},
               {"held", held},
               {"day", day},
               {"undo", nullptr},
@@ -387,6 +442,8 @@ public:
     next.paused = v["paused"];
     next.cooldown = number(v, "cooldown", 1, 600);
     next.volume = v.contains("volume") ? number(v, "volume", 0, 10) : 7;
+    next.remind = v.contains("remind") ? number(v, "remind", 0, 30) : 3;
+    next.readyDate = v.contains("readyDate") ? number(v, "readyDate", -1, 50000) : -1;
     next.day = number(v, "day", 1, 1000000);
     next.held = v.at("held").get<std::string>();
     require(next.held.size() <= 80, "Ungültiger Leserzustand.");
@@ -475,17 +532,31 @@ public:
     v["staffCount"] = int(staff.size());
     v["staffLearning"] = staffLearning;
     v["menuOpen"] = menuOpen(now);
+    v["dayWaiting"] = dayWaiting(now);
+    v["reminders"] = reminders(now);
+    Json lost = Json::array();
+    for (const auto &c : cards)
+      if (c.lost && c.uid.rfind("sim:", 0) != 0) lost.push_back(c.label);
+    v["lostCards"] = lost;
     v["now"] = now;
     return v;
   }
   // New serving day: occupancy reset, Mensa closed again, daily report closed. Automatic start keeps an unconfirmed
   // stock unconfirmed.
+  // Cards not returned are locked as lost: their seats stay unavailable until the card is scanned again.
+  // An automatic start after a day without any issue (weekend, holidays) does not count as a serving day.
   std::string startDay(long long now, bool automatic) {
     std::string missing;
     for (const auto &c : cards)
       if (c.out) missing += (missing.empty() ? "" : ", ") + c.label;
-    if (!missing.empty()) log("Nicht zurückgegeben: " + missing, now);
-    flow.closeDay(outCards(), day + 1, flow.clockReady(now) ? flow.weekday : -1);
+    if (!missing.empty()) log("Nicht zurückgegeben, als verloren gesperrt: " + missing, now);
+    bool empty = automatic && missing.empty() && flow.today[2] == 0;
+    if (empty)
+      flow.today[1] = flow.clockReady(now) ? flow.weekday : -1;
+    else {
+      flow.closeDay(outCards(), day + 1, flow.clockReady(now) ? flow.weekday : -1);
+      day++;
+    }
     if (flow.relief) log("Entlastung durch neuen Essenstag beendet.", now);
     flow.relief = false;
     flow.reliefAt = -1;
@@ -498,8 +569,10 @@ public:
     flow.lastEntry = -1;
     flow.lastScan = -1;
     flow.dayWeekday = flow.clockReady(now) ? flow.weekday : -1;
+    flow.dayDate = flow.currentDate(now);
     if (!automatic) flow.clockValid = false;
     for (auto &c : cards) {
+      if (c.out) c.lost = true;
       c.out = false;
       c.last = -1;
     }
@@ -507,16 +580,25 @@ public:
     rooms[1].open = false;
     for (auto &r : rooms)
       r.limit = r.capacity;
-    if (!automatic) ready = true;
+    if (!automatic) markReady(now);
     paused = false;
     held.clear();
-    day++;
     hasUndo = false;
     mensaEdit = -1;
-    return automatic ? "Neuer Essenstag automatisch gestartet."
-                     : "Neuer Essenstag nach Bestandsprüfung gestartet. Verlorene Karten bleiben gesperrt.";
+    std::string lost = missing.empty() ? "" : " Nicht zurückgegebene Karten sind gesperrt, bis sie wieder auftauchen.";
+    return (automatic ? "Neuer Essenstag automatisch gestartet." : "Neuer Essenstag nach Bestandsprüfung gestartet.") +
+           lost;
   }
   Json command(const Json &cmd, long long now) {
+    auto r = run(cmd, now);
+    bool need = needsAttention();
+    if (need && attentionAt < 0) attentionAt = now;
+    if (!need) attentionAt = -1;
+    return r;
+  }
+
+private:
+  Json run(const Json &cmd, long long now) {
     Engine before = *this;
     try {
       require(now >= 0, "Ungültige Zeit.");
@@ -569,13 +651,21 @@ public:
           seriesLabel = nextUnbound(seriesRoom, seriesLabel);
           if (seriesLabel.empty()) {
             seriesRoom = -1;
-            message += " Alle Nummern dieses Raums haben Karten.";
+            message += " Alle Nummern dieses Raums haben Karten. Taste: Einlass weiter.";
           }
           log(message, now);
           return {{"ok", true}, {"message", message}, {"changed", true}};
         }
         try {
           auto &c = card(uid);
+          if (c.lost && !c.out) {
+            c.lost = false;
+            c.last = now;
+            hasUndo = false;
+            message = c.label + " ist wieder da und frei.";
+            log(message, now);
+            return {{"ok", true}, {"message", message}, {"changed", true}};
+          }
           require(ready, "Bestand zuerst bestätigen.");
           require(!c.lost, "Karte ist als verloren gesperrt.");
           require(c.last < 0 || now - c.last >= cooldown * 1000LL, "Sperrzeit aktiv. Bitte später erneut vorhalten.");
@@ -600,8 +690,15 @@ public:
         throw std::runtime_error("Rückmeldung nur bei betriebsbereiter Gruppenpause möglich.");
       } else if (flow.command(cmd, now, isPaused(), message)) {
         if (action == "flowSettings" && before.flow.batch != flow.batch) paused = true;
+        if ((action == "clockSync" || action == "measurementContext") && resumeDate >= 0) {
+          if (!ready && flow.currentDate(now) == resumeDate) {
+            markReady(now);
+            message += " Nach dem Neustart bleibt der heute bestätigte Bestand gültig.";
+          }
+          resumeDate = -1;
+        }
       } else if (action == "confirm") {
-        ready = true;
+        markReady(now);
         message = "Bestand geprüft und bestätigt.";
       } else if (action == "tick") {
         if (dayDue(now))
@@ -624,7 +721,7 @@ public:
         auto item = menuItems()[menuSel % menuItems().size()].first;
         menuSel = -1;
         if (item == "confirm") {
-          ready = true;
+          markReady(now);
           message = "Bestand am Dial bestätigt.";
         } else if (item == "pause")
           return command({{"type", "pause"}, {"paused", true}}, now);
@@ -643,11 +740,13 @@ public:
         auto skipped = seriesLabel;
         seriesLabel = nextUnbound(seriesRoom, seriesLabel);
         if (seriesLabel.empty()) seriesRoom = -1;
-        return {{"ok", true}, {"changed", false}, {"message", skipped + " übersprungen."}};
+        return {{"ok", true},
+                {"changed", false},
+                {"message", skipped + " übersprungen." + (seriesRoom < 0 ? " Einlernen fertig." : "")}};
       } else if (action == "dialHold" && seriesActive()) {
         seriesRoom = -1;
         seriesLabel.clear();
-        return {{"ok", true}, {"changed", false}, {"message", "Einlernen beendet."}};
+        return {{"ok", true}, {"changed", false}, {"message", "Einlernen beendet. Taste: Einlass weiter."}};
       } else if (action == "seriesStart") {
         int r = roomId(cmd.at("room"));
         auto first = nextUnbound(r, "");
@@ -675,11 +774,24 @@ public:
         message = "Alle Betreuerkarten gelöscht.";
       } else if (action == "dialTurn") {
         int steps = number(cmd, "steps", -100, 100);
+        // A single bumped detent does not open the Mensa setting: at least two within 1.5 s.
+        if (!editingMensa(now)) {
+          if (turnAt < 0 || now - turnAt > 1500) turnAcc = 0;
+          turnAcc += steps;
+          turnAt = now;
+          if (std::abs(turnAcc) < 2) return {{"ok", true}, {"changed", false}, {"message", ""}};
+          steps = turnAcc;
+          turnAcc = 0;
+        }
         int base = editingMensa(now) ? mensaEdit : rooms[1].open ? rooms[1].limit : 0;
         mensaEdit = std::clamp(base + steps, occupied(1), rooms[1].capacity);
         mensaEditUntil = now + 15000;
+        mensaTurnAt = now;
         return {{"ok", true}, {"changed", false}, {"message", ""}};
       } else if (action == "dialPress") {
+        // A press while still turning is ignored so that the value is not saved by accident.
+        if (editingMensa(now) && mensaTurnAt >= 0 && now - mensaTurnAt < 500)
+          return {{"ok", true}, {"changed", false}, {"message", ""}};
         if (editingMensa(now)) {
           int value = mensaEdit;
           mensaEdit = -1;
@@ -693,17 +805,20 @@ public:
           require(ready, "Bestand ok? Taste 3 Sekunden halten.");
           return command({{"type", "pause"}, {"paused", !isPaused()}}, now);
         }
+      } else if (action == "dialHold" && dayWaiting(now)) {
+        message = startDay(now, false);
       } else if (action == "dialHold") {
         if (ready)
           return {{"ok", false},
                   {"handled", false},
                   {"changed", false},
                   {"message", "Bestand ist bestätigt. Am Gerät zeigt langes Halten die WLAN-Daten."}};
-        ready = true;
+        markReady(now);
         message = "Bestand am Dial bestätigt.";
+      } else if (action == "relief" && (editingMensa(now) || menuOpen(now) || seriesActive())) {
+        // The touch field reads "OK", "VORHALTEN" or "FREIGEBEN" on these screens: it acts like the button.
+        return command({{"type", "dialPress"}}, now);
       } else if (action == "relief") {
-        require(!editingMensa(now) && !menuOpen(now) && !seriesActive(),
-                "Erst Menü, Einlernen oder Mensa-Einstellung abschließen.");
         require(!flow.relief, "Ausgabe wird bereits entlastet.");
         flow.complaint(now);
         flow.relief = true;
@@ -739,6 +854,7 @@ public:
       } else if (action == "settings") {
         cooldown = number(cmd, "cooldown", 1, 600);
         if (cmd.contains("volume")) volume = number(cmd, "volume", 0, 10);
+        if (cmd.contains("remind")) remind = number(cmd, "remind", 0, 30);
         hasUndo = false;
         message = "Sperrzeit und Lautstärke gespeichert.";
       } else if (action == "enroll") {
@@ -789,6 +905,8 @@ public:
         message = "Letzte Buchung rückgängig gemacht.";
       } else if (action == "restart") {
         flow.restart();
+        if (outCards() > 0) flow.lastScan = now;
+        resumeDate = -1;
         ready = false;
         held.clear();
         hasUndo = false;
@@ -806,5 +924,7 @@ public:
       return {{"ok", false}, {"message", e.what()}};
     }
   }
+
+public:
 };
 } // namespace mensa

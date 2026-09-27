@@ -1,4 +1,5 @@
 // Session-only presentation adapter. All booking rules stay in the shared C++ core.
+import { VERSION } from './version.mjs';
 export function createDemoController(engine, clock = () => Date.now()) {
   let offset = 0,
     offlineUntil = 0,
@@ -32,7 +33,7 @@ export function createDemoController(engine, clock = () => Date.now()) {
         'Tablets: 1  Ampel: -',
         'Speicher frei: Browser',
         'Uhr: ' + new Date(now()).toLocaleTimeString('de-DE'),
-        'Version 0.9.0-preview',
+        'Version ' + VERSION,
       ],
     });
   const state = () => ({
@@ -47,10 +48,17 @@ export function createDemoController(engine, clock = () => Date.now()) {
   });
   function syncClock() {
     const f = engine.status(now()).flow;
-    if (f.clockValid || f.armed || f.started >= 0 || f.issued > 0) return;
-    const t = new Date(now());
+    if (f.clockValid) return;
+    const t = new Date(now()),
+      idle = !f.armed && f.started < 0 && f.issued === 0;
     engine.command(
-      { type: 'measurementContext', weekday: t.getDay(), minute: t.getHours() * 60 + t.getMinutes(), queue: f.queue },
+      {
+        type: idle ? 'measurementContext' : 'clockSync',
+        weekday: t.getDay(),
+        minute: t.getHours() * 60 + t.getMinutes(),
+        date: [t.getFullYear(), t.getMonth() + 1, t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()],
+        ...(idle ? { queue: f.queue } : {}),
+      },
       now(),
     );
   }

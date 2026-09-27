@@ -39,9 +39,12 @@ inline bool constantEqual(const std::string &a, const std::string &b) {
 struct DeviceConfig {
   bool configured = false;
   std::string reader = "auto", ssid, wifiPassword, salt, adminHash, setupCode;
+  // WLAN channel of the Dial's own network (1, 6 or 11); change when neighbouring networks disturb.
+  int channel = 1;
   void fresh() {
     configured = false;
     reader = "auto";
+    channel = 1;
     ssid = "Mensaampel-" + randomKey(4);
     wifiPassword = randomKey(12);
     salt = randomKey();
@@ -56,7 +59,8 @@ struct DeviceConfig {
             {"wifiPassword", wifiPassword},
             {"salt", salt},
             {"adminHash", adminHash},
-            {"setupCode", setupCode}};
+            {"setupCode", setupCode},
+            {"channel", channel}};
   }
   bool load() {
     Preferences p;
@@ -78,6 +82,8 @@ struct DeviceConfig {
       salt = j.at("salt");
       adminHash = j.at("adminHash");
       setupCode = j.at("setupCode");
+      channel = j.contains("channel") && j["channel"].is_number_integer() ? j["channel"].get<int>() : 1;
+      if (channel != 1 && channel != 6 && channel != 11) return false;
       return (reader == "internal" || reader == "external" || reader == "auto") && ssid.size() > 0 &&
              ssid.size() <= 32 && wifiPassword.size() >= 8 && wifiPassword.size() <= 63 && salt.size() == 24 &&
              adminHash.size() == 64;

@@ -138,7 +138,8 @@ test('Speicherfehler rollt Gruppengrenze und Messbeginn gemeinsam zurück', asyn
     const reopened = await createApp({ dataDir: dir });
     assert.equal(reopened.state().flow.waiting, true);
     assert.equal(reopened.state().flow.started, -1);
-    assert.equal(reopened.state().flow.clockValid, false);
+    assert.equal(reopened.state().flow.clockValid, true, 'Uhr trotz laufender Gruppe gestellt');
+    assert.equal(reopened.state().flow.issued, 1, 'laufende Gruppe bleibt unberührt');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

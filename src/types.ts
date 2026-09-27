@@ -17,6 +17,7 @@ export type Device = {
   readerHealthy: boolean;
   readerError: string;
   ssid: string;
+  channel?: number;
   captureTarget: string;
   capturedUid: string;
   captureUntil: number;
@@ -31,6 +32,11 @@ export type Device = {
 export type Info = { mode: 'pc' | 'device'; configured?: boolean; nonce?: string; version?: string };
 export type State = {
   volume?: number;
+  remind?: number;
+  dayWaiting?: boolean;
+  reminders?: number;
+  lostCards?: string[];
+  clockValid?: boolean;
   ready: boolean;
   paused: boolean;
   manualPaused?: boolean;

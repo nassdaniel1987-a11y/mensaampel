@@ -348,7 +348,7 @@ test('Gruppengröße lernt mit Grenzen, Startgruppe getrennt', async () => {
   assert.equal(f.today[7], 1);
   assert.equal(f.today[8], 1);
 });
-test('Neuer Essenstag automatisch, Bestand bleibt unbestätigt nach Neustart, Tagesbericht', async () => {
+test('Neuer Essenstag: mit Karten draußen erst nach 3 s Halten, fehlende Karten gesperrt, Tagesbericht', async () => {
   const x = await setup();
   x.cmd({ type: 'autoSettings', on: true, start: 20, startGroup: 3, dayStart: 600 });
   x.group();
@@ -360,18 +360,30 @@ test('Neuer Essenstag automatisch, Bestand bleibt unbestätigt nach Neustart, Ta
   assert.equal(x.tick().changed, false);
   assert.equal(x.state().rooms.K.occupied, 3);
   x.wait(100 * 60000);
-  const r = x.tick();
-  assert.equal(r.changed, true);
-  assert.match(r.message, /automatisch/);
+  assert.equal(x.tick().changed, false, 'Karten draußen: kein automatischer Tagesstart');
+  assert.equal(x.state().dayWaiting, true);
+  assert.ok(texts(x.dial()).includes('Neuer Tag? Taste 3 s halten'));
+  const r = x.cmd({ type: 'dialHold' });
+  assert.equal(r.ok, true);
+  assert.match(r.message, /Bestandsprüfung/);
   const s = x.state();
   assert.equal(s.rooms.K.occupied, 0);
-  assert.equal(s.ready, false);
+  assert.equal(s.ready, true);
   assert.equal(s.day, 2);
   assert.match(s.events.find(e => e.message.startsWith('Nicht zurück')).message, /K01, K02, K03/);
+  assert.deepEqual(
+    s.cards.filter(c => c.lost).map(c => c.label),
+    ['K01', 'K02', 'K03'],
+  );
+  assert.equal(s.rooms.K.free, 45, 'verlorene Karten zählen nicht als frei');
   assert.equal(s.flow.history.length, 1);
   assert.equal(s.flow.history[0][11], 3);
   assert.equal(s.flow.today[0], 2);
   assert.equal(x.tick().changed, false);
+  x.wait(15000);
+  assert.match(x.tap('sim:K02').message, /K02 ist wieder da/);
+  assert.equal(x.state().rooms.K.free, 46);
+  assert.equal(x.state().rooms.K.occupied, 0);
   const e = await createEngine();
   assert.equal(e.restore(x.e.snapshot()).ok, true);
   assert.equal(e.status(0).flow.history.length, 1);
@@ -391,8 +403,10 @@ test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis', async () =>
   assert.equal(x.state().mensaEdit, 2);
   assert.ok(texts(x.dial()).includes('2') && texts(x.dial()).includes('MENSA'));
   assert.ok(!texts(x.dial()).some(t => t.startsWith('Kueche') || t === 'PLATZ FREI' || t === 'EINLASS ZU'));
-  assert.equal(x.cmd({ type: 'relief' }).ok, false);
+  assert.equal(x.cmd({ type: 'relief' }).changed, false, 'Druck direkt beim Drehen wird ignoriert');
+  assert.equal(x.state().mensaEdit, 2);
   x.cmd({ type: 'dialTurn', steps: 28 });
+  x.wait(600);
   assert.equal(x.cmd({ type: 'dialPress' }).ok, true);
   let m = x.state().rooms.M;
   assert.equal(m.limit, 30);
@@ -439,6 +453,7 @@ test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Än
     again.stop();
     assert.equal(t({ type: 'dialTurn', steps: 2 }).changed, false);
     assert.equal(app.state().mensaEdit, 2);
+    await new Promise(done => setTimeout(done, 600));
     assert.equal(t({ type: 'dialPress' }).ok, true);
     assert.equal(app.state().rooms.M.limit, 2);
     assert.ok(!app.state().dial.some(i => i[5] === 'Ampel draussen getrennt!'));
@@ -480,8 +495,9 @@ test('Tagesstart erst nach 30 Minuten ohne Scan, Uhr stellen ohne Gruppe zu stö
   x.tick();
   assert.equal(x.state().day, 1);
   x.wait(2 * 60000);
-  const r = x.tick();
-  assert.match(r.message, /Essenstag automatisch/);
+  assert.equal(x.tick().changed, false, 'Gruppe noch draußen: Tagesstart wartet');
+  assert.equal(x.state().dayWaiting, true);
+  assert.match(x.cmd({ type: 'dialHold' }).message, /Essenstag nach Bestandsprüfung/);
   assert.equal(x.state().day, 2);
   assert.equal(x.state().volume, 7);
   assert.equal(x.cmd({ type: 'settings', cooldown: 10, volume: 11 }).ok, false);
@@ -556,8 +572,7 @@ test('Betreuerkarte: Menü per Ring und Taste, keine Buchung', async () => {
   assert.equal(e.status(now).menuOpen, true);
   assert.ok(texts().includes('BETREUUNG'));
   assert.ok(texts().includes('Bestand ok'));
-  assert.equal(cmd({ type: 'relief' }).ok, false);
-  cmd({ type: 'dialPress' });
+  assert.equal(cmd({ type: 'relief' }).ok, true, 'Touch-Feld wirkt im Menü wie die Taste');
   assert.equal(e.status(now).ready, true);
   assert.equal(e.status(now).menuOpen, false);
   tap('BE:TR:01');
@@ -570,6 +585,7 @@ test('Betreuerkarte: Menü per Ring und Taste, keine Buchung', async () => {
   cmd({ type: 'dialPress' });
   assert.ok(e.status(now).mensaEdit >= 0);
   cmd({ type: 'dialTurn', steps: 12 });
+  now += 600;
   cmd({ type: 'dialPress' });
   assert.equal(e.status(now).rooms.M.limit, 12);
   tap('BE:TR:01');

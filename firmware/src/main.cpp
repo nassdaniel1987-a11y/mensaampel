@@ -8,6 +8,7 @@
 #include "config.hpp"
 #include "card_reader.hpp"
 #include "web_assets.hpp"
+#include "version.hpp"
 
 using mensa::Json;
 mensa::Engine engine;
@@ -21,6 +22,9 @@ uint64_t sessionUntil = 0, loginAfter = 0, captureUntil = 0, restartAt = 0, show
          resetConfirmUntil = 0, clockCheckAt = 0, ampelSeenAt = 0;
 unsigned loginFailures = 0;
 bool ampelWarned = false;
+// Since when the stock is confirmed (for the Ampel warning) and how many reminders have beeped.
+uint64_t readySince = 0;
+int remindersBeeped = 0;
 long encoderBase = 0;
 // Device test: scans, ring and button are only shown, nothing is booked.
 bool testMode = false;
@@ -59,18 +63,43 @@ bool authorized() {
   return localOrigin() && !session.empty() && nowMs() < sessionUntil &&
          constantEqual(web.header("X-Mensa-Token").c_str(), session);
 }
+bool rtcTime(m5::rtc_datetime_t &t);
+void setRtc(const Json &d);
+Json transact(const Json &command);
+Json rtcDate(const m5::rtc_datetime_t &t);
 Json publicSignal() {
   ampelSeenAt = nowMs();
-  auto signal = engine.signal(nowMs());
+  const auto now = nowMs();
+  bool clockOk = engine.flowState().clockReady(now);
+  // The Ampel page sends its local time while the Dial has none (RTC not set, e.g. after a power loss): accepted
+  // only then and only when plausible.
+  m5::rtc_datetime_t t;
+  if (!clockOk && web.hasArg("clock") && !rtcTime(t) && configValid && config.configured && !needsReview) {
+    try {
+      auto d = Json::parse(web.arg("clock").c_str());
+      setRtc(d);
+      if (rtcTime(t)) {
+        transact({{"type", "clockSync"},
+                  {"weekday", t.date.weekDay},
+                  {"minute", t.time.hours * 60 + t.time.minutes},
+                  {"date", rtcDate(t)}});
+        clockOk = engine.flowState().clockReady(now);
+      }
+    } catch (...) {}
+  }
+  auto signal = engine.signal(now);
   if (blocked()) signal = {{"green", false}, {"reason", "device"}, {"free", 0}};
-  return {{"signal", signal}, {"storageError", blocked() ? "System nicht bereit." : ""}, {"now", nowMs()}};
+  return {{"signal", signal},
+          {"storageError", blocked() ? "System nicht bereit." : ""},
+          {"now", now},
+          {"clockValid", clockOk}};
 }
 Json state() {
   auto s = engine.status(nowMs());
   s["storageError"] = storage.error;
   s["recoveryRequired"] = false;
   s["sim"] = {{"offset", 0}, {"offline", false}, {"forceWriteFailure", false}};
-  s["device"] = {{"version", "0.9.0-preview"},
+  s["device"] = {{"version", MENSA_VERSION},
                  {"configured", config.configured},
                  {"reader", config.reader},
                  {"readerActive", reader.mode},
@@ -78,6 +107,7 @@ Json state() {
                  {"readerHealthy", reader.healthy},
                  {"readerError", reader.error},
                  {"ssid", config.ssid},
+                 {"channel", config.channel},
                  {"captureTarget", captureTarget},
                  {"capturedUid", capturedUid},
                  {"captureUntil", captureUntil},
@@ -115,9 +145,15 @@ void setRtc(const Json &d) {
   mktime(&t);
   M5.Rtc.setDateTime(&t);
 }
-// Signal display outside: once it has polled, more than 10 s without a poll is shown inside on the Dial.
+// Signal display outside: more than 10 s without a poll is shown inside on the Dial, and also when no Ampel has
+// polled at all within a minute of confirming the stock (e.g. the tablet did not reconnect after a reboot).
 bool ampelLost() {
-  return ampelSeenAt && nowMs() - ampelSeenAt > 10000;
+  if (ampelSeenAt) return nowMs() - ampelSeenAt > 10000;
+  return readySince && nowMs() - readySince > 60000;
+}
+// Calendar array for the core from the RTC: [year, month, day, hour, minute, second].
+Json rtcDate(const m5::rtc_datetime_t &t) {
+  return Json::array({t.date.year, t.date.month, t.date.date, t.time.hours, t.time.minutes, t.time.seconds});
 }
 Json result(bool ok, const std::string &message) {
   return {{"ok", ok}, {"message", message}};
@@ -153,6 +189,9 @@ Json command(const Json &j) {
         (!password.empty() && (password.size() < 10 || password.size() > 64)))
       return result(false, "WLAN-Kennwort: 8 bis 63 Zeichen; Betreuungskennwort: 10 bis 64 Zeichen.");
     if (!config.configured && password.empty()) return result(false, "Bitte ein eigenes Betreuungskennwort festlegen.");
+    int channel = j.contains("channel") && j["channel"].is_number_integer() ? j["channel"].get<int>() : config.channel;
+    if (channel != 1 && channel != 6 && channel != 11) return result(false, "WLAN-Kanal: 1, 6 oder 11.");
+    next.channel = channel;
     next.ssid = ssid;
     if (!wifi.empty()) next.wifiPassword = wifi;
     if (!password.empty()) {
@@ -162,7 +201,8 @@ Json command(const Json &j) {
     next.configured = true;
     next.setupCode.clear();
     if (!next.save()) return result(false, "Geräteeinstellungen konnten nicht gespeichert werden.");
-    bool wifiChanged = next.ssid != config.ssid || next.wifiPassword != config.wifiPassword;
+    bool wifiChanged =
+        next.ssid != config.ssid || next.wifiPassword != config.wifiPassword || next.channel != config.channel;
     config = next;
     if (wifiChanged) {
       engine.command({{"type", "restart"}}, nowMs());
@@ -282,7 +322,7 @@ void configureWeb() {
   web.on("/api/info", HTTP_GET, [] {
     if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
     reply(200,
-          {{"mode", "device"}, {"configured", config.configured}, {"nonce", loginNonce}, {"version", "0.9.0-preview"}});
+          {{"mode", "device"}, {"configured", config.configured}, {"nonce", loginNonce}, {"version", MENSA_VERSION}});
   });
   web.on("/api/signal", HTTP_GET, [] { reply(200, publicSignal()); });
   web.on("/api/login", HTTP_POST, [] {
@@ -437,19 +477,24 @@ void draw() {
                    "  Ampel: " + (ampelSeenAt && !ampelLost() ? "ok" : "-"),
                "Speicher frei: " + std::to_string(ESP.getFreeHeap() / 1024) + " KB",
                "Uhr: " + std::string(clock),
-               "Version 0.9.0-preview"};
+               std::string("Version ") + MENSA_VERSION};
   } else {
     x.blocked = blocked();
+    m5::rtc_datetime_t t;
+    bool noClock = !engine.flowState().clockReady(now) && !rtcTime(t);
     x.hint = !reader.healthy          ? "Leser pruefen!"
              : !storage.error.empty() ? "Speicher pruefen!"
              : !captureTarget.empty() ? "Karte einlernen am Tablet"
-             : ampelLost()            ? "Ampel draussen getrennt!"
+             : ampelLost()            ? (ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!")
+             : noClock                ? "Uhr nicht gestellt"
                                       : "";
     if (feedbackAt && now - feedbackAt < 3500) {
       x.feedback = feedback;
       x.feedbackOk = feedbackOk;
     }
   }
+  if (M5.BtnA.isPressed() && configValid)
+    x.holdMs = int(std::min<uint32_t>(M5.BtnA.getUpdateMsec() - M5.BtnA.lastChange(), 20000));
   auto list = engine.dialScreen(now, x);
   auto dump = list.dump();
   if (dump == lastScreen) return;
@@ -486,7 +531,7 @@ void setup() {
     WiFi.mode(WIFI_AP);
     WiFi.setSleep(false);
     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-    if (!WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), 1, false, 4)) {
+    if (!WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4)) {
       configValid = false;
       feedback = "WLAN konnte nicht gestartet werden.";
     } else
@@ -505,14 +550,38 @@ void loop() {
   }
   auto touch = M5.Touch.getDetail();
   if (testMode && touch.wasPressed()) testButton = "Touch " + std::to_string(touch.x) + "," + std::to_string(touch.y);
+  // Touch field: "ENTLASTEN" on the main screen; in menu, enrolment and Mensa setting the core treats it as the button.
+  bool touchOk = engine.menuOpen(now) || engine.seriesActive() || engine.editingMensa(now);
   if (touch.wasPressed() && touch.x >= 30 && touch.x <= 210 && touch.y >= 142 && touch.y <= 177 && configValid &&
       config.configured && !needsReview && now >= showCredentialsUntil && now >= resetConfirmUntil &&
-      !engine.isRelieving() && !testMode) {
+      (touchOk || !engine.isRelieving()) && !testMode) {
     auto r = transact({{"type", "relief"}});
-    note(r.value("message", std::string()), r.value("ok", false));
+    if (!r.value("message", std::string()).empty()) note(r.value("message", std::string()), r.value("ok", false));
   }
-  if (M5.BtnA.wasReleaseFor(10000)) {
+  if (M5.BtnA.wasReleaseFor(10000) && resetConfirmUntil <= now) {
     resetConfirmUntil = now + 15000;
+  } else if (resetConfirmUntil > now && M5.BtnA.wasReleaseFor(3000)) {
+    // Second long hold on the reset screen: reset the access (stock stays).
+    auto next = config;
+    if (!configValid)
+      next.fresh();
+    else {
+      next.configured = false;
+      next.setupCode = randomKey(10);
+      next.salt = randomKey();
+      next.adminHash = passwordHash(next.setupCode, next.salt);
+    }
+    if (next.save()) {
+      engine.command({{"type", "restart"}}, now);
+      restartAt = now + 500;
+    }
+    resetConfirmUntil = 0;
+  } else if (resetConfirmUntil > now && M5.BtnA.wasClicked()) {
+    resetConfirmUntil = 0;
+    note("Zuruecksetzen abgebrochen.", true);
+  } else if (now < showCredentialsUntil && M5.BtnA.wasClicked()) {
+    // A short press only closes the WLAN screen; it must not pause or release the entrance.
+    showCredentialsUntil = 0;
   } else if (testMode && M5.BtnA.wasReleaseFor(3000))
     testButton = "3 s";
   else if (testMode && M5.BtnA.wasClicked())
@@ -532,24 +601,10 @@ void loop() {
     }
     if (!handled) showCredentialsUntil = now + 30000;
   } else if (M5.BtnA.wasClicked()) {
-    if (resetConfirmUntil > now) {
-      auto next = config;
-      if (!configValid)
-        next.fresh();
-      else {
-        next.configured = false;
-        next.setupCode = randomKey(10);
-        next.salt = randomKey();
-        next.adminHash = passwordHash(next.setupCode, next.salt);
-      }
-      if (next.save()) {
-        engine.command({{"type", "restart"}}, now);
-        restartAt = now + 500;
-      }
-      resetConfirmUntil = 0;
-    } else if (configValid && config.configured && !needsReview) {
+    if (configValid && config.configured && !needsReview) {
       auto r = transact({{"type", "dialPress"}});
-      note(r.value("message", std::string()), r.value("ok", false));
+      if (!r.value("message", std::string()).empty() || !r.value("ok", false))
+        note(r.value("message", std::string()), r.value("ok", false));
     }
   }
   // Automatic group release: only transact (and write flash) when a release or its scheduling is due.
@@ -566,9 +621,19 @@ void loop() {
     }
   }
   {
+    if (engine.isReady() && !readySince) readySince = now;
+    if (!engine.isReady()) readySince = 0;
     bool lost = ampelLost();
-    if (lost && !ampelWarned) note("Ampel draussen getrennt!", false);
+    if (lost && !ampelWarned) note(ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!", false);
     ampelWarned = lost;
+    // Reminder while a pause, relief or full group waits for a person: short double beep each interval.
+    int due = engine.reminders(now);
+    if (due > remindersBeeped) {
+      M5.Speaker.tone(1400, 120);
+      delay(160);
+      M5.Speaker.tone(1400, 120);
+    }
+    remindersBeeped = due;
   }
   if (configValid && config.configured && !needsReview && storage.error.empty() && !blocked() &&
       (engine.autoDue(now) || engine.dayDue(now))) {
@@ -579,11 +644,18 @@ void loop() {
     clockCheckAt = now + 5000;
     const auto &f = engine.flowState();
     m5::rtc_datetime_t t;
-    if (!f.clockReady(now) && !f.armed && f.started < 0 && f.issued == 0 && rtcTime(t))
-      transact({{"type", "measurementContext"},
+    // Also while a group is running (e.g. the last, partly filled group of yesterday): then only the clock is set, so
+    // the running group is not disturbed; otherwise the day start would never become due again.
+    if (!f.clockReady(now) && rtcTime(t)) {
+      bool idle = !f.armed && f.started < 0 && f.issued == 0;
+      Json c = {{"type", idle ? "measurementContext" : "clockSync"},
                 {"weekday", t.date.weekDay},
                 {"minute", t.time.hours * 60 + t.time.minutes},
-                {"queue", f.queue}});
+                {"date", rtcDate(t)}};
+      if (idle) c["queue"] = f.queue;
+      auto r = transact(c);
+      if (r.value("message", std::string()).find("Neustart") != std::string::npos) note(r["message"], true);
+    }
   }
   if (configValid) {
     mensa::Edge edge;

@@ -6,6 +6,7 @@ import { deflateSync } from 'node:zlib';
 import { execSync } from 'node:child_process';
 import { createEngine } from '../server/engine.mjs';
 import { paintDial, dialSize } from '../src/dial-paint.mjs';
+import { VERSION } from '../src/version.mjs';
 
 // --- Screens: each scenario is played on a fresh engine so the pictures are exactly what the device shows. ---
 async function scenario(steps, extras = {}, { hardware = false } = {}) {
@@ -110,7 +111,8 @@ const screens = [
   {
     id: 'mensa',
     title: 'Mensa freigeben',
-    meaning: 'Nach Drehen am Ring: Anzahl der Mensaplätze für das freie Essen einstellen.',
+    meaning:
+      'Nach Drehen am Ring (mindestens zwei Rasten – eine einzelne Raste aus Versehen zählt nicht): Anzahl der Mensaplätze für das freie Essen einstellen.',
     action:
       'Ring drehen bis zur Zahl, dann Taste drücken. 0 = Mensa sperren. Ohne Eingabe bricht es nach 15 Sekunden ab.',
     items: await scenario(({ cmd }) => cmd({ type: 'dialTurn', steps: 30 })),
@@ -149,6 +151,26 @@ const screens = [
     items: await scenario(({ cmd }) => cmd({ type: 'seriesStart', room: 'K' }), {}, { hardware: true }),
   },
   {
+    id: 'halten',
+    title: 'Taste halten',
+    meaning: 'Beim Halten läuft ein weißer Ring. Nach 3 Sekunden steht „Loslassen“ – dann ist die Aktion ausgelöst.',
+    action: 'Loslassen, sobald „Loslassen: 3 s erreicht“ erscheint. Weiterhalten bis 10 s nur zum Zurücksetzen.',
+    items: await scenario(({ cmd }) => cmd({ type: 'restart' }), { holdMs: 1800 }),
+  },
+  {
+    id: 'neuertag',
+    title: 'Neuer Tag wartet',
+    meaning:
+      'Der neue Essenstag startet sonst von selbst. Sind noch Karten von gestern draußen, wartet das Dial auf eine Person.',
+    action: 'Karten einsammeln, dann Taste 3 Sekunden halten. Fehlende Karten bleiben gesperrt, bis sie auftauchen.',
+    items: await scenario(({ cmd, tap, wait }) => {
+      cmd({ type: 'autoSettings', on: true, start: 20, startGroup: 6, dayStart: 600 });
+      tap(K(1));
+      wait(24 * 3600000);
+      cmd({ type: 'clockSync', weekday: 2, minute: 700 });
+    }),
+  },
+  {
     id: 'betreuung',
     title: 'Betreuermenü',
     meaning: 'Eine Betreuerkarte am Dial öffnet dieses Menü. Sie bucht keinen Platz.',
@@ -175,7 +197,7 @@ const screens = [
         'Tablets: 2  Ampel: ok',
         'Speicher frei: 96 KB',
         'Uhr: 11:42:07',
-        'Version 0.9.0-preview',
+        'Version ' + VERSION,
       ],
     }),
   },
@@ -183,7 +205,7 @@ const screens = [
     id: 'wlan',
     title: 'WLAN-Daten',
     meaning: 'Taste 3 Sekunden halten (bei bestätigtem Bestand) zeigt 30 Sekunden lang WLAN-Name und Kennwort.',
-    action: 'Tablet mit diesem WLAN verbinden und http://192.168.4.1 öffnen.',
+    action: 'Tablet mit diesem WLAN verbinden und http://192.168.4.1 öffnen. Kurz drücken schließt die Anzeige.',
     items: await scenario(() => {}, {
       screen: 'credentials',
       ssid: 'Mensaampel-4F2A',
@@ -195,7 +217,8 @@ const screens = [
     id: 'reset',
     title: 'Zugang zurücksetzen',
     meaning: 'Nur bei vergessenem Betreuungskennwort: Taste 10 Sekunden halten.',
-    action: 'Kurz drücken = Ja. Nichts tun = Abbruch. Karten und Bestand bleiben erhalten.',
+    action:
+      'Zur Sicherheit nochmal 3 Sekunden halten = Ja. Kurz drücken oder warten = Abbruch. Karten und Bestand bleiben erhalten.',
     items: await scenario(() => {}, { screen: 'reset' }),
   },
 ];
@@ -205,6 +228,7 @@ const handgriffe = [
   ['Es wird zu voll an der Ausgabe', 'entlastung', 'Orange Fläche „ENTLASTEN“ antippen. Weiter: Taste.'],
   ['Ausgabe ist schon frei, Ring läuft noch', 'countdown', 'Taste drücken: nächste Gruppe sofort.'],
   ['Betreuerkarte vorhalten', 'betreuung', 'Menü: Ring = Auswahl, Taste = ausführen.'],
+  ['Neuer Tag, Karten noch draußen', 'neuertag', 'Karten einsammeln, Taste 3 Sekunden halten.'],
   ['Alles läuft', 'start', 'Nichts tun.'],
 ];
 writeFileSync('src/dial-screens.json', JSON.stringify({ screens, handgriffe }));
@@ -284,9 +308,9 @@ const device = `<svg viewBox="0 0 760 430" width="100%" role="img" aria-label="M
 </svg>`;
 const presses = `<table><tr><th>Taste (Dial-Front drücken)</th><th>Wirkung</th></tr>
 <tr><td>kurz drücken</td><td>Grün: Pause · Rot (Pause/Entlastung): weiter · Countdown: nächste Gruppe sofort · Mensa-Einstellung: übernehmen</td></tr>
-<tr><td>3 Sekunden halten</td><td>Bestand unbestätigt: <b>Bestand bestätigen</b> · sonst: WLAN-Daten anzeigen</td></tr>
-<tr><td>10 Sekunden halten</td><td>Zugang zurücksetzen (nur bei vergessenem Kennwort; mit kurzem Druck bestätigen)</td></tr>
-<tr><td>Ring drehen</td><td>Mensaplätze einstellen, Taste übernimmt</td></tr>
+<tr><td>3 Sekunden halten (weißer Ring)</td><td>Bestand unbestätigt: <b>Bestand bestätigen</b> · „Neuer Tag?“: neuen Essenstag starten · sonst: WLAN-Daten anzeigen</td></tr>
+<tr><td>10 Sekunden halten</td><td>Zugang zurücksetzen (nur bei vergessenem Kennwort; zur Bestätigung nochmal 3 s halten)</td></tr>
+<tr><td>Ring drehen (ab 2 Rasten)</td><td>Mensaplätze einstellen, Taste übernimmt</td></tr>
 <tr><td>Fläche „ENTLASTEN“ antippen</td><td>Einlass sofort stoppen, weil es an der Ausgabe zu voll ist</td></tr>
 <tr><td>Betreuerkarte vorhalten</td><td>Menü: Bestand ok · Pause/Weiter · Mensa freigeben · Abbrechen (Ring = Auswahl, Taste = ausführen)</td></tr></table>`;
 const guide = `<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Bedienung am Dial</title><style>${css}</style><main>

@@ -13,6 +13,8 @@ export function useMensa() {
     epoch = useRef(0),
     infoRef = useRef<Info | null>(null);
   const publicView = location.pathname === '/ampel';
+  // The Ampel page offers its local time while the Dial reports no valid clock (e.g. RTC empty after a power loss).
+  const needClock = useRef(false);
   useEffect(() => {
     let alive = true,
       inFlight = false;
@@ -30,7 +32,12 @@ export function useMensa() {
           infoRef.current = value;
           setInfo(value);
         }
-        const r = await fetch(publicView ? '/api/signal' : '/api/state', {
+        const t = new Date(),
+          clock = [t.getFullYear(), t.getMonth() + 1, t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()];
+        const path = publicView
+          ? '/api/signal' + (needClock.current ? '?clock=' + encodeURIComponent(JSON.stringify(clock)) : '')
+          : '/api/state';
+        const r = await fetch(path, {
           cache: 'no-store',
           headers: { 'X-Mensa-Token': token.current },
           signal: AbortSignal.any([abort.signal, AbortSignal.timeout(1800)]),
@@ -46,6 +53,7 @@ export function useMensa() {
         const s = await r.json();
         if (alive && generation === epoch.current && !locked.current) {
           if (s.token) token.current = s.token;
+          if (publicView) needClock.current = s.clockValid === false;
           setState(s);
           setAuthRequired(false);
           setLastSeen(Date.now());
@@ -160,6 +168,11 @@ export function useMensa() {
       a.download = 'mensa-bestand.json';
       a.click();
       URL.revokeObjectURL(url);
+      try {
+        localStorage.setItem('mensa-letzte-sicherung', String(Date.now()));
+      } catch {
+        /* reminder only */
+      }
     } catch (e) {
       setNotice({ ok: false, text: (e as Error).message });
     }
