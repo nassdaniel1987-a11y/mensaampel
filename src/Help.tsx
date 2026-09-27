@@ -129,6 +129,14 @@ export function Help() {
             <strong>Ende:</strong> „Karten fehlen“ → Karten einsammeln.
           </li>
         </ol>
+        <h3>iPad vor der Tür als Ampel</h3>
+        <p>
+          Einmalig: im Dial-WLAN „Automatisch verbinden“ an, beim Schul-WLAN aus. Automatische Sperre „Nie“,
+          Stromsparmodus aus, „Nicht stören“ an. Bedienungshilfen → Geführter Zugriff an, Code festlegen,
+          Anzeige-Autosperre „Nie“. Täglich bzw. nach einem iPad-Neustart: Ampelseite öffnen, Vollbild, dreimal die
+          obere Taste drücken, Tasten aus → Starten; bei „Ton an“ einmal auf den Bildschirm tippen. Beenden: dreimal
+          drücken, Code eingeben.
+        </p>
         <p className="hint">
           Zum Ausdrucken gibt es die Anleitung und eine Kurzkarte zum Aufkleben im Gerätepaket bzw. auf der
           Release-Seite (BEDIENUNG-DIAL.pdf, DIAL-KURZKARTE.pdf).

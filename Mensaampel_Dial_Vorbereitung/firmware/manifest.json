@@ -13,11 +13,11 @@
     },
     {
       "path": "firmware/firmware.bin",
-      "sha256": "d1f66e4e5f9b73ea1a8abc9be24dbd6df4ef6fb59b01346b77acaad42af7667c"
+      "sha256": "2f58c9262b8089647b64ab5da322455afa9dddf7cc18625b99ca1d38dbf93a28"
     },
     {
       "path": "firmware/first-install.bin",
-      "sha256": "aa50199ac42ca1584e6ef450ee86d14f4d353112a21766bd2ef782b428762a1e"
+      "sha256": "cc4a2c44cf2b0f8e20dbb51e9bf99b01990df55476668f421c6809dff0171aff"
     },
     {
       "path": "firmware/littlefs.bin",

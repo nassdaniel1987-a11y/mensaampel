@@ -103,7 +103,25 @@ Auf dem Tablet **Ampel öffnen** und bei Bedarf **Vollbild** wählen. Grün bede
 
 Nach mehr als drei Sekunden ohne erfolgreiche Statusmeldung schaltet die laufende Browseranzeige auf Rot. Das gilt nicht für einen eingefrorenen Browser oder ausgeschalteten Bildschirm: Energiesparen und automatische Bildschirmsperre für euren Einsatz passend einstellen und testen. Die getrennte Ampel sollte vor dem Mensaeingang sichtbar sein.
 
-**Ampel-Tablet dauerhaft an:** Am einfachsten mit einer Kiosk-App (z. B. „Fully Kiosk Browser“ auf Android): Startseite `http://192.168.4.1/ampel`, „Bildschirm anlassen“ und „bei Absturz neu laden“ einschalten. Ohne Kiosk-App: in den Tablet-Einstellungen die automatische Bildschirmsperre abschalten und das Tablet am Netzteil lassen. Ist „Ton an“ gewählt, nach jedem Neuladen einmal auf den Bildschirm tippen (die Ampel zeigt dazu einen Hinweis) – Browser erlauben Töne erst nach einer Berührung.
+### iPad als Ampel einrichten (einmalig)
+
+Auf dem iPad braucht es keine Zusatz-App: Die eingebaute Funktion **„Geführter Zugriff“** sperrt das iPad auf die Ampelseite (Kiosk-Betrieb).
+
+1. **WLAN:** Einstellungen → WLAN → dem WLAN des Dial beitreten (Name und Kennwort zeigt das Dial nach 3 s Halten), **„Automatisch verbinden“ an**. Beim **Schul-WLAN** auf diesem iPad **„Automatisch verbinden“ aus** – das Dial-WLAN hat kein Internet, sonst wechselt das iPad gern zurück.
+2. **Ampelseite:** Safari → `http://192.168.4.1/ampel` → Teilen → **„Zum Home-Bildschirm“**.
+3. **Bildschirm immer an:** Einstellungen → Anzeige & Helligkeit → **Automatische Sperre: Nie**. Einstellungen → Batterie → **Stromsparmodus aus**. Im Kontrollzentrum **Fokus „Nicht stören“** einschalten (keine Mitteilungen).
+4. **Geführten Zugriff vorbereiten:** Einstellungen → Bedienungshilfen → **Geführter Zugriff an** → **Code-Einstellungen**: Code festlegen, den nur die Betreuung kennt → **Anzeige-Autosperre: Nie**.
+
+**Jeden Tag bzw. nach einem Neustart des iPads:**
+
+1. Ampelseite öffnen, **„Vollbild“** tippen.
+2. **Dreimal schnell die obere Taste** drücken (iPads mit Home-Taste: Home-Taste).
+3. Unter „Optionen“ **Tasten aus**, Berührung an lassen → **„Starten“**.
+4. Ist „Ton an“ gewählt: **einmal auf den Bildschirm tippen** (die Ampel zeigt dazu einen Hinweis) – Browser erlauben Töne erst nach einer Berührung.
+
+**Beenden:** wieder dreimal die Taste drücken, Code eingeben, „Beenden“. Das iPad **am Ladekabel lassen**. Nach einem iPad-Neustart ist der Geführte Zugriff aus und muss neu gestartet werden.
+
+Verwaltet die Schul-IT die iPads zentral (MDM), kann sie das iPad fest im **„Einzel-App-Modus“** auf Safari sperren; dann startet es auch nach einem Neustart von selbst so. Für ein Android-Tablet eignet sich stattdessen eine Kiosk-App wie „Fully Kiosk Browser“.
 
 **Uhr:** Das Dial hat eine eingebaute Uhr (RTC). Sie wird automatisch von jedem angemeldeten Tablet gestellt. Ist sie nach einem langen Stromausfall leer, übernimmt das Dial die Uhrzeit auch von der Ampel-Seite; bis dahin steht am Dial „Uhr nicht gestellt“.
 

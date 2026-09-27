@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.9.0-preview · Stand 26.09.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.10.0-preview · Stand 27.09.2026</strong></p>
 <blockquote>
 <p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
 </blockquote>
@@ -101,7 +101,23 @@
 <h2>6 · Große Ampel anzeigen</h2>
 <p>Auf dem Tablet <strong>Ampel öffnen</strong> und bei Bedarf <strong>Vollbild</strong> wählen. Grün bedeutet: betriebsbereit, keine Pause und mindestens eine verfügbare Karte für einen freigegebenen Platz. Bei Pause, vollem Bestand oder Störung erscheint Rot.</p>
 <p>Nach mehr als drei Sekunden ohne erfolgreiche Statusmeldung schaltet die laufende Browseranzeige auf Rot. Das gilt nicht für einen eingefrorenen Browser oder ausgeschalteten Bildschirm: Energiesparen und automatische Bildschirmsperre für euren Einsatz passend einstellen und testen. Die getrennte Ampel sollte vor dem Mensaeingang sichtbar sein.</p>
-<p><strong>Ampel-Tablet dauerhaft an:</strong> Am einfachsten mit einer Kiosk-App (z. B. „Fully Kiosk Browser“ auf Android): Startseite <code>http://192.168.4.1/ampel</code>, „Bildschirm anlassen“ und „bei Absturz neu laden“ einschalten. Ohne Kiosk-App: in den Tablet-Einstellungen die automatische Bildschirmsperre abschalten und das Tablet am Netzteil lassen. Ist „Ton an“ gewählt, nach jedem Neuladen einmal auf den Bildschirm tippen (die Ampel zeigt dazu einen Hinweis) – Browser erlauben Töne erst nach einer Berührung.</p>
+<h3>iPad als Ampel einrichten (einmalig)</h3>
+<p>Auf dem iPad braucht es keine Zusatz-App: Die eingebaute Funktion <strong>„Geführter Zugriff“</strong> sperrt das iPad auf die Ampelseite (Kiosk-Betrieb).</p>
+<ol>
+<li><strong>WLAN:</strong> Einstellungen → WLAN → dem WLAN des Dial beitreten (Name und Kennwort zeigt das Dial nach 3 s Halten), <strong>„Automatisch verbinden“ an</strong>. Beim <strong>Schul-WLAN</strong> auf diesem iPad <strong>„Automatisch verbinden“ aus</strong> – das Dial-WLAN hat kein Internet, sonst wechselt das iPad gern zurück.</li>
+<li><strong>Ampelseite:</strong> Safari → <code>http://192.168.4.1/ampel</code> → Teilen → <strong>„Zum Home-Bildschirm“</strong>.</li>
+<li><strong>Bildschirm immer an:</strong> Einstellungen → Anzeige &amp; Helligkeit → <strong>Automatische Sperre: Nie</strong>. Einstellungen → Batterie → <strong>Stromsparmodus aus</strong>. Im Kontrollzentrum <strong>Fokus „Nicht stören“</strong> einschalten (keine Mitteilungen).</li>
+<li><strong>Geführten Zugriff vorbereiten:</strong> Einstellungen → Bedienungshilfen → <strong>Geführter Zugriff an</strong> → <strong>Code-Einstellungen</strong>: Code festlegen, den nur die Betreuung kennt → <strong>Anzeige-Autosperre: Nie</strong>.</li>
+</ol>
+<p><strong>Jeden Tag bzw. nach einem Neustart des iPads:</strong></p>
+<ol>
+<li>Ampelseite öffnen, <strong>„Vollbild“</strong> tippen.</li>
+<li><strong>Dreimal schnell die obere Taste</strong> drücken (iPads mit Home-Taste: Home-Taste).</li>
+<li>Unter „Optionen“ <strong>Tasten aus</strong>, Berührung an lassen → <strong>„Starten“</strong>.</li>
+<li>Ist „Ton an“ gewählt: <strong>einmal auf den Bildschirm tippen</strong> (die Ampel zeigt dazu einen Hinweis) – Browser erlauben Töne erst nach einer Berührung.</li>
+</ol>
+<p><strong>Beenden:</strong> wieder dreimal die Taste drücken, Code eingeben, „Beenden“. Das iPad <strong>am Ladekabel lassen</strong>. Nach einem iPad-Neustart ist der Geführte Zugriff aus und muss neu gestartet werden.</p>
+<p>Verwaltet die Schul-IT die iPads zentral (MDM), kann sie das iPad fest im <strong>„Einzel-App-Modus“</strong> auf Safari sperren; dann startet es auch nach einem Neustart von selbst so. Für ein Android-Tablet eignet sich stattdessen eine Kiosk-App wie „Fully Kiosk Browser“.</p>
 <p><strong>Uhr:</strong> Das Dial hat eine eingebaute Uhr (RTC). Sie wird automatisch von jedem angemeldeten Tablet gestellt. Ist sie nach einem langen Stromausfall leer, übernimmt das Dial die Uhrzeit auch von der Ampel-Seite; bis dahin steht am Dial „Uhr nicht gestellt“.</p>
 <p>Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial „Ampel nicht verbunden!“.</p>
 <h2>7 · Sicherung, Zugang und Updates</h2>

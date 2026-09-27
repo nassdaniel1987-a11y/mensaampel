@@ -122,3 +122,17 @@ Festgelegter Prüfvorschlag nach längster passender Gruppenzeit plus Puffer, mi
 
 **Gerätetest:** Firmware- bzw. Serverbefehl `deviceTest {on}`; Scans, Drehring, Taste und Touch werden nur angezeigt. **Etiketten:** Quellen in `tools/etiketten/` (Bogenmaße `layout.mjs`, Motive `motive.mjs`, Etikett als SVG in mm `render.mjs`, Oberfläche `app.mjs`); `node scripts/build-label-tool.mjs` baut daraus die Offline-Datei `Etiketten-Tool.html`, Tests in `tests/label-tool.test.mjs`. **Diagramme:** `src/Charts.tsx` (SVG, Farbwerte geprüft mit dem Palette-Validator, Tabelle als barrierefreie Ansicht).
 
+
+## Erweiterung 0.10.0-preview: Robuster Alltag
+
+**Version** an einer Stelle je Welt: `firmware/src/version.hpp` (`MENSA_VERSION`) und `src/version.mjs` (PC-Dienst, Demo, Anleitung); ein Test prüft, dass beide gleich sind. Das Paketskript liest die Version aus `version.hpp`.
+
+**Uhr und Datum:** `clockSync`/`measurementContext` nehmen optional `date: [Jahr, Monat, Tag, Stunde, Minute, Sekunde]`. `Flow` speichert daraus `date` (Tage seit 1970) und `secondAt`; `wall(now)` liefert Wandzeit-Sekunden. `dayDate` ersetzt beim Tagesvergleich den Wochentag (ohne Datum weiter über `dayWeekday`). Firmware und PC-Dienst stellen die Uhr jetzt auch bei laufender Gruppe (`clockSync` statt `measurementContext`). Die Ampel-Seite schickt `?clock=[…]` an `/api/signal`, solange die Antwort `clockValid: false` meldet; die Firmware übernimmt das nur ohne gültige RTC.
+
+**Tagesstart:** `dayBase` (Uhr gültig, anderer Tag, Startminute erreicht, 30 min ohne Scan) → `dayDue` nur ohne ausgegebene Karten, sonst `dayWaiting` (Dial: „Neuer Tag? Taste 3 s halten“, `wantsHold` → `dialHold` startet den Tag von Hand). `startDay` sperrt ausgegebene Karten als `lost`; ein Scan einer verlorenen, nicht ausgegebenen Karte gibt sie frei. Automatische Starts ohne einen einzigen Einlass schließen keinen Tagesbericht ab. Nach `rebootClock`/`restart` gilt `lastScan = now`, wenn Karten draußen sind.
+
+**Neustart:** `readyDate` (gespeichert) merkt den Bestätigungstag; `rebootClock` setzt `resumeDate`, und der erste Uhrabgleich mit demselben Datum bestätigt wieder. `restart` (ausdrücklich) verwirft das. Ein laufender Countdown wird als `releaseWall`/`releaseSpan` gespeichert und nach dem Uhrabgleich mit der Restzeit fortgesetzt.
+
+**Bedienung:** `dialTurn` öffnet die Mensa-Einstellung erst ab |2| Rasten innerhalb 1,5 s (`turnAcc`, Hinweis „Mensa: weiter drehen“); `dialPress` bis 500 ms nach einer Drehung wird ignoriert. `relief` in Menü, Serie oder Mensa-Einstellung wirkt wie `dialPress`. `DialExtras.holdMs` zeichnet den Halte-Fortschrittsring. Zurücksetzen braucht ein zweites 3-s-Halten; ein kurzer Druck schließt die WLAN-Anzeige. `needsAttention`/`attentionAt` (im Wrapper `command()` gepflegt) und `remind` (Minuten, 0 = aus, Befehl `settings`) ergeben `reminders(now)`; die Firmware piept bei jedem neuen Wert.
+
+**Gerät:** `DeviceConfig.channel` (1/6/11, `deviceSettings.channel`). Ampel-Warnung auch, wenn sich 60 s nach der Bestätigung noch nie eine Ampel gemeldet hat.
