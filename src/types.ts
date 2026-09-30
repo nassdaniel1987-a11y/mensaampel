@@ -28,6 +28,7 @@ export type Device = {
   minimumHeap: number;
   maxAllocHeap?: number;
   resetReason?: string;
+  lastCrumb?: string;
   clients: number;
   uptime: number;
 };

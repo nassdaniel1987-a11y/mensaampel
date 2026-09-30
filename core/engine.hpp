@@ -198,6 +198,13 @@ public:
     m.push_back({"close", "Abbrechen"});
     return m;
   }
+  // True once real cards (not "sim:" placeholders) or staff cards exist: then stored data must never be discarded.
+  bool hasRealCards() const {
+    if (!staff.empty()) return true;
+    for (const auto &c : cards)
+      if (c.uid.rfind("sim:", 0) != 0) return true;
+    return false;
+  }
   int outCards() const {
     int n = 0;
     for (const auto &c : cards)

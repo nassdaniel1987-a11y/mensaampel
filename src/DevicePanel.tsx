@@ -324,6 +324,7 @@ export function DevicePanel({
               <>
                 <br />
                 Letzter Start: {d.resetReason}
+                {d.lastCrumb ? ` · zuletzt: ${d.lastCrumb}` : ''}
               </>
             )}
           </p>
