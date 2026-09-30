@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.10.2-preview · Stand 27.09.2026**
+**Vorbereitete Geräteversion 0.10.3-preview · Stand 27.09.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -217,6 +217,8 @@ Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG
 
 ## Neu in 0.10
 
+- **0.10.3:** Behebt „Verbindung unterbrochen“ am iPad: Der Webserver des Dial wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen.
+- **0.10.3:** Behebt „Gerätespeicher nicht lesbar“ (Datenbereich wurde unter falschem Namen gesucht) und „Verbindung unterbrochen“ am iPad (Webserver wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen). Hinweis: Der eingebaute Kartenleser des Dial kann das WLAN stören – mit dem externen RFID2 („Extern“) tritt das nicht auf.
 - **0.10.2:** Größerer Arbeitsbereich (Stack) für das Speichern – die erste Speicherung nach der Anmeldung konnte das Dial neu starten. „Blackbox“: Nach einem Fehler-Neustart zeigt das Dial eine Minute lang, wobei es passiert ist (z. B. „Fehler: Befehl clockSync“).
 - **0.10.1:** Behebt einen Neustart des Dial beim ersten Anmelden am Tablet (Arbeitsspeicher war zu knapp: Bildpuffer jetzt in Streifen, Kartenliste speichersparend). Unter Gerät stehen jetzt „Letzter Start“ (z. B. „Absturz“) und der größte freie Speicherblock; nach einem Fehler-Neustart zeigt das Dial kurz den Grund.
 - **Etiketten-Tool** (`Etiketten-Tool.html`): bunte Etiketten mit Tieren oder Monstern & Weltraum, passend für gängige Etikettenbögen, mit Testseite (siehe Abschnitt 4).

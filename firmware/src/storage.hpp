@@ -41,7 +41,8 @@ public:
   bool mounted = false;
   std::string error;
   bool load(mensa::Engine &engine) {
-    mounted = LittleFS.begin(false);
+    // The data partition is named "littlefs" (partitions.csv); LittleFS.begin() would look for "spiffs" by default.
+    mounted = LittleFS.begin(false, "/littlefs", 10, "littlefs");
     if (!mounted) {
       error = "Gerätespeicher nicht lesbar. Keine automatische Formatierung.";
       return false;

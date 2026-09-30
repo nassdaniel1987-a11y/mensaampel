@@ -27,7 +27,25 @@ mensa::Engine engine;
 BookStorage storage;
 DeviceConfig config;
 CardReader reader;
-WebServer web(80);
+// The Arduino WebServer serves one connection at a time and waits up to 5 s for a request on an accepted but still
+// empty connection. Safari opens such connections in advance, which stalled the tablet's polling ("Verbindung
+// unterbrochen"). Here an empty connection is dropped as soon as another client is waiting, and after 1.5 s anyway.
+class MensaWebServer : public WebServer {
+public:
+  using WebServer::WebServer;
+  void handleClient() override {
+    if (_currentStatus == HC_WAIT_READ && _currentClient && !_currentClient.available()) {
+      unsigned long waited = millis() - _statusChange;
+      if ((waited > 30 && _server.hasClient()) || waited > 1500) {
+        _currentClient.stop();
+        _currentClient = WiFiClient();
+        _currentStatus = HC_NONE;
+      }
+    }
+    WebServer::handleClient();
+  }
+};
+MensaWebServer web(80);
 bool configValid = false, needsReview = false;
 std::string session, loginNonce, captureTarget, capturedUid, feedback = "Bereit zur Einrichtung.";
 uint64_t sessionUntil = 0, loginAfter = 0, captureUntil = 0, restartAt = 0, showCredentialsUntil = 0,
@@ -393,11 +411,7 @@ void configureWeb() {
     if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
     try {
       mark("Status");
-      uint32_t before = ESP.getFreeHeap();
       std::string body = stateBody();
-      if (Serial)
-        Serial.printf("state: %u bytes, heap %u -> %u, max block %u\n", unsigned(body.size()), unsigned(before),
-                      unsigned(ESP.getFreeHeap()), unsigned(ESP.getMaxAllocHeap()));
       replyBody(200, body);
     } catch (...) { reply(503, result(false, "Status konnte nicht erstellt werden.")); }
   });
