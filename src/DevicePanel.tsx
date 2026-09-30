@@ -55,6 +55,7 @@ export function DevicePanel({
   connected,
   backup,
   restore,
+  diag,
 }: {
   state: State;
   send: Send;
@@ -62,6 +63,7 @@ export function DevicePanel({
   connected: boolean;
   backup: () => Promise<void>;
   restore: (file: File) => Promise<boolean>;
+  diag?: { lastMs: number; failures: number };
 }) {
   const d = s.device!;
   const [selected, setSelected] = useState('sim:K01'),
@@ -325,6 +327,13 @@ export function DevicePanel({
                 <br />
                 Letzter Start: {d.resetReason}
                 {d.lastCrumb ? ` · zuletzt: ${d.lastCrumb}` : ''}
+              </>
+            )}
+            {diag && (
+              <>
+                <br />
+                Verbindung: letzte Antwort {diag.lastMs} ms · Aussetzer seit dem Öffnen: {diag.failures}
+                {d.webMaxMs !== undefined && ` · Dial längste Bearbeitung ${d.webMaxMs} ms (${d.webRequests} Anfragen)`}
               </>
             )}
           </p>

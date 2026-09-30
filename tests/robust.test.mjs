@@ -187,3 +187,56 @@ test('Eine Version für Firmware, PC-Dienst und Vorführung', async () => {
   assert.equal(/MENSA_VERSION "([^"]+)"/.exec(hpp)[1], VERSION);
   assert.doesNotMatch(readFileSync('firmware/src/main.cpp', 'utf8'), /\d+\.\d+\.\d+-preview/);
 });
+
+test('Sperrzeit: Countdown am Dial, eingelernte Karten sofort nutzbar', async () => {
+  const x = await setup();
+  x.cmd({ type: 'confirm' });
+  assert.equal(x.tap('sim:K05').ok, true);
+  x.wait(500);
+  const r = x.tap('sim:K05');
+  assert.equal(r.ok, false);
+  assert.match(r.message, /K05: Sperrzeit, noch 2 s/);
+  // tap() advances the clock by 1 s after each scan: 0.5 s of the lock are left now.
+  assert.ok(texts(x.dial()).includes('K05 gesperrt'));
+  assert.ok(texts(x.dial()).includes('noch 1 s'), 'zählt live herunter');
+  x.wait(600);
+  assert.ok(!texts(x.dial()).includes('K05 gesperrt'));
+  const e = x.e;
+  e.call({ op: 'hardware' });
+  const now = x.now;
+  e.command({ type: 'confirm' }, now);
+  e.command({ type: 'seriesStart', room: 'K' }, now);
+  e.command({ type: 'scan', uid: '04:01' }, now);
+  e.command({ type: 'remove' }, now);
+  e.command({ type: 'seriesStop' }, now);
+  e.command({ type: 'pause', paused: false }, now);
+  assert.equal(e.command({ type: 'scan', uid: '04:01' }, now + 100).ok, true, 'direkt nach dem Einlernen buchbar');
+  e.command({ type: 'remove' }, now + 100);
+  assert.equal(e.command({ type: 'bind', uid: 'sim:K02', newUid: '04:02' }, now + 200).ok, true);
+  assert.equal(e.command({ type: 'scan', uid: '04:02' }, now + 300).ok, true);
+});
+
+test('Karte lösen und Nummer löschen', async () => {
+  const e = await createEngine();
+  e.call({ op: 'hardware' });
+  e.command({ type: 'confirm' }, 100);
+  e.command({ type: 'bind', uid: 'sim:K01', newUid: '04:AA' }, 100);
+  assert.equal(e.command({ type: 'unbind', uid: 'sim:K02' }, 200).ok, false, 'ohne Karte nichts zu lösen');
+  e.command({ type: 'scan', uid: '04:AA' }, 5000);
+  e.command({ type: 'remove' }, 5000);
+  assert.equal(e.command({ type: 'unbind', uid: '04:AA' }, 5100).ok, false, 'ausgegebene Karte nicht lösbar');
+  e.command({ type: 'scan', uid: '04:AA' }, 9000);
+  e.command({ type: 'remove' }, 9000);
+  const r = e.command({ type: 'unbind', uid: '04:AA' }, 9100);
+  assert.equal(r.ok, true);
+  const k01 = e.status(9100).cards.find(c => c.label === 'K01');
+  assert.equal(k01.uid, 'sim:K01');
+  assert.equal(e.status(9100).rooms.K.free, 0);
+  assert.equal(e.command({ type: 'scan', uid: '04:AA' }, 9200).ok, false, 'gelöste Karte unbekannt');
+  e.command({ type: 'remove' }, 9200);
+  assert.equal(e.command({ type: 'bind', uid: 'sim:K01', newUid: '04:BB' }, 9300).ok, true, 'neu einlernbar');
+  assert.equal(e.command({ type: 'removeSlot', label: 'K01' }, 9400).ok, false, 'erst lösen');
+  assert.equal(e.command({ type: 'removeSlot', label: 'K48' }, 9400).ok, true);
+  assert.equal(e.status(9400).cards.length, 111);
+  assert.equal(e.command({ type: 'removeSlot', label: 'K48' }, 9500).ok, false);
+});

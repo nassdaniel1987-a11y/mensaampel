@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.10.4-preview · Stand 27.09.2026**
+**Vorbereitete Geräteversion 0.10.5-preview · Stand 30.09.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -147,7 +147,7 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 
 **Update für den Hausmeister in Kürze:** 1. Tablet: Sicherung herunterladen. 2. Dial per USB-Datenkabel an den Windows-PC. 3. Neue `Mensaampel_Dial_Vorbereitung.zip` entpacken, `Dial-Installieren.cmd` starten, „Update“ wählen. 4. Warten, bis das Dial neu startet. 5. Am Tablet unter Gerät die Version prüfen. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.
 
-**Speicherstörung:** Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.
+**Speicherstörung:** Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler versucht das Dial alle 5 Sekunden selbst erneut zu speichern; gelingt das, verschwindet die Störung ohne Zutun. Sonst kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.
 
 ## Abnahme am echten Gerät
 
@@ -156,9 +156,13 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Erstinstallation und Tablet-Einrichtung | Display und Oberfläche erreichbar | ☐ |
 | Intern und optional extern auswählen | Gewählter Leser funktioniert; Auswahl bleibt nach Neustart | ☐ |
 | Zwei Karten einlernen | Richtige Nummern, keine Platzbuchung | ☐ |
+| Unter Gerät 10 Karten einzeln einlernen | Kein Speicherfehler | ☐ |
+| Karte von ihrer Nummer lösen und neu einlernen | Nummer bleibt, alte Karte wird abgewiesen | ☐ |
+| Gerätetest → „Speicher-Dauertest“ | Meldung ohne Fehler; kleinster größter Block deutlich über 24 KB | ☐ |
+| Betreuungsseite 10 Minuten offen lassen, dabei scannen | Unter Gerät „Aussetzer 0“ (vereinzelte Aussetzer ohne Meldung sind harmlos) | ☐ |
 | Ausgabe / Rückgabe | Genau eine Änderung; gesicherter Bestand | ☐ |
 | Karte mindestens 20 Sekunden vorhalten | Keine zweite Buchung | ☐ |
-| Erneut bei 5 und nach 10 Sekunden vorhalten | Erst abgewiesen, später Gegenbuchung | ☐ |
+| Sofort erneut und nach 3 Sekunden vorhalten | Erst abgewiesen mit Countdown („K03 gesperrt – noch 2 s“), danach Gegenbuchung | ☐ |
 | Andere Karte während Sperre | Sofort verwendbar nach bestätigter Entfernung | ☐ |
 | Mensa gesperrt / teilweise offen / Pause | Regeln und Ampel stimmen | ☐ |
 | Tablet-WLAN trennen | Ampel nach drei Sekunden ohne Status rot | ☐ |
@@ -217,6 +221,10 @@ Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG
 
 ## Neu in 0.10
 
+- **0.10.5:** Verbindung stabiler: Der Webserver läuft im Dial als eigene Aufgabe und wird nicht mehr durch Zeichnen, Kartenleser oder Speichern aufgehalten. Das Tablet holt die Kartenliste nur noch, wenn sich etwas geändert hat, fragt ruhiger (1,5 s), versucht es nach einem Aussetzer sofort erneut und meldet „Verbindung unterbrochen“ erst nach 8 s (die Ampel draußen bleibt bei 3 s → Rot). Unter Gerät steht jetzt „Verbindung: letzte Antwort … · Aussetzer …“.
+- **0.10.5:** Einzel-Einlernen unter Gerät ohne „Speicherfehler“. Scheitert ein Speichern, versucht das Dial es alle 5 s selbst erneut. Bei knappem Arbeitsspeicher wird eine Aktion sauber abgelehnt („Speicher knapp – bitte gleich nochmal“), statt das Dial zu sperren. Neuer „Speicher-Dauertest“ im Gerätetest.
+- **0.10.5:** Karten lösen/löschen: In der Kartenverwaltung „Karte von dieser Nummer lösen“ (Nummer bleibt, neu einlernbar) bzw. „Nummer löschen“ für Nummern ohne Karte. Nur möglich, wenn die Karte nicht ausgegeben ist.
+- **0.10.5:** Sperrzeit Standard 3 s mit Countdown am Dial („K03 gesperrt – noch 2 s“). Frisch eingelernte Karten sind sofort nutzbar. **Bereits eingerichtete Dials behalten ihren gespeicherten Wert – einmal unter Einstellungen auf 3 s stellen.**
 - **0.10.4:** Speichern braucht nur noch einen Bruchteil des Arbeitsspeichers (Text statt JSON-Baum, Prüfung durch Byte-Vergleich); das Speichern konnte das Dial vorher zum Absturz bringen. Reste eines abgebrochenen Speicherns räumt das Dial selbst auf, solange noch keine echte Karte eingelernt ist.
 - **0.10.3:** Behebt „Verbindung unterbrochen“ am iPad: Der Webserver des Dial wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen.
 - **0.10.3:** Behebt „Gerätespeicher nicht lesbar“ (Datenbereich wurde unter falschem Namen gesucht) und „Verbindung unterbrochen“ am iPad (Webserver wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen). Hinweis: Der eingebaute Kartenleser des Dial kann das WLAN stören – mit dem externen RFID2 („Extern“) tritt das nicht auf.

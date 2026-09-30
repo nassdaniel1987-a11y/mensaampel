@@ -31,7 +31,7 @@ class Engine {
   std::vector<Event> events;
   std::array<Room, 2> rooms;
   bool ready = false, paused = false, hasUndo = false;
-  int cooldown = 10, day = 1, volume = 7;
+  int cooldown = 3, day = 1, volume = 7;
   std::string held;
   Card undo;
   // Transient Dial state (not stored): Mensa seats being set with the rotary ring.
@@ -49,6 +49,9 @@ class Engine {
   // a person (pause, relief, full group without automatic release) for reminders every `remind` minutes (0 = off).
   int readyDate = -1, resumeDate = -1, remind = 3, turnAcc = 0;
   long long turnAt = -1, mensaTurnAt = -1, attentionAt = -1;
+  // Transient: card just rejected by its cooldown, for the live countdown on the Dial.
+  std::string lockLabel;
+  long long lockUntil = -1;
   // Staff cards (UIDs) open the supervision menu on the Dial instead of booking; stored.
   std::vector<std::string> staff;
   static void require(bool b, const std::string &m) {
@@ -104,7 +107,7 @@ public:
     ready = false;
     paused = false;
     hasUndo = false;
-    cooldown = 10;
+    cooldown = 3;
     day = 1;
     held.clear();
     for (int r = 0; r < 2; r++)
@@ -197,6 +200,12 @@ public:
     m.push_back({"mensa", "Mensa freigeben"});
     m.push_back({"close", "Abbrechen"});
     return m;
+  }
+  // Card lookup without building JSON (Dial memory): 0 = unknown, 1 = present and not out, 2 = out.
+  int cardState(const std::string &uid) const {
+    for (const auto &c : cards)
+      if (c.uid == uid) return c.out ? 2 : 1;
+    return 0;
   }
   // True once real cards (not "sim:" placeholders) or staff cards exist: then stored data must never be discarded.
   bool hasRealCards() const {
@@ -393,7 +402,9 @@ public:
     list.push_back(rect(28, 140, 184, 39, 9, black));
     list.push_back(rect(30, 142, 180, 35, 8, flow.relief ? grey : orange));
     list.push_back(text(120, 160, 2, flow.relief ? white : black, flow.relief ? "ENTLASTUNG" : "ENTLASTEN"));
-    if (!x.feedback.empty())
+    if (lockUntil > now && !lockLabel.empty())
+      info({lockLabel + " gesperrt", "noch " + std::to_string((lockUntil - now + 999) / 1000) + " s"}, orange);
+    else if (!x.feedback.empty())
       info(wrap(x.feedback, {191, 205}), x.feedbackOk ? green : orange);
     else {
       bool remindNow = reminders(now) > 0 && needsAttention();
@@ -674,7 +685,7 @@ private:
             if (c.label == seriesLabel) {
               c.uid = uid;
               c.lost = false;
-              c.last = now;
+              c.last = -1; // freshly enrolled cards are usable at once; the reader latch prevents a double booking
             }
           hasUndo = false;
           message = seriesLabel + " gespeichert.";
@@ -698,7 +709,12 @@ private:
           }
           require(ready, "Bestand zuerst bestätigen.");
           require(!c.lost, "Karte ist als verloren gesperrt.");
-          require(c.last < 0 || now - c.last >= cooldown * 1000LL, "Sperrzeit aktiv. Bitte später erneut vorhalten.");
+          if (c.last >= 0 && now - c.last < cooldown * 1000LL) {
+            lockLabel = c.label;
+            lockUntil = c.last + cooldown * 1000LL;
+            long long left = (lockUntil - now + 999) / 1000;
+            return {{"ok", false}, {"message", c.label + ": Sperrzeit, noch " + std::to_string(left) + " s."}};
+          }
           if (!c.out) {
             require(!isPaused(), "Einlass pausiert. Nur Rückgaben möglich.");
             require(rooms[c.room].open, "Raum gesperrt. Nur Rückgaben möglich.");
@@ -906,9 +922,28 @@ private:
           require(x.uid != uid || x.uid == old, "Karte ist bereits einer anderen Nummer zugeordnet.");
         c.uid = uid;
         c.lost = false;
-        c.last = now;
+        c.last = -1;
         hasUndo = false;
         message = c.label + " mit echter Karte verknüpft.";
+      } else if (action == "unbind") {
+        // The number stays; its card is released and the number can be enrolled again.
+        auto &c = card(cmd.at("uid").get<std::string>());
+        require(c.uid.rfind("sim:", 0) != 0, "Diese Nummer hat noch keine Karte.");
+        require(!c.out, "Karte ist ausgegeben. Zuerst zurückbuchen oder korrigieren.");
+        c.uid = "sim:" + c.label;
+        c.lost = true;
+        c.last = -1;
+        hasUndo = false;
+        message = c.label + ": Karte gelöst. Die Nummer kann neu eingelernt werden.";
+      } else if (action == "removeSlot") {
+        auto label = cmd.at("label").get<std::string>();
+        auto it = std::find_if(cards.begin(), cards.end(), [&](const Card &c) { return c.label == label; });
+        require(it != cards.end(), "Nummer nicht gefunden.");
+        require(it->uid.rfind("sim:", 0) == 0, "Zuerst die Karte von der Nummer lösen.");
+        require(!it->out, "Nummer ist belegt.");
+        cards.erase(it);
+        hasUndo = false;
+        message = "Nummer " + label + " gelöscht.";
       } else if (action == "correct") {
         auto &c = card(cmd.at("uid"));
         require(cmd.at("out").is_boolean() && cmd.at("lost").is_boolean(), "Ungültige Korrektur.");

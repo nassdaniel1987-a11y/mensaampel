@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.10.4-preview · Stand 27.09.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.10.5-preview · Stand 30.09.2026</strong></p>
 <blockquote>
 <p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
 </blockquote>
@@ -130,7 +130,7 @@
 <p><strong>Betreuungskennwort vergessen:</strong> Taste zehn Sekunden halten, loslassen und die Rückfrage zur Sicherheit mit <strong>nochmal 3 Sekunden Halten</strong> bestätigen (ein kurzer Druck bricht ab). Danach erscheint ein neuer Einrichtungscode. Der Kartenbestand bleibt erhalten. Dies setzt den Betreuungszugang zurück; bei gültiger Konfiguration bleibt das WLAN-Kennwort unverändert.</p>
 <p><strong>Update:</strong> Bestand vorher sichern. Im Installationshelfer „Update“ wählen. Der Helfer liest zunächst das Speicherlayout aus; bei Abweichung bricht er ab, ohne die Firmware zu schreiben. Bei passendem Layout wird nur die Programmdatei aktualisiert. Die Option ist für die bereits installierte Mensaampel vorgesehen. Am besten nach dem Mittag updaten; am selben Tag bleibt der Bestand danach bestätigt, sonst einmal bestätigen.</p>
 <p><strong>Update für den Hausmeister in Kürze:</strong> 1. Tablet: Sicherung herunterladen. 2. Dial per USB-Datenkabel an den Windows-PC. 3. Neue <code>Mensaampel_Dial_Vorbereitung.zip</code> entpacken, <code>Dial-Installieren.cmd</code> starten, „Update“ wählen. 4. Warten, bis das Dial neu startet. 5. Am Tablet unter Gerät die Version prüfen. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.</p>
-<p><strong>Speicherstörung:</strong> Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.</p>
+<p><strong>Speicherstörung:</strong> Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler versucht das Dial alle 5 Sekunden selbst erneut zu speichern; gelingt das, verschwindet die Störung ohne Zutun. Sonst kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.</p>
 <h2>Abnahme am echten Gerät</h2>
 <table>
 <thead>
@@ -157,6 +157,26 @@
 <td>☐</td>
 </tr>
 <tr>
+<td>Unter Gerät 10 Karten einzeln einlernen</td>
+<td>Kein Speicherfehler</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Karte von ihrer Nummer lösen und neu einlernen</td>
+<td>Nummer bleibt, alte Karte wird abgewiesen</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Gerätetest → „Speicher-Dauertest“</td>
+<td>Meldung ohne Fehler; kleinster größter Block deutlich über 24 KB</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Betreuungsseite 10 Minuten offen lassen, dabei scannen</td>
+<td>Unter Gerät „Aussetzer 0“ (vereinzelte Aussetzer ohne Meldung sind harmlos)</td>
+<td>☐</td>
+</tr>
+<tr>
 <td>Ausgabe / Rückgabe</td>
 <td>Genau eine Änderung; gesicherter Bestand</td>
 <td>☐</td>
@@ -167,8 +187,8 @@
 <td>☐</td>
 </tr>
 <tr>
-<td>Erneut bei 5 und nach 10 Sekunden vorhalten</td>
-<td>Erst abgewiesen, später Gegenbuchung</td>
+<td>Sofort erneut und nach 3 Sekunden vorhalten</td>
+<td>Erst abgewiesen mit Countdown („K03 gesperrt – noch 2 s“), danach Gegenbuchung</td>
 <td>☐</td>
 </tr>
 <tr>
@@ -318,6 +338,10 @@
 </table>
 <h2>Neu in 0.10</h2>
 <ul>
+<li><strong>0.10.5:</strong> Verbindung stabiler: Der Webserver läuft im Dial als eigene Aufgabe und wird nicht mehr durch Zeichnen, Kartenleser oder Speichern aufgehalten. Das Tablet holt die Kartenliste nur noch, wenn sich etwas geändert hat, fragt ruhiger (1,5 s), versucht es nach einem Aussetzer sofort erneut und meldet „Verbindung unterbrochen“ erst nach 8 s (die Ampel draußen bleibt bei 3 s → Rot). Unter Gerät steht jetzt „Verbindung: letzte Antwort … · Aussetzer …“.</li>
+<li><strong>0.10.5:</strong> Einzel-Einlernen unter Gerät ohne „Speicherfehler“. Scheitert ein Speichern, versucht das Dial es alle 5 s selbst erneut. Bei knappem Arbeitsspeicher wird eine Aktion sauber abgelehnt („Speicher knapp – bitte gleich nochmal“), statt das Dial zu sperren. Neuer „Speicher-Dauertest“ im Gerätetest.</li>
+<li><strong>0.10.5:</strong> Karten lösen/löschen: In der Kartenverwaltung „Karte von dieser Nummer lösen“ (Nummer bleibt, neu einlernbar) bzw. „Nummer löschen“ für Nummern ohne Karte. Nur möglich, wenn die Karte nicht ausgegeben ist.</li>
+<li><strong>0.10.5:</strong> Sperrzeit Standard 3 s mit Countdown am Dial („K03 gesperrt – noch 2 s“). Frisch eingelernte Karten sind sofort nutzbar. <strong>Bereits eingerichtete Dials behalten ihren gespeicherten Wert – einmal unter Einstellungen auf 3 s stellen.</strong></li>
 <li><strong>0.10.4:</strong> Speichern braucht nur noch einen Bruchteil des Arbeitsspeichers (Text statt JSON-Baum, Prüfung durch Byte-Vergleich); das Speichern konnte das Dial vorher zum Absturz bringen. Reste eines abgebrochenen Speicherns räumt das Dial selbst auf, solange noch keine echte Karte eingelernt ist.</li>
 <li><strong>0.10.3:</strong> Behebt „Verbindung unterbrochen“ am iPad: Der Webserver des Dial wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen.</li>
 <li><strong>0.10.3:</strong> Behebt „Gerätespeicher nicht lesbar“ (Datenbereich wurde unter falschem Namen gesucht) und „Verbindung unterbrochen“ am iPad (Webserver wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen). Hinweis: Der eingebaute Kartenleser des Dial kann das WLAN stören – mit dem externen RFID2 („Extern“) tritt das nicht auf.</li>

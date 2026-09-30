@@ -18,7 +18,7 @@ test('Neustartzeit: Belegung bleibt, Sperre beginnt konservativ neu', async () =
   e.command({ type: 'scan', uid: 'sim:K01' }, 1000000);
   e.call({ op: 'rebootClock', now: 10 });
   assert.equal(e.status(10).rooms.K.occupied, 1);
-  assert.equal(e.status(10).cards[0].remainingMs, 10000);
+  assert.equal(e.status(10).cards[0].remainingMs, 3000);
   assert.equal(e.status(10).ready, false);
 });
 test('Leser: Start braucht leeres Feld, Fehler und Lesepausen sind kein Entfernen', async () => {

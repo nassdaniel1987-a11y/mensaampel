@@ -12,9 +12,22 @@
 #include "version.hpp"
 
 using mensa::Json;
-// Loop task stack: 32 KB instead of the default 8 KB. Saving with read-back verification keeps several copies of the
-// state and the JSON/CBOR parser on the stack; 8 KB overflowed on the first save after login (reboot).
-SET_LOOP_TASK_STACK_SIZE(32 * 1024);
+// Loop task stack: 20 KB instead of the default 8 KB (engine copies for rollback, storage, JSON). The web server runs
+// in its own task with the same stack size.
+SET_LOOP_TASK_STACK_SIZE(20 * 1024);
+// The web server runs in its own task so that drawing, card reading and saving never keep the tablet waiting.
+// Everything touching the engine, configuration or shared fields runs under this recursive lock.
+SemaphoreHandle_t stateLock = nullptr;
+struct Guard {
+  Guard() { xSemaphoreTakeRecursive(stateLock, portMAX_DELAY); }
+  ~Guard() { xSemaphoreGiveRecursive(stateLock); }
+  Guard(const Guard &) = delete;
+  Guard &operator=(const Guard &) = delete;
+};
+// Card list revision: the tablet gets the 112 cards only when something changed (?cards=<rev>).
+uint32_t dataRev = 1;
+// Diagnostics for the tablet: requests served and the longest handler time.
+uint32_t webRequests = 0, webMaxMs = 0;
 // "Black box": what the Dial was doing last; survives a crash reset (RTC memory, not initialised on reboot).
 RTC_NOINIT_ATTR char crumb[40];
 RTC_NOINIT_ATTR uint32_t crumbMagic;
@@ -66,6 +79,16 @@ bool feedbackOk = true;
 uint64_t feedbackAt = 0, drawAt = 0;
 uint64_t nowMs() {
   return uint64_t(esp_timer_get_time() / 1000);
+}
+// Web handlers run in the web task: take the state lock and record the handler time for the diagnostics.
+template <typename F> std::function<void()> guarded(F f) {
+  return [f] {
+    Guard g;
+    uint64_t t0 = nowMs();
+    webRequests++;
+    f();
+    webMaxMs = std::max<uint32_t>(webMaxMs, uint32_t(nowMs() - t0));
+  };
 }
 void note(const std::string &text, bool ok) {
   feedback = text;
@@ -158,6 +181,8 @@ Json state(bool withCards = true) {
                  {"resetReason", resetReason},
                  {"lastCrumb", lastCrumb},
                  {"stackFree", uxTaskGetStackHighWaterMark(nullptr)},
+                 {"webRequests", webRequests},
+                 {"webMaxMs", webMaxMs},
                  {"clients", WiFi.softAPgetStationNum()},
                  {"uptime", nowMs()}};
   // Also at the top level like PC service and demo: the tablet's device test switch reads it there.
@@ -166,10 +191,13 @@ Json state(bool withCards = true) {
   return s;
 }
 // The state as text; the JSON tree is freed before the answer is sent.
-std::string stateBody() {
+// sinceRev: the tablet's card revision; unchanged cards are left out (it keeps its copy).
+std::string stateBody(uint32_t sinceRev = 0) {
   std::string body = state(false).dump();
   body.pop_back();
-  return body + ",\"cards\":" + engine.cardsText(nowMs()) + "}";
+  body += ",\"cardsRev\":" + std::to_string(dataRev);
+  if (sinceRev != dataRev) body += ",\"cards\":" + engine.cardsText(nowMs());
+  return body + "}";
 }
 // Answer object plus the current state, joined as text so that both trees never exist at the same time.
 void replyWithState(const Json &r) {
@@ -228,6 +256,7 @@ Json transact(const Json &command) {
     return result(false, storage.error);
   }
   mark("bereit");
+  dataRev++;
   return r;
 }
 void clearCapture() {
@@ -294,11 +323,7 @@ Json command(const Json &j) {
         (!captureTarget.empty() || needsReview || !storage.error.empty() || !config.configured || !reader.healthy))
       return result(false, "Gerät zuerst betriebsbereit machen.");
     const auto target = j.at("uid").get<std::string>();
-    auto snapshot = engine.snapshot();
-    bool found = false;
-    for (auto &c : snapshot["cards"])
-      if (c["uid"] == target && !c["out"].get<bool>()) found = true;
-    if (!found) return result(false, "Karte fehlt oder ist noch ausgegeben.");
+    if (engine.cardState(target) != 1) return result(false, "Karte fehlt oder ist noch ausgegeben.");
     auto r = transact({{"type", "pause"}, {"paused", true}});
     if (!r["ok"].get<bool>()) return r;
     clearCapture();
@@ -335,12 +360,33 @@ Json command(const Json &j) {
     engine.command({{"type", "restart"}}, nowMs());
     if (!storage.reconcile(engine)) return result(false, storage.error);
     needsReview = false;
+    dataRev++;
     return result(true, "Abgeglichener Bestand gespeichert. Jetzt Bestand bestätigen.");
   }
   if (type == "deviceRestart") {
     auto r = transact({{"type", "restart"}});
     if (r["ok"].get<bool>()) restartAt = nowMs() + 1000;
     return r;
+  }
+  if (type == "memoryTest") {
+    if (needsReview || !storage.error.empty() || !storage.mounted)
+      return result(false, "Zuerst Speicher und Bestand in Ordnung bringen.");
+    uint32_t minFree = ESP.getFreeHeap(), minBlock = ESP.getMaxAllocHeap(), slowest = 0, statusMax = 0;
+    for (int i = 0; i < 20; i++) {
+      uint64_t t0 = nowMs();
+      { std::string body = stateBody(); }
+      statusMax = std::max<uint32_t>(statusMax, uint32_t(nowMs() - t0));
+      t0 = nowMs();
+      if (!storage.save(engine))
+        return result(false, "Dauertest: Speichern " + std::to_string(i + 1) + " fehlgeschlagen: " + storage.error);
+      slowest = std::max<uint32_t>(slowest, uint32_t(nowMs() - t0));
+      minFree = std::min<uint32_t>(minFree, ESP.getFreeHeap());
+      minBlock = std::min<uint32_t>(minBlock, ESP.getMaxAllocHeap());
+    }
+    return result(true, "Dauertest ok: 20x gespeichert, langsamstes Speichern " + std::to_string(slowest) +
+                            " ms, Status max " + std::to_string(statusMax) + " ms, freier Speicher mind. " +
+                            std::to_string(minFree / 1024) + " KB, größter Block mind. " +
+                            std::to_string(minBlock / 1024) + " KB.");
   }
   if (type == "createSlot") {
     const auto label = j.at("label").get<std::string>();
@@ -353,6 +399,7 @@ Json command(const Json &j) {
       engine = previous;
       return result(false, storage.error);
     }
+    dataRev++;
     return result(true, "Kartennummer angelegt. Nun eine echte Karte zuordnen.");
   }
   if (needsReview) {
@@ -369,110 +416,119 @@ Json command(const Json &j) {
   if (type == "correct" && j.at("uid").get<std::string>().rfind("sim:", 0) == 0)
     return result(false, "Dieser Nummer zuerst eine echte Karte zuordnen.");
   if ((type == "measurementContext" || type == "clockSync") && j.contains("date")) setRtc(j["date"]);
-  if (type == "seriesStart" || type == "seriesStop" || type == "staffLearn" || type == "staffClear" ||
-      type == "clockSync" || type == "autoSettings" || type == "trialSettings" || type == "trialFeedback" ||
-      type == "relief" || type == "confirm" || type == "pause" || type == "correct" || type == "room" ||
-      type == "settings" || type == "undo" || type == "newDay" || type == "flowSettings" ||
-      type == "measurementContext" || type == "queueState" || type == "measurementArm" || type == "measurementFinish" ||
-      type == "measurementCancel" || type == "measurementDeleteLast")
+  if (type == "unbind" || type == "removeSlot" || type == "seriesStart" || type == "seriesStop" ||
+      type == "staffLearn" || type == "staffClear" || type == "clockSync" || type == "autoSettings" ||
+      type == "trialSettings" || type == "trialFeedback" || type == "relief" || type == "confirm" || type == "pause" ||
+      type == "correct" || type == "room" || type == "settings" || type == "undo" || type == "newDay" ||
+      type == "flowSettings" || type == "measurementContext" || type == "queueState" || type == "measurementArm" ||
+      type == "measurementFinish" || type == "measurementCancel" || type == "measurementDeleteLast")
     return transact(j);
   return result(false, "Diese Aktion ist am Gerät nicht verfügbar.");
 }
 void configureWeb() {
   const char *headers[] = {"Origin", "X-Mensa-Token"};
   web.collectHeaders(headers, 2);
-  web.on("/api/info", HTTP_GET, [] {
-    if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
-    reply(200,
-          {{"mode", "device"}, {"configured", config.configured}, {"nonce", loginNonce}, {"version", MENSA_VERSION}});
-  });
-  web.on("/api/signal", HTTP_GET, [] { reply(200, publicSignal()); });
-  web.on("/api/login", HTTP_POST, [] {
-    if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
-    if (nowMs() < loginAfter) return reply(429, result(false, "Zu viele Versuche. Bitte 30 Sekunden warten."));
-    try {
-      mark("Anmeldung");
-      if (web.arg("plain").length() > 512) throw std::runtime_error("Anfrage zu groß.");
-      auto j = Json::parse(web.arg("plain").c_str());
-      auto password = j.at("password").get<std::string>();
-      if (j.value("nonce", std::string()) != loginNonce || password.size() > 64 || !configValid ||
-          !config.authenticate(password)) {
-        if (++loginFailures >= 5) {
-          loginAfter = nowMs() + 30000;
-          loginFailures = 0;
-        }
-        return reply(401, result(false, "Kennwort oder Einrichtungscode stimmt nicht."));
-      }
-      session = randomKey(40);
-      sessionUntil = nowMs() + 8 * 60 * 60 * 1000ULL;
-      loginFailures = 0;
-      reply(200, {{"ok", true}, {"token", session}});
-    } catch (...) { reply(400, result(false, "Ungültige Anmeldung.")); }
-  });
-  web.on("/api/state", HTTP_GET, [] {
-    if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-    try {
-      mark("Status");
-      std::string body = stateBody();
-      replyBody(200, body);
-    } catch (...) { reply(503, result(false, "Status konnte nicht erstellt werden.")); }
-  });
+  web.on("/api/info", HTTP_GET, guarded([] {
+           if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
+           reply(200, {{"mode", "device"},
+                       {"configured", config.configured},
+                       {"nonce", loginNonce},
+                       {"version", MENSA_VERSION}});
+         }));
+  web.on("/api/signal", HTTP_GET, guarded([] { reply(200, publicSignal()); }));
+  web.on("/api/login", HTTP_POST, guarded([] {
+           if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
+           if (nowMs() < loginAfter) return reply(429, result(false, "Zu viele Versuche. Bitte 30 Sekunden warten."));
+           try {
+             mark("Anmeldung");
+             if (web.arg("plain").length() > 512) throw std::runtime_error("Anfrage zu groß.");
+             auto j = Json::parse(web.arg("plain").c_str());
+             auto password = j.at("password").get<std::string>();
+             if (j.value("nonce", std::string()) != loginNonce || password.size() > 64 || !configValid ||
+                 !config.authenticate(password)) {
+               if (++loginFailures >= 5) {
+                 loginAfter = nowMs() + 30000;
+                 loginFailures = 0;
+               }
+               return reply(401, result(false, "Kennwort oder Einrichtungscode stimmt nicht."));
+             }
+             session = randomKey(40);
+             sessionUntil = nowMs() + 8 * 60 * 60 * 1000ULL;
+             loginFailures = 0;
+             reply(200, {{"ok", true}, {"token", session}});
+           } catch (...) { reply(400, result(false, "Ungültige Anmeldung.")); }
+         }));
+  web.on("/api/state", HTTP_GET, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           try {
+             mark("Status");
+             uint32_t since = web.hasArg("cards") ? uint32_t(strtoul(web.arg("cards").c_str(), nullptr, 10)) : 0;
+             std::string body = stateBody(since);
+             replyBody(200, body);
+           } catch (...) { reply(503, result(false, "Status konnte nicht erstellt werden.")); }
+         }));
   // Restore a downloaded backup; larger than the 2 KB command limit. Stock must be confirmed again afterwards.
-  web.on("/api/restore", HTTP_POST, [] {
-    if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-    try {
-      if (web.arg("plain").length() > 65536) throw std::runtime_error("Sicherung zu groß.");
-      auto j = Json::parse(web.arg("plain").c_str());
-      if (!j.value("confirmed", false)) return reply(200, result(false, "Einspielen ausdrücklich bestätigen."));
-      auto &b = j.at("backup");
-      if (b.value("format", std::string()) != "mensa-device-backup-1" &&
-          b.value("format", std::string()) != "mensa-pc-backup-1")
-        return reply(200, result(false, "Keine gültige Mensaampel-Sicherung."));
-      auto previous = engine;
-      try {
-        engine.restore(b.at("state"));
-      } catch (const std::exception &e) {
-        engine = std::move(previous);
-        return reply(200, result(false, std::string("Sicherung ungültig: ") + e.what()));
-      }
-      engine.rebootClock(nowMs());
-      if (!storage.save(engine)) {
-        engine = std::move(previous);
-        return reply(200, result(false, storage.error));
-      }
-      auto r = result(true, "Sicherung eingespielt. Bestand prüfen und bestätigen.");
-      note(r["message"], true);
-      replyWithState(r);
-    } catch (const std::exception &e) { reply(400, result(false, e.what())); }
-  });
-  web.on("/api/logout", HTTP_POST, [] {
-    if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-    session.clear();
-    reply(200, result(true, "Abgemeldet."));
-  });
-  web.on("/api/command", HTTP_POST, [] {
-    if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-    try {
-      if (web.arg("plain").length() > 2048) throw std::runtime_error("Anfrage zu groß.");
-      auto j = Json::parse(web.arg("plain").c_str());
-      auto r = command(j);
-      M5.Speaker.setVolume(engine.volumeLevel() * 25);
-      if (j.value("type", std::string()) != "clockSync") note(r.value("message", std::string()), r.value("ok", false));
-      replyWithState(r);
-    } catch (const std::exception &e) { reply(400, result(false, e.what())); }
-  });
-  web.on("/api/backup", HTTP_GET, [] {
-    if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-    web.sendHeader("Content-Disposition", "attachment; filename=mensa-bestand.json");
-    std::string body =
-        std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") + Json(config.reader).dump() + ",\"state\":";
-    {
-      std::string snap = engine.snapshot(false).dump();
-      snap.pop_back();
-      body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + "}}";
-    }
-    replyBody(200, body);
-  });
+  web.on("/api/restore", HTTP_POST, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           try {
+             if (web.arg("plain").length() > 65536) throw std::runtime_error("Sicherung zu groß.");
+             auto j = Json::parse(web.arg("plain").c_str());
+             if (!j.value("confirmed", false)) return reply(200, result(false, "Einspielen ausdrücklich bestätigen."));
+             if (ESP.getMaxAllocHeap() < 60000)
+               return reply(200, result(false,
+                                        "Zu wenig freier Speicher. Dial kurz vom Strom nehmen und die Sicherung direkt "
+                                        "danach einspielen."));
+             auto &b = j.at("backup");
+             if (b.value("format", std::string()) != "mensa-device-backup-1" &&
+                 b.value("format", std::string()) != "mensa-pc-backup-1")
+               return reply(200, result(false, "Keine gültige Mensaampel-Sicherung."));
+             auto previous = engine;
+             try {
+               engine.restore(b.at("state"));
+             } catch (const std::exception &e) {
+               engine = std::move(previous);
+               return reply(200, result(false, std::string("Sicherung ungültig: ") + e.what()));
+             }
+             engine.rebootClock(nowMs());
+             if (!storage.save(engine)) {
+               engine = std::move(previous);
+               return reply(200, result(false, storage.error));
+             }
+             dataRev++;
+             auto r = result(true, "Sicherung eingespielt. Bestand prüfen und bestätigen.");
+             note(r["message"], true);
+             replyWithState(r);
+           } catch (const std::exception &e) { reply(400, result(false, e.what())); }
+         }));
+  web.on("/api/logout", HTTP_POST, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           session.clear();
+           reply(200, result(true, "Abgemeldet."));
+         }));
+  web.on("/api/command", HTTP_POST, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           try {
+             if (web.arg("plain").length() > 2048) throw std::runtime_error("Anfrage zu groß.");
+             auto j = Json::parse(web.arg("plain").c_str());
+             auto r = command(j);
+             M5.Speaker.setVolume(engine.volumeLevel() * 25);
+             if (j.value("type", std::string()) != "clockSync")
+               note(r.value("message", std::string()), r.value("ok", false));
+             replyWithState(r);
+           } catch (const std::exception &e) { reply(400, result(false, e.what())); }
+         }));
+  web.on("/api/backup", HTTP_GET, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           web.sendHeader("Content-Disposition", "attachment; filename=mensa-bestand.json");
+           std::string body = std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") +
+                              Json(config.reader).dump() + ",\"state\":";
+           {
+             std::string snap = engine.snapshot(false).dump();
+             snap.pop_back();
+             body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + "}}";
+           }
+           replyBody(200, body);
+         }));
   web.onNotFound([] {
     if (web.method() != HTTP_GET) return reply(405, result(false, "Methode nicht erlaubt."));
     String path = web.uri();
@@ -519,10 +575,10 @@ template <typename G> void paint(G &d, const Json &list, int dy = 0) {
     }
   }
 }
-void draw() {
+// Builds the Dial picture under the state lock; returns false when nothing changed.
+bool buildScreen(Json &list) {
+  Guard g;
   uint64_t now = nowMs();
-  if (now - drawAt < 250) return;
-  drawAt = now;
   mensa::DialExtras x;
   // After a crash: for one minute show where it happened (black box), so it can be reported without a PC.
   std::string crashHint =
@@ -574,10 +630,19 @@ void draw() {
   }
   if (M5.BtnA.isPressed() && configValid)
     x.holdMs = int(std::min<uint32_t>(M5.BtnA.getUpdateMsec() - M5.BtnA.lastChange(), 20000));
-  auto list = engine.dialScreen(now, x);
+  list = engine.dialScreen(now, x);
   auto dump = list.dump();
-  if (dump == lastScreen) return;
+  if (dump == lastScreen) return false;
   lastScreen = dump;
+  return true;
+}
+// Painting (SPI) runs without the lock, so the web task can answer meanwhile.
+void draw() {
+  uint64_t now = nowMs();
+  if (now - drawAt < 250) return;
+  drawAt = now;
+  Json list;
+  if (!buildScreen(list)) return;
   static bool frameTried = false;
   if (!frameTried) {
     frameTried = true;
@@ -595,7 +660,14 @@ void draw() {
   else
     paint(M5.Display, list);
 }
+void webTask(void *) {
+  for (;;) {
+    web.handleClient();
+    vTaskDelay(1);
+  }
+}
 void setup() {
+  stateLock = xSemaphoreCreateRecursiveMutex();
   Serial.begin(115200);
   switch (esp_reset_reason()) {
   case ESP_RST_POWERON:
@@ -641,8 +713,10 @@ void setup() {
     if (!WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4)) {
       configValid = false;
       feedback = "WLAN konnte nicht gestartet werden.";
-    } else
+    } else {
       configureWeb();
+      xTaskCreatePinnedToCore(webTask, "web", 20 * 1024, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE);
+    }
   }
   if (crumbMagic == 0x4d454e53) lastCrumb = std::string(crumb, strnlen(crumb, sizeof(crumb)));
   if (resetWasError) {
@@ -652,11 +726,21 @@ void setup() {
   mark("Start");
   draw();
 }
+uint64_t healAt = 0;
+void step(uint64_t now);
 void loop() {
   const auto now = nowMs();
   M5Dial.update();
-  if (configValid) web.handleClient();
   if (restartAt && now >= restartAt) ESP.restart();
+  {
+    Guard g;
+    step(now);
+  }
+  draw();
+  delay(2);
+}
+// Everything that reads or changes shared state, once per loop, under the state lock.
+void step(uint64_t now) {
   if (captureUntil && now >= captureUntil) {
     clearCapture();
     note("Einlernen abgelaufen. Einlass bleibt pausiert.", false);
@@ -803,6 +887,10 @@ void loop() {
       }
     }
   }
-  draw();
-  delay(2);
+  // Self-healing: a failed save rolled the engine back to the stored state; retry every 5 s so that one transient
+  // failure (e.g. memory briefly short) does not block the entrance until someone taps "Speicherung prüfen".
+  if (!storage.error.empty() && storage.mounted && !needsReview && now >= healAt) {
+    healAt = now + 5000;
+    if (storage.save(engine)) note("Speicher wieder in Ordnung.", true);
+  }
 }

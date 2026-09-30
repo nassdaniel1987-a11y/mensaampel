@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { State, Command, Info } from './types';
+import { mergeCards } from './state-merge.mjs';
 export function useMensa() {
   const [state, setState] = useState<State | null>(null),
     [info, setInfo] = useState<Info | null>(null),
@@ -15,14 +16,26 @@ export function useMensa() {
   const publicView = location.pathname === '/ampel';
   // The Ampel page offers its local time while the Dial reports no valid clock (e.g. RTC empty after a power loss).
   const needClock = useRef(false);
+  // Card list cache (the Dial omits unchanged cards) and connection diagnostics shown under "Gerät".
+  const cards = useRef<{ cards: State['cards']; rev: number } | null>(null),
+    [diag, setDiag] = useState({ lastMs: 0, failures: 0 });
+  const isDevice = () => infoRef.current?.mode === 'device';
+  const apply = (s: State) => {
+    const m = mergeCards(cards.current, s);
+    cards.current = m.cache;
+    return m.state as State;
+  };
   useEffect(() => {
     let alive = true,
       inFlight = false;
     const abort = new AbortController();
-    const read = async () => {
+    // Device: calmer polling, longer patience; one immediate retry after a failed request.
+    const read = async (retry = false): Promise<void> => {
       if (inFlight || locked.current) return;
       inFlight = true;
-      const generation = epoch.current;
+      const generation = epoch.current,
+        started = Date.now();
+      let failed = false;
       try {
         if (!infoRef.current) {
           const r = await fetch('/api/info', { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(1800)]) });
@@ -34,13 +47,14 @@ export function useMensa() {
         }
         const t = new Date(),
           clock = [t.getFullYear(), t.getMonth() + 1, t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()];
+        const since = isDevice() && cards.current && cards.current.rev > 0 ? '?cards=' + cards.current.rev : '';
         const path = publicView
           ? '/api/signal' + (needClock.current ? '?clock=' + encodeURIComponent(JSON.stringify(clock)) : '')
-          : '/api/state';
+          : '/api/state' + since;
         const r = await fetch(path, {
           cache: 'no-store',
           headers: { 'X-Mensa-Token': token.current },
-          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(1800)]),
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(isDevice() && !publicView ? 5000 : 1800)]),
         });
         if (r.status === 401) {
           if (alive) {
@@ -49,20 +63,29 @@ export function useMensa() {
           }
           return;
         }
-        if (!r.ok) return;
+        if (!r.ok) {
+          failed = true;
+          return;
+        }
         const s = await r.json();
         if (alive && generation === epoch.current && !locked.current) {
           if (s.token) token.current = s.token;
           if (publicView) needClock.current = s.clockValid === false;
-          setState(s);
+          setState(publicView ? s : apply(s));
+          setDiag(d => ({ ...d, lastMs: Date.now() - started }));
           setAuthRequired(false);
           setLastSeen(Date.now());
           if (!publicView) syncClock(s);
         }
       } catch {
         /* after three seconds, stale public state is red */
+        failed = true;
       } finally {
         inFlight = false;
+      }
+      if (failed && alive && !abort.signal.aborted) {
+        setDiag(d => ({ ...d, failures: d.failures + 1 }));
+        if (!retry) return read(true);
       }
     };
     // The Dial has no network time: the signed-in supervision view quietly corrects its clock (e.g. after daylight saving time changes).
@@ -88,13 +111,17 @@ export function useMensa() {
         }),
       }).catch(() => {});
     };
-    void read();
-    const poll = setInterval(read, 700),
-      clock = setInterval(() => setTick(Date.now()), 250);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const loop = async () => {
+      await read();
+      if (alive) timer = setTimeout(loop, !publicView && isDevice() ? 1500 : 700);
+    };
+    void loop();
+    const clock = setInterval(() => setTick(Date.now()), 250);
     return () => {
       alive = false;
       abort.abort();
-      clearInterval(poll);
+      clearTimeout(timer);
       clearInterval(clock);
     };
   }, [publicView]);
@@ -114,7 +141,7 @@ export function useMensa() {
       if (r.status === 401) setAuthRequired(true);
       if (!r.ok) throw Error(result.message || 'Keine Verbindung.');
       if (result.state) {
-        setState({ ...result.state, token: token.current });
+        setState({ ...apply(result.state), token: token.current });
         setLastSeen(Date.now());
       }
       setNotice({ ok: result.ok, text: result.message });
@@ -190,7 +217,7 @@ export function useMensa() {
       const result = await r.json();
       if (r.status === 401) setAuthRequired(true);
       if (result.state) {
-        setState({ ...result.state, token: token.current });
+        setState({ ...apply(result.state), token: token.current });
         setLastSeen(Date.now());
       }
       setNotice({ ok: !!result.ok, text: result.message || 'Sicherung konnte nicht eingespielt werden.' });
@@ -214,7 +241,9 @@ export function useMensa() {
     busy,
     notice,
     setNotice,
-    connected: !!state && tick - lastSeen < 3000,
+    // The Ampel stays red after 3 s (safety rule); the supervision view on the Dial tolerates 8 s.
+    connected: !!state && tick - lastSeen < (!publicView && info?.mode === 'device' ? 8000 : 3000),
     lastSeen,
+    diag,
   };
 }

@@ -28,12 +28,15 @@ export type Device = {
   minimumHeap: number;
   maxAllocHeap?: number;
   resetReason?: string;
+  webRequests?: number;
+  webMaxMs?: number;
   lastCrumb?: string;
   clients: number;
   uptime: number;
 };
 export type Info = { mode: 'pc' | 'device'; configured?: boolean; nonce?: string; version?: string };
 export type State = {
+  cardsRev?: number;
   volume?: number;
   remind?: number;
   dayWaiting?: boolean;

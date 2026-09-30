@@ -129,6 +129,11 @@ public:
       error = "Gerätespeicher nicht verfügbar.";
       return false;
     }
+    // Memory guard: without a sufficiently large free block the save is refused cleanly instead of failing midway.
+    if (ESP.getMaxAllocHeap() < 24000) {
+      error = "Speicher knapp - bitte gleich nochmal.";
+      return false;
+    }
     try {
       mark("Speichern Text", heapTag());
       std::string text = snapshotText(engine);
@@ -163,6 +168,9 @@ public:
       generation = h.generation;
       error.clear();
       return true;
+    } catch (const std::bad_alloc &) {
+      error = "Speicher knapp - bitte gleich nochmal.";
+      return false;
     } catch (...) {
       error = "Speicherfehler. Buchung nicht bestätigt.";
       return false;

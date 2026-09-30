@@ -20,12 +20,17 @@ test('48 Küche, 64 Mensa, Start gesperrt bis bestätigt', async () => {
   e.command({ type: 'confirm' }, 0);
   assert.equal(e.status(0).signal.free, 48);
 });
-test('Ausgabe/Rückgabe, Grenzzeit exakt 10 Sekunden und andere Karten', async () => {
+test('Ausgabe/Rückgabe, Grenzzeit exakt 3 Sekunden (Standard) und andere Karten', async () => {
   const t = await setup();
+  assert.equal(t.status().cooldown, 3);
   assert.equal(t.tap('K01').ok, true);
   assert.equal(t.status().rooms.K.free, 47);
   assert.equal(t.tap('K02').ok, true);
-  t.advance(9999);
+  t.advance(1500);
+  const r = t.tap('K01');
+  assert.equal(r.ok, false);
+  assert.match(r.message, /K01: Sperrzeit, noch 2 s/);
+  t.advance(1499);
   assert.equal(t.tap('K01').ok, false);
   t.advance(1);
   assert.equal(t.tap('K01').ok, true);

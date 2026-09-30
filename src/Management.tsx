@@ -473,6 +473,35 @@ export function Management({
                 <p className="hint">
                   Eine verlorene ausgegebene Karte bleibt belegt, bis du den Platz ausdrücklich freigibst.
                 </p>
+                {s.device && (
+                  <div className="action-row">
+                    {!modal.uid.startsWith('sim:') ? (
+                      <button
+                        type="button"
+                        className="outline"
+                        disabled={blocked || modal.out}
+                        onClick={() => {
+                          if (confirm(`Karte von ${modal.label} lösen? Die Nummer kann danach neu eingelernt werden.`))
+                            void apply({ type: 'unbind', uid: modal.uid });
+                        }}
+                      >
+                        Karte von dieser Nummer lösen
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="outline"
+                        disabled={blocked || modal.out}
+                        onClick={() => {
+                          if (confirm(`Nummer ${modal.label} ganz löschen?`))
+                            void apply({ type: 'removeSlot', label: modal.label });
+                        }}
+                      >
+                        Nummer löschen
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             ) : modal === 'K' || modal === 'M' ? (
               <>
