@@ -302,6 +302,7 @@ public:
         list.push_back(text(120, 180, 2, yellow, x.setupCode));
       } else
         list.push_back(text(120, 164, 1, white, "Kennwort im Browser"));
+      if (!x.hint.empty()) list.push_back(text(120, 206, 1, orange, x.hint));
       return list;
     }
     bool g = !x.blocked && isGreen(), y = !x.blocked && isYellow(),

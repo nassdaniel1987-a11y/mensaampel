@@ -12,6 +12,17 @@
 #include "version.hpp"
 
 using mensa::Json;
+// Loop task stack: 32 KB instead of the default 8 KB. Saving with read-back verification keeps several copies of the
+// state and the JSON/CBOR parser on the stack; 8 KB overflowed on the first save after login (reboot).
+SET_LOOP_TASK_STACK_SIZE(32 * 1024);
+// "Black box": what the Dial was doing last; survives a crash reset (RTC memory, not initialised on reboot).
+RTC_NOINIT_ATTR char crumb[40];
+RTC_NOINIT_ATTR uint32_t crumbMagic;
+std::string lastCrumb;
+void mark(const char *what, const std::string &detail = "") {
+  snprintf(crumb, sizeof(crumb), "%s%s%s", what, detail.empty() ? "" : " ", detail.c_str());
+  crumbMagic = 0x4d454e53;
+}
 mensa::Engine engine;
 BookStorage storage;
 DeviceConfig config;
@@ -127,6 +138,8 @@ Json state(bool withCards = true) {
                  {"minimumHeap", ESP.getMinFreeHeap()},
                  {"maxAllocHeap", ESP.getMaxAllocHeap()},
                  {"resetReason", resetReason},
+                 {"lastCrumb", lastCrumb},
+                 {"stackFree", uxTaskGetStackHighWaterMark(nullptr)},
                  {"clients", WiFi.softAPgetStationNum()},
                  {"uptime", nowMs()}};
   if (blocked()) s["signal"] = {{"green", false}, {"reason", "device"}, {"free", 0}};
@@ -185,13 +198,16 @@ Json result(bool ok, const std::string &message) {
   return {{"ok", ok}, {"message", message}};
 }
 Json transact(const Json &command) {
+  mark("Befehl", command.value("type", std::string()));
   auto previous = engine;
   auto r = engine.command(command, nowMs());
   if (!r.value("ok", false) || !r.value("changed", true)) return r;
+  mark("Speichern");
   if (!storage.save(engine)) {
     engine = std::move(previous);
     return result(false, storage.error);
   }
+  mark("bereit");
   return r;
 }
 void clearCapture() {
@@ -355,6 +371,7 @@ void configureWeb() {
     if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
     if (nowMs() < loginAfter) return reply(429, result(false, "Zu viele Versuche. Bitte 30 Sekunden warten."));
     try {
+      mark("Anmeldung");
       if (web.arg("plain").length() > 512) throw std::runtime_error("Anfrage zu groß.");
       auto j = Json::parse(web.arg("plain").c_str());
       auto password = j.at("password").get<std::string>();
@@ -375,10 +392,12 @@ void configureWeb() {
   web.on("/api/state", HTTP_GET, [] {
     if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
     try {
+      mark("Status");
       uint32_t before = ESP.getFreeHeap();
       std::string body = stateBody();
-      Serial.printf("state: %u bytes, heap %u -> %u, max block %u\n", unsigned(body.size()), unsigned(before),
-                    unsigned(ESP.getFreeHeap()), unsigned(ESP.getMaxAllocHeap()));
+      if (Serial)
+        Serial.printf("state: %u bytes, heap %u -> %u, max block %u\n", unsigned(body.size()), unsigned(before),
+                      unsigned(ESP.getFreeHeap()), unsigned(ESP.getMaxAllocHeap()));
       replyBody(200, body);
     } catch (...) { reply(503, result(false, "Status konnte nicht erstellt werden.")); }
   });
@@ -489,6 +508,9 @@ void draw() {
   if (now - drawAt < 250) return;
   drawAt = now;
   mensa::DialExtras x;
+  // After a crash: for one minute show where it happened (black box), so it can be reported without a PC.
+  std::string crashHint =
+      resetWasError && now < 60000 ? "Fehler: " + (lastCrumb.empty() ? resetReason : lastCrumb) : "";
   if (resetConfirmUntil > now)
     x.screen = "reset";
   else if (!configValid)
@@ -499,6 +521,7 @@ void draw() {
     x.wifi = config.wifiPassword;
     x.setupCode = config.setupCode;
     x.configured = config.configured;
+    x.hint = crashHint;
   } else if (testMode) {
     x.screen = "test";
     m5::rtc_datetime_t t;
@@ -519,12 +542,15 @@ void draw() {
     x.blocked = blocked();
     m5::rtc_datetime_t t;
     bool noClock = !engine.flowState().clockReady(now) && !rtcTime(t);
-    x.hint = !reader.healthy          ? "Leser pruefen!"
-             : !storage.error.empty() ? "Speicher pruefen!"
-             : !captureTarget.empty() ? "Karte einlernen am Tablet"
-             : ampelLost()            ? (ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!")
-             : noClock                ? "Uhr nicht gestellt"
-                                      : "";
+    if (!crashHint.empty())
+      x.hint = crashHint;
+    else
+      x.hint = !reader.healthy          ? "Leser pruefen!"
+               : !storage.error.empty() ? "Speicher pruefen!"
+               : !captureTarget.empty() ? "Karte einlernen am Tablet"
+               : ampelLost()            ? (ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!")
+               : noClock                ? "Uhr nicht gestellt"
+                                        : "";
     if (feedbackAt && now - feedbackAt < 3500) {
       x.feedback = feedback;
       x.feedbackOk = feedbackOk;
@@ -541,8 +567,9 @@ void draw() {
     frameTried = true;
     frame.setColorDepth(16);
     frameReady = frame.createSprite(240, stripH) != nullptr;
-    Serial.printf("strip buffer %s, heap %u, max block %u\n", frameReady ? "ok" : "off", unsigned(ESP.getFreeHeap()),
-                  unsigned(ESP.getMaxAllocHeap()));
+    if (Serial)
+      Serial.printf("strip buffer %s, heap %u, max block %u\n", frameReady ? "ok" : "off", unsigned(ESP.getFreeHeap()),
+                    unsigned(ESP.getMaxAllocHeap()));
   }
   if (frameReady)
     for (int y = 0; y < 240; y += stripH) {
@@ -601,7 +628,12 @@ void setup() {
     } else
       configureWeb();
   }
-  if (resetWasError) note("Neustart nach Fehler: " + resetReason, false);
+  if (crumbMagic == 0x4d454e53) lastCrumb = std::string(crumb, strnlen(crumb, sizeof(crumb)));
+  if (resetWasError) {
+    if (Serial) Serial.printf("Neustart nach Fehler (%s) bei: %s\n", resetReason.c_str(), lastCrumb.c_str());
+    note("Neustart nach Fehler: " + resetReason, false);
+  }
+  mark("Start");
   draw();
 }
 void loop() {

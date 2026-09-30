@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <LittleFS.h>
 #include "../../core/engine.hpp"
 #include <vector>
@@ -97,10 +98,10 @@ public:
         error = "Speichern unvollständig.";
         return false;
       }
-      // Validate the written file before it replaces the inactive slot.
-      mensa::Engine verify;
+      // Validate the written file before it replaces the inactive slot (on the heap: the loop task stack is small).
+      auto verify = std::make_unique<mensa::Engine>();
       uint32_t vg = 0;
-      if (!read("/book.tmp", verify, vg) || vg != h.generation) {
+      if (!read("/book.tmp", *verify, vg) || vg != h.generation) {
         error = "Speicherprüfung fehlgeschlagen.";
         return false;
       }
