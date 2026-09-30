@@ -319,6 +319,13 @@ export function DevicePanel({
             <br />
             Freier Speicher: {Math.round(d.freeHeap / 1024)} KB · bisher mindestens {Math.round(d.minimumHeap / 1024)}{' '}
             KB
+            {d.maxAllocHeap !== undefined && <> · größter Block {Math.round(d.maxAllocHeap / 1024)} KB</>}
+            {d.resetReason && (
+              <>
+                <br />
+                Letzter Start: {d.resetReason}
+              </>
+            )}
           </p>
           <p className="hint">
             Vor dem Einsatz mit Kindern: Kartenlesen und WLAN gemeinsam, längere Betriebsdauer sowie Stromunterbrechung

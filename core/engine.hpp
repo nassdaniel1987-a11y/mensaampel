@@ -409,7 +409,8 @@ public:
                                                   : "Taste: Pause"));
     return list;
   }
-  Json snapshot() const {
+  // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory).
+  Json snapshot(bool withCards = true) const {
     Json v = {{"schema", 1},
               {"ready", ready},
               {"paused", paused},
@@ -425,8 +426,11 @@ public:
               {"events", Json::array()}};
     for (int r = 0; r < 2; r++)
       v["rooms"][roomName(r)] = {{"capacity", rooms[r].capacity}, {"limit", rooms[r].limit}, {"open", rooms[r].open}};
-    for (const auto &c : cards)
-      v["cards"].push_back(asJson(c));
+    if (withCards)
+      for (const auto &c : cards)
+        v["cards"].push_back(asJson(c));
+    else
+      v.erase("cards");
     for (const auto &e : events)
       v["events"].push_back({{"at", e.at}, {"message", e.message}});
     v["flow"] = flow.snapshot();
@@ -501,16 +505,34 @@ public:
             {"free", available(0) + available(1)},
             {"releaseIn", now >= 0 && autoPending() ? flow.releaseIn(now) : -1}};
   }
-  Json status(long long now) const {
-    auto v = snapshot();
+  // Card list as JSON text without building a JSON tree (about 1 KB of RAM instead of ~80 KB on the Dial); same
+  // fields as in status(): with remainingMs.
+  std::string cardsText(long long now, bool withRemaining = true) const {
+    std::string out = "[";
+    out.reserve(cards.size() * 96 + 2);
+    for (size_t i = 0; i < cards.size(); i++) {
+      const auto &c = cards[i];
+      if (i) out += ',';
+      out += "{\"uid\":" + Json(c.uid).dump() + ",\"label\":" + Json(c.label).dump() + ",\"room\":\"" +
+             roomName(c.room) + "\",\"out\":" + (c.out ? "true" : "false") +
+             ",\"lost\":" + (c.lost ? "true" : "false") + ",\"last\":" + std::to_string(c.last);
+      if (withRemaining)
+        out += ",\"remainingMs\":" + std::to_string(c.last < 0 ? 0 : std::max(0LL, cooldown * 1000LL - (now - c.last)));
+      out += '}';
+    }
+    return out + "]";
+  }
+  Json status(long long now, bool withCards = true) const {
+    auto v = snapshot(withCards);
     for (int r = 0; r < 2; r++) {
       v["rooms"][roomName(r)]["occupied"] = occupied(r);
       v["rooms"][roomName(r)]["free"] = available(r);
     }
-    for (auto &c : v["cards"]) {
-      long long last = c["last"];
-      c["remainingMs"] = last < 0 ? 0 : std::max(0LL, cooldown * 1000LL - (now - last));
-    }
+    if (withCards)
+      for (auto &c : v["cards"]) {
+        long long last = c["last"];
+        c["remainingMs"] = last < 0 ? 0 : std::max(0LL, cooldown * 1000LL - (now - last));
+      }
     v["signal"] = signal(now);
     v["paused"] = isPaused();
     v["manualPaused"] = paused;

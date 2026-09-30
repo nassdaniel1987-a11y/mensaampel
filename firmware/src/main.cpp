@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <esp_timer.h>
+#include <esp_system.h>
 #include "../../core/engine.hpp"
 #include "storage.hpp"
 #include "config.hpp"
@@ -47,11 +48,16 @@ bool blocked() {
   return !configValid || !config.configured || !storage.error.empty() || needsReview || !reader.healthy ||
          !captureTarget.empty();
 }
-void reply(int code, const Json &value) {
-  auto body = value.dump();
+// Sends JSON text without an extra String copy: the Dial has no PSRAM, and the full state is the largest allocation.
+void replyBody(int code, const std::string &body) {
   web.sendHeader("Cache-Control", "no-store");
   web.sendHeader("X-Content-Type-Options", "nosniff");
-  web.send(code, "application/json; charset=utf-8", body.c_str());
+  web.setContentLength(body.size());
+  web.send(code, "application/json; charset=utf-8", "");
+  web.sendContent(body.c_str(), body.size());
+}
+void reply(int code, const Json &value) {
+  replyBody(code, value.dump());
 }
 bool localOrigin() {
   String host = web.hostHeader();
@@ -94,8 +100,11 @@ Json publicSignal() {
           {"now", now},
           {"clockValid", clockOk}};
 }
-Json state() {
-  auto s = engine.status(nowMs());
+// Why the Dial last started (shown under Gerät; after a crash also briefly on the Dial).
+std::string resetReason = "-";
+bool resetWasError = false;
+Json state(bool withCards = true) {
+  auto s = engine.status(nowMs(), withCards);
   s["storageError"] = storage.error;
   s["recoveryRequired"] = false;
   s["sim"] = {{"offset", 0}, {"offline", false}, {"forceWriteFailure", false}};
@@ -116,10 +125,27 @@ Json state() {
                  {"needsReview", needsReview},
                  {"freeHeap", ESP.getFreeHeap()},
                  {"minimumHeap", ESP.getMinFreeHeap()},
+                 {"maxAllocHeap", ESP.getMaxAllocHeap()},
+                 {"resetReason", resetReason},
                  {"clients", WiFi.softAPgetStationNum()},
                  {"uptime", nowMs()}};
   if (blocked()) s["signal"] = {{"green", false}, {"reason", "device"}, {"free", 0}};
   return s;
+}
+// The state as text; the JSON tree is freed before the answer is sent.
+std::string stateBody() {
+  std::string body = state(false).dump();
+  body.pop_back();
+  return body + ",\"cards\":" + engine.cardsText(nowMs()) + "}";
+}
+// Answer object plus the current state, joined as text so that both trees never exist at the same time.
+void replyWithState(const Json &r) {
+  std::string body = r.dump();
+  body.pop_back();
+  body += ",\"state\":";
+  body += stateBody();
+  body += "}";
+  replyBody(200, body);
 }
 // Built-in RTC: plausible once it was set from the tablet; supplies weekday and time for the learned half-hour values.
 bool rtcTime(m5::rtc_datetime_t &t) {
@@ -349,7 +375,11 @@ void configureWeb() {
   web.on("/api/state", HTTP_GET, [] {
     if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
     try {
-      reply(200, state());
+      uint32_t before = ESP.getFreeHeap();
+      std::string body = stateBody();
+      Serial.printf("state: %u bytes, heap %u -> %u, max block %u\n", unsigned(body.size()), unsigned(before),
+                    unsigned(ESP.getFreeHeap()), unsigned(ESP.getMaxAllocHeap()));
+      replyBody(200, body);
     } catch (...) { reply(503, result(false, "Status konnte nicht erstellt werden.")); }
   });
   // Restore a downloaded backup; larger than the 2 KB command limit. Stock must be confirmed again afterwards.
@@ -377,8 +407,7 @@ void configureWeb() {
       }
       auto r = result(true, "Sicherung eingespielt. Bestand prüfen und bestätigen.");
       note(r["message"], true);
-      r["state"] = state();
-      reply(200, r);
+      replyWithState(r);
     } catch (const std::exception &e) { reply(400, result(false, e.what())); }
   });
   web.on("/api/logout", HTTP_POST, [] {
@@ -394,14 +423,20 @@ void configureWeb() {
       auto r = command(j);
       M5.Speaker.setVolume(engine.volumeLevel() * 25);
       if (j.value("type", std::string()) != "clockSync") note(r.value("message", std::string()), r.value("ok", false));
-      r["state"] = state();
-      reply(200, r);
+      replyWithState(r);
     } catch (const std::exception &e) { reply(400, result(false, e.what())); }
   });
   web.on("/api/backup", HTTP_GET, [] {
     if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
     web.sendHeader("Content-Disposition", "attachment; filename=mensa-bestand.json");
-    reply(200, {{"format", "mensa-device-backup-1"}, {"state", engine.snapshot()}, {"reader", config.reader}});
+    std::string body =
+        std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") + Json(config.reader).dump() + ",\"state\":";
+    {
+      std::string snap = engine.snapshot(false).dump();
+      snap.pop_back();
+      body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + "}}";
+    }
+    replyBody(200, body);
   });
   web.onNotFound([] {
     if (web.method() != HTTP_GET) return reply(405, result(false, "Methode nicht erlaubt."));
@@ -421,29 +456,31 @@ void configureWeb() {
   });
   web.begin();
 }
-// Draws the core's draw list. Redraws only on change; uses an off-screen sprite (about 115 KB) against flicker when
-// memory allows.
+// Draws the core's draw list. Redraws only on change. Flicker-free in five horizontal strips of 240x48 pixels
+// (23 KB buffer instead of 115 KB for a full frame: the Dial has no PSRAM, WLAN and the web server need the memory).
+constexpr int stripH = 48;
 M5Canvas frame(&M5.Display);
 bool frameReady = false;
 std::string lastScreen;
-template <typename G> void paint(G &d, const Json &list) {
+// dy: vertical offset of the strip (all y coordinates are shifted by it; the sprite clips the rest).
+template <typename G> void paint(G &d, const Json &list, int dy = 0) {
   d.setTextDatum(middle_center);
   for (auto &i : list) {
     const std::string kind = i[0];
     if (kind == "f")
       d.fillScreen(uint16_t(i[1].get<int>()));
     else if (kind == "c")
-      d.fillCircle(i[1].get<int>(), i[2].get<int>(), i[3].get<int>(), uint16_t(i[4].get<int>()));
+      d.fillCircle(i[1].get<int>(), i[2].get<int>() - dy, i[3].get<int>(), uint16_t(i[4].get<int>()));
     else if (kind == "r")
-      d.fillRoundRect(i[1].get<int>(), i[2].get<int>(), i[3].get<int>(), i[4].get<int>(), i[5].get<int>(),
+      d.fillRoundRect(i[1].get<int>(), i[2].get<int>() - dy, i[3].get<int>(), i[4].get<int>(), i[5].get<int>(),
                       uint16_t(i[6].get<int>()));
     else if (kind == "a")
-      d.fillArc(i[1].get<int>(), i[2].get<int>(), i[3].get<int>(), i[4].get<int>(), float(i[5].get<int>()),
+      d.fillArc(i[1].get<int>(), i[2].get<int>() - dy, i[3].get<int>(), i[4].get<int>(), float(i[5].get<int>()),
                 float(i[6].get<int>()), uint16_t(i[7].get<int>()));
     else {
       d.setTextSize(i[3].get<int>());
       d.setTextColor(uint16_t(i[4].get<int>()));
-      d.drawString(i[5].get<std::string>().c_str(), i[1].get<int>(), i[2].get<int>());
+      d.drawString(i[5].get<std::string>().c_str(), i[1].get<int>(), i[2].get<int>() - dy);
     }
   }
 }
@@ -499,21 +536,48 @@ void draw() {
   auto dump = list.dump();
   if (dump == lastScreen) return;
   lastScreen = dump;
-  // Only take the sprite with enough reserve for WLAN and web server; otherwise draw directly (may flicker slightly).
   static bool frameTried = false;
-  if (!frameTried && ESP.getMaxAllocHeap() > 150000) {
+  if (!frameTried) {
     frameTried = true;
     frame.setColorDepth(16);
-    frameReady = frame.createSprite(240, 240) != nullptr;
+    frameReady = frame.createSprite(240, stripH) != nullptr;
+    Serial.printf("strip buffer %s, heap %u, max block %u\n", frameReady ? "ok" : "off", unsigned(ESP.getFreeHeap()),
+                  unsigned(ESP.getMaxAllocHeap()));
   }
-  if (frameReady) {
-    paint(frame, list);
-    frame.pushSprite(0, 0);
-  } else
+  if (frameReady)
+    for (int y = 0; y < 240; y += stripH) {
+      paint(frame, list, y);
+      frame.pushSprite(0, y);
+    }
+  else
     paint(M5.Display, list);
 }
 void setup() {
   Serial.begin(115200);
+  switch (esp_reset_reason()) {
+  case ESP_RST_POWERON:
+    resetReason = "Einschalten";
+    break;
+  case ESP_RST_SW:
+    resetReason = "Neustart durch Software";
+    break;
+  case ESP_RST_PANIC:
+    resetReason = "Absturz";
+    resetWasError = true;
+    break;
+  case ESP_RST_INT_WDT:
+  case ESP_RST_TASK_WDT:
+  case ESP_RST_WDT:
+    resetReason = "Watchdog (haengt)";
+    resetWasError = true;
+    break;
+  case ESP_RST_BROWNOUT:
+    resetReason = "Stromeinbruch";
+    resetWasError = true;
+    break;
+  default:
+    resetReason = "Reset/USB";
+  }
   auto cfg = M5.config();
   cfg.fallback_board = m5::board_t::board_M5Dial;
   M5Dial.begin(cfg, true, false);
@@ -537,6 +601,7 @@ void setup() {
     } else
       configureWeb();
   }
+  if (resetWasError) note("Neustart nach Fehler: " + resetReason, false);
   draw();
 }
 void loop() {

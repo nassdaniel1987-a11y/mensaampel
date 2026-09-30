@@ -26,6 +26,8 @@ export type Device = {
   needsReview: boolean;
   freeHeap: number;
   minimumHeap: number;
+  maxAllocHeap?: number;
+  resetReason?: string;
   clients: number;
   uptime: number;
 };
