@@ -160,6 +160,8 @@ Json state(bool withCards = true) {
                  {"stackFree", uxTaskGetStackHighWaterMark(nullptr)},
                  {"clients", WiFi.softAPgetStationNum()},
                  {"uptime", nowMs()}};
+  // Also at the top level like PC service and demo: the tablet's device test switch reads it there.
+  s["testMode"] = testMode;
   if (blocked()) s["signal"] = {{"green", false}, {"reason", "device"}, {"free", 0}};
   return s;
 }
