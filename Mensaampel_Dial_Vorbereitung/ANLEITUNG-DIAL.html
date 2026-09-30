@@ -24,7 +24,11 @@
 <li>Gerät und Vorgang im Kontrollkästchen bestätigen und <strong>Software übertragen</strong> wählen. Währenddessen USB verbunden lassen.</li>
 <li>Nach „Fertig“ nötigenfalls RST drücken oder USB neu verbinden. Auf dem Display erscheinen WLAN-Name, WLAN-Kennwort und Einrichtungscode.</li>
 </ol>
-<p>Der Übertragungshelfer wurde ohne angeschlossenes Gerät geprüft. Die erste tatsächliche USB-Übertragung ist Teil des Hardwaretests. Das Programm ist nicht digital signiert. Sicherheitsrichtlinien eines Schul-PCs gegebenenfalls mit der zuständigen IT klären.</p>
+<p><strong>Notfallweg, falls der Helfer abbricht:</strong> Im entpackten Ordner in die Adresszeile des Explorers <code>cmd</code> tippen und Enter drücken. Dann diesen Befehl eingeben (statt <code>COM3</code> den im Helfer angezeigten Anschluss):</p>
+<pre><code>tools\mensa-flash.exe --chip esp32s3 --port COM3 --baud 460800 write_flash --flash_size 8MB 0x0 firmware\first-install.bin
+</code></pre>
+<p>Erfolgreich, wenn am Ende „Hash of data verified.“ steht. Bei „Failed to connect“: USB abziehen, G0-Modus neu starten, Befehl wiederholen.</p>
+<p>Der Übertragungshelfer wurde zuerst ohne angeschlossenes Gerät geprüft; bei der ersten echten Installation meldete er nach dem Löschen fälschlich einen Fehler (inzwischen behoben). Die erste tatsächliche USB-Übertragung ist Teil des Hardwaretests. Das Programm ist nicht digital signiert. Sicherheitsrichtlinien eines Schul-PCs gegebenenfalls mit der zuständigen IT klären.</p>
 <h2>2 · Tablet verbinden und Zugang einrichten</h2>
 <ol>
 <li>In den WLAN-Einstellungen des Tablets das auf dem Dial angezeigte Netz auswählen und dessen WLAN-Kennwort eingeben.</li>
