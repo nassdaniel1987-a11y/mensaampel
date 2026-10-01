@@ -38,6 +38,9 @@ class Engine {
   // Transient Dial state (not stored): Mensa seats being set with the rotary ring.
   int mensaEdit = -1;
   long long mensaEditUntil = 0;
+  // Transient staff-menu states: volume being set with the ring, and the safety question before a new serving day.
+  int volumeEdit = -1;
+  long long volumeEditUntil = 0, dayConfirmUntil = 0;
   // Transient: enrolling cards one after another (room, current number), staff menu on the Dial, next scan becomes a
   // staff card.
   int seriesRoom = -1;
@@ -171,11 +174,15 @@ public:
     return flow.batch ? std::min(std::max(0, flow.target(now) - flow.issued), available(0) + available(1)) : -1;
   }
   bool editingMensa(long long now) const { return mensaEdit >= 0 && now < mensaEditUntil; }
+  bool editingVolume(long long now) const { return volumeEdit >= 0 && now < volumeEditUntil; }
+  bool confirmingDay(long long now) const { return now < dayConfirmUntil; }
   bool menuOpen(long long now) const { return menuSel >= 0 && now < menuUntil; }
   bool seriesActive() const { return seriesRoom >= 0; }
   bool isStaff(const std::string &uid) const { return std::find(staff.begin(), staff.end(), uid) != staff.end(); }
   // Holding the button is used by the core in these situations; otherwise the device shows the WLAN data.
-  bool wantsHold(long long now) const { return !ready || seriesActive() || menuOpen(now) || dayWaiting(now); }
+  bool wantsHold(long long now) const {
+    return !ready || seriesActive() || menuOpen(now) || dayWaiting(now) || editingVolume(now) || confirmingDay(now);
+  }
   // Next number of the room without a real card (placeholder uid "sim:"), after the given label; empty when done.
   std::string nextUnbound(int room, const std::string &after) const {
     std::string best;
@@ -204,6 +211,9 @@ public:
     else
       m.push_back({"pause", "Pause"});
     m.push_back({"mensa", "Mensa freigeben"});
+    m.push_back({"volume", "Lautstärke"});
+    m.push_back({"newday", "Neuer Essenstag"});
+    m.push_back({"wifi", "WLAN-Daten"});
     m.push_back({"close", "Abbrechen"});
     return m;
   }
@@ -365,6 +375,26 @@ public:
       list.push_back(text(120, 105, 2, yellow, items[sel].second));
       list.push_back(text(120, 132, 1, grey, items[(sel + 1) % n].second));
       infoLine("Drehen: Auswahl", grey);
+      pillButton(white, dark, "OK");
+      return list;
+    }
+    if (confirmingDay(now)) {
+      list.push_back(gradient(toneDark));
+      key(grey, "Taste: Ja");
+      list.push_back(text(120, 52, 2, white, "NEUER TAG?"));
+      iconAlert(list, 120, 96, 20, yellow);
+      label(white, "Belegung zurücksetzen");
+      infoLine("Drehen oder Karte: Abbruch", grey);
+      pillButton(white, dark, "JA, NEUER TAG");
+      return list;
+    }
+    if (editingVolume(now)) {
+      list.push_back(gradient(toneDark));
+      key(grey, "Taste: speichern");
+      list.push_back(text(120, 52, 2, white, "LAUTSTÄRKE"));
+      big(yellow, std::to_string(volumeEdit));
+      label(white, volumeEdit == 0 ? "stumm" : "von 10");
+      infoLine("Ring drehen", grey);
       pillButton(white, dark, "OK");
       return list;
     }
@@ -594,9 +624,15 @@ public:
                          : available(0) + available(1) == 0 ? "full"
                          : isYellow()                       ? "low"
                                                             : "free";
+    // groupLeft: children still admitted in the running group (-1 without groups or while the group is full).
+    int groupLeft = flow.batch && !flow.waiting && now >= 0 ? groupRemaining(now) : -1;
     return {{"green", isGreen()},
             {"reason", reason},
             {"free", available(0) + available(1)},
+            {"kitchenFree", available(0)},
+            {"mensaFree", available(1)},
+            {"mensaOpen", rooms[1].open},
+            {"groupLeft", groupLeft},
             {"releaseIn", now >= 0 && autoPending() ? flow.releaseIn(now) : -1}};
   }
   // Card list as JSON text without building a JSON tree (about 1 KB of RAM instead of ~80 KB on the Dial); same
@@ -762,6 +798,8 @@ private:
             return {{"ok", true}, {"changed", false}, {"message", "Menü geschlossen."}};
           }
           mensaEdit = -1;
+          volumeEdit = -1;
+          dayConfirmUntil = 0;
           menuSel = 0;
           menuUntil = now + 20000;
           return {{"ok", true}, {"changed", false}, {"message", "Betreuermenü: Ring drehen, Taste."}};
@@ -872,11 +910,38 @@ private:
           mensaEdit = rooms[1].open ? rooms[1].limit : std::max(occupied(1), 0);
           mensaEditUntil = now + 15000;
           return {{"ok", true}, {"changed", false}, {"message", "Ring drehen, Taste."}};
-        } else
+        } else if (item == "volume") {
+          volumeEdit = volume;
+          volumeEditUntil = now + 15000;
+          return {{"ok", true}, {"changed", false}, {"message", "Lautstärke: Ring drehen, Taste."}};
+        } else if (item == "newday") {
+          dayConfirmUntil = now + 10000;
+          return {{"ok", true}, {"changed", false}, {"message", "Neuer Essenstag? Taste = Ja."}};
+        } else if (item == "wifi")
+          return {{"ok", true}, {"changed", false}, {"action", "wifi"}, {"message", "WLAN-Daten werden angezeigt."}};
+        else
           return {{"ok", true}, {"changed", false}, {"message", "Menü geschlossen."}};
       } else if (action == "dialHold" && menuOpen(now)) {
         menuSel = -1;
         return {{"ok", true}, {"changed", false}, {"message", "Menü geschlossen."}};
+      } else if (action == "dialTurn" && editingVolume(now)) {
+        volumeEdit = std::clamp(volumeEdit + number(cmd, "steps", -100, 100), 0, 10);
+        volumeEditUntil = now + 15000;
+        return {{"ok", true}, {"changed", false}, {"message", ""}, {"previewVolume", volumeEdit}};
+      } else if (action == "dialPress" && editingVolume(now)) {
+        volume = volumeEdit;
+        volumeEdit = -1;
+        message = "Lautstärke " + std::to_string(volume) + " gespeichert.";
+      } else if (action == "dialHold" && editingVolume(now)) {
+        volumeEdit = -1;
+        return {{"ok", true}, {"changed", false}, {"message", "Lautstärke unverändert."}};
+      } else if (action == "dialPress" && confirmingDay(now)) {
+        dayConfirmUntil = 0;
+        require(day < 1000000, "Maximale Essenstage erreicht.");
+        message = startDay(now, false);
+      } else if ((action == "dialTurn" || action == "dialHold") && confirmingDay(now)) {
+        dayConfirmUntil = 0;
+        return {{"ok", true}, {"changed", false}, {"message", "Neuer Essenstag abgebrochen."}};
       } else if (action == "dialPress" && seriesActive() && !editingMensa(now)) {
         auto skipped = seriesLabel;
         seriesLabel = nextUnbound(seriesRoom, seriesLabel);
@@ -956,7 +1021,8 @@ private:
                   {"message", "Bestand ist bestätigt. Am Gerät zeigt langes Halten die WLAN-Daten."}};
         markReady(now);
         message = "Bestand am Dial bestätigt.";
-      } else if (action == "relief" && (editingMensa(now) || menuOpen(now) || seriesActive())) {
+      } else if (action == "relief" &&
+                 (editingMensa(now) || menuOpen(now) || seriesActive() || editingVolume(now) || confirmingDay(now))) {
         // The touch field reads "OK", "VORHALTEN" or "FREIGEBEN" on these screens: it acts like the button.
         return command({{"type", "dialPress"}}, now);
       } else if (action == "relief") {
@@ -1085,6 +1151,37 @@ private:
         held.clear();
         hasUndo = false;
         message = "Gerät neu gestartet. Bestand bitte prüfen.";
+      } else if (action == "clearData") {
+        // Test data away before real use; cards, stock and settings always stay.
+        require(cmd.value("confirmed", false), "Löschen ausdrücklich bestätigen.");
+        bool h = cmd.value("history", false), e = cmd.value("events", false), m = cmd.value("measurements", false),
+             l = cmd.value("learned", false);
+        require(h || e || m || l, "Bitte auswählen, was gelöscht werden soll.");
+        std::string done;
+        auto add = [&](const char *what) { done += (done.empty() ? "" : ", ") + std::string(what); };
+        if (h) {
+          flow.history.clear();
+          flow.today = Flow::Day{1, flow.clockReady(now) ? flow.weekday : -1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1};
+          day = 1;
+          add("Tagesberichte");
+        }
+        if (e) {
+          events.clear();
+          add("Vorgänge");
+        }
+        if (m) {
+          flow.samples.clear();
+          flow.reviews.clear();
+          flow.cancel();
+          flow.clearTrial();
+          add("Messungen");
+        }
+        if (l) {
+          flow.forgetLearned();
+          add("Gelerntes");
+        }
+        hasUndo = false;
+        message = "Testdaten gelöscht: " + done + ". Karten, Bestand und Einstellungen sind unverändert.";
       } else if (action == "newDay") {
         require(cmd.value("confirmed", false), "Neuen Essenstag ausdrücklich bestätigen.");
         require(day < 1000000, "Maximale Essenstage erreicht.");

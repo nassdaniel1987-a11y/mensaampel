@@ -678,6 +678,59 @@ export function FlowPanel({
           14. So seht ihr, ob Eingriffe seltener werden.
         </p>
       </section>
+      <ClearData send={send} disabled={disabled} />
     </>
+  );
+}
+// Removes test data before real use; cards, stock and settings always stay.
+function ClearData({ send, disabled }: { send: Send; disabled: boolean }) {
+  const [sure, setSure] = useState(false);
+  return (
+    <section className="flow-section clear-data">
+      <h2>Testdaten löschen</h2>
+      <p>
+        Nach dem Ausprobieren, vor dem echten Betrieb: Wähle, was gelöscht werden soll. Karten, Bestand und
+        Einstellungen bleiben immer erhalten. Vorher am besten unter „Betreuung“ bzw. „Gerät“ eine Sicherung
+        herunterladen.
+      </p>
+      <form
+        onSubmit={async e => {
+          e.preventDefault();
+          const d = new FormData(e.currentTarget);
+          const ok = await send({
+            type: 'clearData',
+            confirmed: true,
+            history: d.get('history') === 'on',
+            events: d.get('events') === 'on',
+            measurements: d.get('measurements') === 'on',
+            learned: d.get('learned') === 'on',
+          });
+          if (ok) {
+            e.currentTarget?.reset();
+            setSure(false);
+          }
+        }}
+      >
+        <label className="checkbox">
+          <input type="checkbox" name="history" /> Tagesberichte (Statistik, Essenstag beginnt wieder bei 1)
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" name="events" /> Letzte Vorgänge (Liste der Buchungen und Meldungen)
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" name="measurements" /> Gruppenmessungen und Bewertungen
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" name="learned" /> Gelerntes (Zeiten pro Kind und Gruppengrößen)
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" checked={sure} onChange={e => setSure(e.currentTarget.checked)} /> Ich weiß, dass das
+          nicht rückgängig gemacht werden kann.
+        </label>
+        <button className="danger" disabled={disabled || !sure}>
+          Ausgewähltes löschen
+        </button>
+      </form>
+    </section>
   );
 }

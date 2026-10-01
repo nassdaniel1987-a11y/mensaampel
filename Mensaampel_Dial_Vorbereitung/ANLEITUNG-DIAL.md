@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.14.0-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.15.0-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -222,6 +222,18 @@ Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG
 | Uhr nach Stromlosigkeit | Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt | ☐ |
 | Ampel-Tablet ausschalten | nach 10 s „Ampel draussen getrennt!“ am Dial | ☐ |
 
+## Dial nur zur Mittagszeit eingeschaltet
+
+So ist es gedacht – das Dial muss nicht dauerhaft laufen.
+
+- **Neuer Essenstag automatisch:** nur wenn unter **Einlass & Messungen → Automatik** „Neuer Essenstag automatisch um …“ angehakt ist (z. B. 10:00). Dann startet beim Einschalten an einem neuen Kalendertag der neue Tag von selbst, sobald die Uhr gestellt ist und keine Karte mehr draußen ist. Sind noch Karten draußen (z. B. eine Karte versehentlich mitgenommen), fragt das Dial „Neuer Tag? 3 s halten“. Ist der Haken nicht gesetzt, startet der neue Tag nur von Hand: Tablet „Neuer Essenstag“ oder Betreuerkarte → „Neuer Essenstag“.
+- **Uhr:** Das Dial hat keinen Akku; nach dem Ausschalten ist die Uhr oft leer. Sie wird automatisch gestellt, sobald das Ampel- oder das Betreuungs-Tablet verbunden ist. Bis dahin steht „Uhr nicht gestellt“ und es gibt keinen automatischen Tageswechsel. Deshalb: zuerst Dial einschalten, dann Ampel-Tablet verbinden.
+- **Bestand bestätigen:** nach jedem Einschalten wie gewohnt (Taste 3 s halten).
+
+## Testdaten löschen
+
+Nach dem Ausprobieren, vor dem echten Betrieb: **Einlass & Messungen → ganz unten „Testdaten löschen“**. Einzeln wählbar: Tagesberichte (Statistik; der Essenstag beginnt wieder bei 1), letzte Vorgänge, Gruppenmessungen, Gelerntes. Karten-Zuordnungen, Bestand und Einstellungen bleiben immer erhalten. Vorher eine Sicherung herunterladen.
+
 ## Update ohne PC (über das WLAN des Dials)
 
 Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspielen – ohne Kabel, ohne G0-Taste und ohne Internet am Dial. Die erste Installation von 0.12 braucht einmal den PC (siehe oben).
@@ -233,6 +245,12 @@ Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspie
 5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen.
 
 Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.
+
+## Neu in 0.15
+
+- **Ampelseite mit mehr Infos:** Uhrzeit, „Küche · 46 frei“, „Mensa offen · 20 frei / geschlossen“, bei Grün „Noch 4 Kinder in dieser Gruppe“ bzw. „12 Plätze frei“, dazu eine kurze Zeile abwechselnd auf Englisch, Türkisch, Arabisch und Ukrainisch. **Bitte die Übersetzungen einmal von Muttersprachlern prüfen lassen** (Liste in `src/ampel-texts.mjs`).
+- **Betreuerkarte:** neu Lautstärke, Neuer Essenstag (mit Rückfrage) und WLAN-Daten.
+- **Testdaten löschen** unter Einlass & Messungen.
 
 ## Neu in 0.14
 
@@ -275,7 +293,7 @@ Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Dat
 ## Neu in 0.9
 
 - **Leser automatisch** (siehe Abschnitt 3), **Karten am Stück einlernen** (Abschnitt 4), **Kartenetiketten** zum Drucken.
-- **Betreuerkarte:** unter Betreuung → Einstellungen „Neue Betreuerkarte einlernen“ und die Karte ans Dial halten (bis zu 5). Vorgehalten öffnet sie das Menü **BETREUUNG**: Bestand ok · Pause/Weiter · Mensa freigeben · Abbrechen (Ring = Auswahl, Taste = ausführen, Karte erneut = schließen). Sie bucht keinen Platz. Kein Sicherheitsschlüssel: Die Kartenkennung ist kopierbar, das Menü kann nur Alltagsaktionen.
+- **Betreuerkarte:** unter Betreuung → Einstellungen „Neue Betreuerkarte einlernen“ und die Karte ans Dial halten (bis zu 5). Vorgehalten öffnet sie das Menü **BETREUUNG**: Bestand ok · Pause/Weiter · Mensa freigeben · Lautstärke (Ring drehen, Taste speichert; das Dial piept zur Probe) · Neuer Essenstag (mit Rückfrage „Taste = Ja“; Drehen oder Karte bricht ab) · WLAN-Daten (Name und Kennwort für ein neues Tablet) · Abbrechen (Ring = Auswahl, Taste = ausführen, Karte erneut = schließen). Sie bucht keinen Platz. Kein Sicherheitsschlüssel: Die Kartenkennung ist kopierbar, das Menü kann nur Alltagsaktionen.
 - **Gerätetest:** unter Gerät „Gerätetest starten“. Das Dial zeigt Leser, Kartenkennung, Lesungen, Drehring, Taste/Touch, Tablets, Speicher und Uhr; Scans buchen nicht. Darunter eine Checkliste für die Abnahme (auf dem Tablet gespeichert, als CSV exportierbar).
 - **Statistik:** Diagramme im Tagesbericht (Kinder pro Tag, Eingriffe, gelernte Sekunden pro Kind).
 

@@ -695,3 +695,74 @@ test('PC-Dienst: Ampel getrennt und wieder verbunden wird gemeldet', async () =>
     rmSync(dir, { recursive: true, force: true });
   }
 });
+test('Betreuerkarte: Lautstärke, Neuer Essenstag mit Rückfrage, WLAN-Daten', async () => {
+  const e = await createEngine();
+  let now = 1000;
+  const cmd = c => e.command(c, now);
+  const tap = uid => {
+    const r = cmd({ type: 'scan', uid });
+    cmd({ type: 'remove' });
+    now += 1000;
+    return r;
+  };
+  e.call({ op: 'hardware' });
+  cmd({ type: 'confirm' });
+  cmd({ type: 'staffLearn' });
+  tap('BE:TR:01');
+  const open = () => {
+    tap('BE:TR:01');
+    if (!e.status(now).menuOpen) tap('BE:TR:01');
+  };
+  const choose = label => {
+    const items = ['Pause', 'Mensa freigeben', 'Lautstärke', 'Neuer Essenstag', 'WLAN-Daten', 'Abbrechen'];
+    cmd({ type: 'dialTurn', steps: items.indexOf(label) });
+    return cmd({ type: 'dialPress' });
+  };
+  open();
+  choose('Lautstärke');
+  assert.ok(shown(e.call({ op: 'dial', now })).includes('LAUTSTÄRKE'));
+  const fit = l => l.filter(i => i[0] === 't').every(i => supported(i[5], i[3]) && fits(i[2], i[3], i[5]));
+  assert.ok(fit(e.call({ op: 'dial', now })), 'Lautstärke passt');
+  assert.equal(cmd({ type: 'dialTurn', steps: -3 }).previewVolume, 4);
+  assert.match(cmd({ type: 'dialPress' }).message, /Lautstärke 4 gespeichert/);
+  assert.equal(e.snapshot().volume, 4);
+  open();
+  assert.equal(choose('WLAN-Daten').action, 'wifi');
+  // New day: question first, turning cancels, pressing confirms.
+  tap('sim:K01');
+  open();
+  choose('Neuer Essenstag');
+  assert.ok(shown(e.call({ op: 'dial', now })).includes('NEUER TAG?'));
+  assert.ok(fit(e.call({ op: 'dial', now })), 'Rückfrage passt');
+  cmd({ type: 'dialTurn', steps: 1 });
+  assert.equal(e.status(now).day, 1, 'Drehen bricht ab');
+  open();
+  choose('Neuer Essenstag');
+  assert.match(cmd({ type: 'dialPress' }).message, /Neuer Essenstag/);
+  assert.equal(e.status(now).day, 2);
+  assert.equal(e.status(now).rooms.K.occupied, 0);
+});
+test('Testdaten löschen: einzeln wählbar, Karten und Einstellungen bleiben', async () => {
+  const x = await setup();
+  x.cmd({ type: 'settings', cooldown: 4, volume: 3 });
+  x.group();
+  x.cmd({ type: 'newDay', confirmed: true });
+  const before = x.e.snapshot();
+  assert.ok(before.flow.history.length > 0 && before.events.length > 0);
+  assert.equal(x.cmd({ type: 'clearData', confirmed: true }).ok, false, 'nichts ausgewählt');
+  assert.equal(x.cmd({ type: 'clearData', history: true }).ok, false, 'ohne Bestätigung');
+  assert.equal(x.cmd({ type: 'clearData', confirmed: true, history: true }).ok, true);
+  let s = x.e.snapshot();
+  assert.equal(s.flow.history.length, 0);
+  assert.equal(s.day, 1);
+  assert.ok(s.events.length > 0, 'Vorgänge bleiben');
+  assert.equal(x.cmd({ type: 'clearData', confirmed: true, events: true, measurements: true, learned: true }).ok, true);
+  s = x.e.snapshot();
+  assert.equal(s.events.length, 1, 'nur die Löschmeldung');
+  assert.equal(s.flow.samples.length, 0);
+  assert.deepEqual(s.cards, before.cards);
+  assert.equal(s.cooldown, 4);
+  assert.equal(s.volume, 3);
+  const sig = x.e.status(x.now).signal;
+  assert.ok('groupLeft' in sig && 'mensaOpen' in sig && 'kitchenFree' in sig);
+});

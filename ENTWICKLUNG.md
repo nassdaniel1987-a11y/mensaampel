@@ -184,3 +184,9 @@ Diese Punkte wurden am echten M5Stack Dial gefunden und behoben. Nicht rückgän
 - `src/style.css`: Abschnitt „Design 0.14“ am Dateiende überschreibt die Grundregeln (Tokens `--surface`, `--accent-soft`, `--radius`, `--shadow`; Karten, Knöpfe, Eingaben, Kopfzeile mit Unschärfe, Navigation als Pillen). Neue Regeln dort ergänzen statt in den alten Blöcken (dort gibt es noch ältere `!important`-Regeln der Ampelseite).
 - Schrift: `src/fonts/inter-var.woff2` (Inter Variable, Teilmenge Latin-1 + Typografie, 58 KB, erzeugt mit `pyftsubset … --flavor=woff2`). MIME `font/woff2` in `scripts/embed-web.mjs` und `server/main.mjs`; die Demo bettet sie als data-URL ein (`build-demo.mjs`, esbuild-Loader).
 - Ampelseite `src/Signal.tsx`: Symbol in `.signal-disc` mit SVG-Ring `.signal-ring` (Anteil = Restzeit / längste gesehene Restzeit dieses Countdowns), große Restzeit `.signal-time`, Klasse `counting`.
+
+## Version 0.15.0-preview: Ampel-Infos, Betreuerkarte, Testdaten löschen
+
+- `Engine::signal` liefert zusätzlich `groupLeft` (-1 ohne Gruppe/voll), `kitchenFree`, `mensaFree`, `mensaOpen`. Ampelseite (`src/Signal.tsx`): Uhr (Tablet-Zeit), Raum-Chips, „Noch X Kinder“, Sprachzeile aus `src/ampel-texts.mjs` (wechselt alle 4 s; Arabisch `dir=rtl`; Inter hat nur Latein, Arabisch/Kyrillisch kommen aus der Systemschrift). Test `tests/ampel-texts.test.mjs`.
+- Betreuermenü (`menuItems`): `volume` → `volumeEdit` (Ring 0–10, Antwort `previewVolume`, Firmware spielt Probe), `newday` → `dayConfirmUntil` (10 s, Taste = `startDay(now,false)`, Drehen/Halten bricht ab), `wifi` → Antwort `action: "wifi"`, Firmware `dialResult()` setzt `showCredentialsUntil`. `relief` (Tippfläche) wirkt in diesen Zuständen wie die Taste; `wantsHold` schließt sie ein.
+- `clearData {confirmed, history, events, measurements, learned}`; `Flow::forgetLearned()` (auch von `autoSettings.reset` genutzt). Tablet: Abschnitt „Testdaten löschen“ in `src/FlowPanel.tsx`.

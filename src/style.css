@@ -1841,3 +1841,57 @@ dialog {
   color: inherit;
   opacity: 0.6;
 }
+/* Ampel page details (0.15): clock and room chips on top, seats line, rotating language line. */
+.signal-top {
+  position: fixed;
+  top: 18px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+}
+.signal-clock {
+  font-size: clamp(20px, 3vw, 34px);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+.signal-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.signal-chips .chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: clamp(13px, 1.6vw, 18px);
+}
+.signal-chips .chip.off {
+  opacity: 0.65;
+  text-decoration: line-through;
+}
+.fullscreen-signal .signal-count {
+  margin-top: 10px;
+  font-size: clamp(24px, 3.4vw, 42px) !important;
+  font-weight: 800 !important;
+}
+.signal-language {
+  margin-top: 22px;
+  font-size: clamp(20px, 2.6vw, 32px) !important;
+  font-weight: 700;
+  opacity: 0.9;
+  font-family: 'Inter', system-ui, 'Noto Sans', 'Noto Sans Arabic', 'Segoe UI', sans-serif;
+}
+.signal-language span {
+  display: inline-block;
+  font-size: 0.55em;
+  padding: 3px 8px;
+  margin: 0 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.22);
+  vertical-align: middle;
+}

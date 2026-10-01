@@ -48,6 +48,16 @@ struct Flow {
   using Day = std::array<int, 13>;
   Day today{1, -1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1};
   std::vector<Day> history;
+  // Learned release times and group sizes back to the start values.
+  void forgetLearned() {
+    autoGlobal = 0;
+    autoGlobalN = 0;
+    autoSlots.clear();
+    autoFaster = 0;
+    autoSlower = 0;
+    startLearned = 0;
+    sizeGlobal = 0;
+  }
   void clearTrial() {
     trialDelay = 0;
     trialCount = 0;
@@ -679,15 +689,7 @@ struct Flow {
       sizeMax = hi;
       idleMinutes = idle;
       dayStart = ds;
-      if (c.value("reset", false)) {
-        autoGlobal = 0;
-        autoGlobalN = 0;
-        autoSlots.clear();
-        autoFaster = 0;
-        autoSlower = 0;
-        startLearned = 0;
-        sizeGlobal = 0;
-      }
+      if (c.value("reset", false)) forgetLearned();
       autoOn = on;
       autoStart = start * 10;
       releaseAt = -1;

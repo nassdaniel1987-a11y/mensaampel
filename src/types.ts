@@ -56,7 +56,16 @@ export type State = {
   rooms: Record<RoomId, Room>;
   cards: Card[];
   events: { at: number; message: string }[];
-  signal: { green: boolean; reason: string; free: number; releaseIn?: number };
+  signal: {
+    green: boolean;
+    reason: string;
+    free: number;
+    releaseIn?: number;
+    groupLeft?: number;
+    kitchenFree?: number;
+    mensaFree?: number;
+    mensaOpen?: boolean;
+  };
   outCards?: string[];
   cardsMissing?: boolean;
   mensaEdit?: number;

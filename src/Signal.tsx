@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Hand, WifiOff, Maximize, Bell, BellOff } from 'lucide-react';
 import type { State } from './types';
+import { ampelLanguages, ampelTexts } from './ampel-texts.mjs';
 // Two-tone chime when the entrance opens again; browsers only allow it after one tap on "Ton an".
 let chimeAudio: AudioContext | null = null;
 function chime() {
@@ -47,7 +48,14 @@ export function Signal({
     [locked, setLocked] = useState(() => full && readChime()),
     was = useRef<boolean | null>(null),
     // Longest wait seen in this countdown: the ring shows the share still to go.
-    span = useRef(0);
+    span = useRef(0),
+    // Clock and the rotating language line (full-screen Ampel only).
+    [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!full) return;
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [full]);
   useEffect(() => {
     if (!locked) return;
     const unlock = () => {
@@ -88,6 +96,21 @@ export function Signal({
   else if (releaseIn > span.current) span.current = releaseIn;
   const share = releaseIn > 0 && span.current > 0 ? releaseIn / span.current : 0;
   const time = releaseIn > 0 ? `${Math.floor(releaseIn / 60)}:${String(releaseIn % 60).padStart(2, '0')}` : '';
+  const sig = connected ? state?.signal : undefined,
+    groupLeft = admitting ? (sig?.groupLeft ?? -1) : -1,
+    count = !admitting
+      ? ''
+      : groupLeft > 0
+        ? `Noch ${groupLeft} ${groupLeft === 1 ? 'Kind' : 'Kinder'} in dieser Gruppe`
+        : sig && sig.free > 0
+          ? `${sig.free} ${sig.free === 1 ? 'Platz' : 'Plätze'} frei`
+          : '';
+  const mood = admitting
+      ? 'open'
+      : reason === 'offline' || reason === 'storage' || reason === 'confirm' || reason === 'device'
+        ? 'closed'
+        : 'wait',
+    language = ampelLanguages[Math.floor(now.getTime() / 4000) % ampelLanguages.length];
   useEffect(() => {
     if (was.current === false && admitting && sound) chime();
     was.current = admitting;
@@ -123,11 +146,30 @@ export function Signal({
           </svg>
         )}
       </div>
+      {full && (
+        <div className="signal-top">
+          <span className="signal-clock">
+            {now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          {sig && (
+            <span className="signal-chips">
+              <span className="chip">Küche {sig.kitchenFree !== undefined ? `· ${sig.kitchenFree} frei` : ''}</span>
+              <span className={`chip ${sig.mensaOpen ? '' : 'off'}`}>
+                Mensa {sig.mensaOpen ? `offen · ${sig.mensaFree ?? 0} frei` : 'geschlossen'}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
       <h2>{time && full ? "Gleich geht's weiter" : title}</h2>
+      {full && count && <p className="signal-count">{count}</p>}
       {time && full && <p className="signal-time">{time}</p>}
       <p>{time && !full ? `Gleich geht's weiter · ${time}` : time ? 'Bitte kurz warten.' : text}</p>
       {full && (
         <>
+          <p className="signal-language" dir={language.dir} lang={language.code.toLowerCase()}>
+            <span>{language.code}</span> {ampelTexts[mood][language.code]}
+          </p>
           <p className="signal-note">
             {admitting ? 'Deinen Platz bekommst du mit einer Platzkarte.' : 'Bitte den Eingang freihalten.'}
           </p>

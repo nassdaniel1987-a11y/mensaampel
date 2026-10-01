@@ -57,7 +57,7 @@ CI (`.github/workflows/ci.yml`) prüft Format, Typen, Tests, Kern-Neubau und Fir
 
 ## Stand (01.10.2026)
 
-- Laufender Plan (Plan 14): 0.12.1 Ampel-Verbindungsanzeige (fertig) → Dial-Design A „Große Zahl + Symbol“ (vom Nutzer gewählt) und Klangsets in 0.13.0 (fertig, am Gerät zu prüfen) → modernes Tablet-Design 0.14.0 (vom Nutzer freigegeben, fertig). Plan 14 ist damit abgeschlossen; offen sind die Prüfungen am Gerät.
+- Laufender Plan (Plan 14): 0.12.1 Ampel-Verbindungsanzeige (fertig) → Dial-Design A „Große Zahl + Symbol“ (vom Nutzer gewählt) und Klangsets in 0.13.0 (fertig, am Gerät zu prüfen) → modernes Tablet-Design 0.14.0 (vom Nutzer freigegeben, fertig). Plan 14 ist damit abgeschlossen. Plan 15 (0.15.0): Ampel-Infos + Sprachzeile (Übersetzungen von Muttersprachlern prüfen lassen), Betreuerkarte Lautstärke/Neuer Tag/WLAN, Testdaten löschen – fertig, am Gerät zu prüfen. Weitere Ideen des Nutzers noch offen: automatische Sicherung im Dial, Ersatzkarte in einem Schritt, Zeitplan/Ruhemodus, Bericht als Datei.
 
 - Installiert am echten Dial: **0.12.0-preview** (per PC); 0.12.1 soll per Tablet-Update eingespielt werden (erster Test der Update-Funktion). Externe RFID2 Unit, Einstellung „Extern“, WLAN stabil.
 - Am Gerät bestätigt: Installation, Speicher, Gerätetest, Einzel-/Serien-Einlernen (10 von 112 Karten zugeordnet), Update-Funktion sichtbar.

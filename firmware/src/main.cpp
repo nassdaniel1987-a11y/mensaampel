@@ -501,12 +501,13 @@ Json command(const Json &j) {
   if (type == "correct" && j.at("uid").get<std::string>().rfind("sim:", 0) == 0)
     return result(false, "Dieser Nummer zuerst eine echte Karte zuordnen.");
   if ((type == "measurementContext" || type == "clockSync") && j.contains("date")) setRtc(j["date"]);
-  if (type == "unbind" || type == "removeSlot" || type == "seriesStart" || type == "seriesStop" ||
-      type == "staffLearn" || type == "staffClear" || type == "clockSync" || type == "autoSettings" ||
-      type == "trialSettings" || type == "trialFeedback" || type == "relief" || type == "confirm" || type == "pause" ||
-      type == "correct" || type == "room" || type == "settings" || type == "undo" || type == "newDay" ||
-      type == "flowSettings" || type == "measurementContext" || type == "queueState" || type == "measurementArm" ||
-      type == "measurementFinish" || type == "measurementCancel" || type == "measurementDeleteLast")
+  if (type == "unbind" || type == "removeSlot" || type == "clearData" || type == "seriesStart" ||
+      type == "seriesStop" || type == "staffLearn" || type == "staffClear" || type == "clockSync" ||
+      type == "autoSettings" || type == "trialSettings" || type == "trialFeedback" || type == "relief" ||
+      type == "confirm" || type == "pause" || type == "correct" || type == "room" || type == "settings" ||
+      type == "undo" || type == "newDay" || type == "flowSettings" || type == "measurementContext" ||
+      type == "queueState" || type == "measurementArm" || type == "measurementFinish" || type == "measurementCancel" ||
+      type == "measurementDeleteLast")
     return transact(j);
   return result(false, "Diese Aktion ist am Gerät nicht verfügbar.");
 }
@@ -916,6 +917,11 @@ void setup() {
 }
 uint64_t healAt = 0;
 void step(uint64_t now);
+// Follow-ups of a Dial action: show the WLAN data (staff menu) and apply a changed volume.
+void dialResult(const Json &r, uint64_t now) {
+  if (r.value("action", std::string()) == "wifi") showCredentialsUntil = now + 30000;
+  M5.Speaker.setVolume(engine.volumeLevel() * 25);
+}
 void loop() {
   const auto now = nowMs();
   {
@@ -960,6 +966,7 @@ void step(uint64_t now) {
       (touchOk || !engine.isRelieving()) && !testMode) {
     auto r = transact({{"type", "relief"}});
     if (!r.value("message", std::string()).empty()) note(r.value("message", std::string()), r.value("ok", false));
+    dialResult(r, now);
   }
   if (M5.BtnA.wasReleaseFor(10000) && resetConfirmUntil <= now) {
     resetConfirmUntil = now + 15000;
@@ -1008,6 +1015,7 @@ void step(uint64_t now) {
       auto r = transact({{"type", "dialPress"}});
       if (!r.value("message", std::string()).empty() || !r.value("ok", false))
         note(r.value("message", std::string()), r.value("ok", false));
+      dialResult(r, now);
     }
   }
   // Automatic group release: only transact (and write flash) when a release or its scheduling is due.
@@ -1019,8 +1027,15 @@ void step(uint64_t now) {
       encoderBase += steps * 4;
       if (testMode)
         testTurn += steps;
-      else if (configValid && config.configured && !needsReview && now >= showCredentialsUntil)
-        engine.command({{"type", "dialTurn"}, {"steps", int(steps)}}, now);
+      else if (configValid && config.configured && !needsReview && now >= showCredentialsUntil) {
+        auto r = engine.command({{"type", "dialTurn"}, {"steps", int(steps)}}, now);
+        if (r.contains("previewVolume")) {
+          // Volume being set at the Dial: play a sample at the new level.
+          M5.Speaker.setVolume(r["previewVolume"].get<int>() * 25);
+          play(mensa::sound::Info);
+        } else if (!r.value("message", std::string()).empty())
+          note(r.value("message", std::string()), r.value("ok", false));
+      }
     }
   }
   {
