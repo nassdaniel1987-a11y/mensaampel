@@ -11,7 +11,7 @@ const checks = [
   ['Drehring eine Raste', 'Ring-Zähler ändert sich um genau 1, Richtung sinnvoll'],
   ['Fläche ENTLASTEN antippen', 'Touch wird mit Position angezeigt'],
   ['Lesbarkeit aus 1–2 m', 'Farbe und große Schrift erkennbar, kein Flackern'],
-  ['Ampel-Tablet ausschalten', 'Nach 10 s „Ampel draussen getrennt!“ am Dial'],
+  ['Ampel-Tablet ausschalten', 'Nach 10 s „Ampel draußen getrennt!“ am Dial'],
   ['Strom nach Buchung trennen', 'Belegung bleibt, Bestand muss bestätigt werden'],
   ['Uhr nach Stromlosigkeit', 'Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt'],
   ['Ein kompletter Mittag als Probelauf', 'WLAN, Scans, Stromversorgung und Speicher stabil'],

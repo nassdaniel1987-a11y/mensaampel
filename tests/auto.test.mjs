@@ -5,6 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createEngine } from '../server/engine.mjs';
 import { createApp } from '../server/main.mjs';
+import { textWidth, capHeight, supported } from '../src/dial-paint.mjs';
+// The text box (cap height plus descenders) lies completely inside the round display.
+const fits = (y, size, t) => {
+  const half = textWidth(t, size) / 2,
+    rows = [y - capHeight(size) / 2 - 1, y + capHeight(size) / 2 + 4];
+  return rows.every(r => (half + 1) ** 2 + (r - 120) ** 2 <= 119 * 119);
+};
 // Monday 12:30, groups of three children, automatic release with a start value of 20 s per child.
 async function setup({ auto = true, start = 20 } = {}) {
   const e = await createEngine();
@@ -39,12 +46,14 @@ async function setup({ auto = true, start = 20 } = {}) {
   };
 }
 const texts = list => list.filter(i => i[0] === 't').map(i => i[5]);
+// Shown text with wrapped lines joined.
+const shown = list => texts(list).join(' ');
 test('Automatik: volle Gruppe wird nach gelernter Zeit von selbst freigegeben', async () => {
   const x = await setup();
   x.group();
   assert.equal(x.state().signal.reason, 'batch');
   assert.equal(x.state().flow.auto.releaseIn, 60);
-  assert.ok(texts(x.dial()).includes('Weiter in 1:00'));
+  assert.ok(shown(x.dial()).includes('Weiter in 1:00'));
   x.wait(59000);
   assert.equal(x.tick().changed, false);
   assert.equal(x.state().signal.reason, 'batch');
@@ -62,7 +71,7 @@ test('Automatik aus: Gruppe bleibt rot, bis jemand freigibt', async () => {
   assert.equal(x.tick().changed, false);
   assert.equal(x.state().signal.reason, 'batch');
   assert.equal(x.state().flow.auto.releaseIn, -1);
-  assert.ok(texts(x.dial()).includes('Gruppe voll'));
+  assert.ok(shown(x.dial()).includes('Gruppe voll'));
   assert.equal(x.cmd({ type: 'pause', paused: false }).ok, true);
   assert.equal(x.state().signal.reason, 'free');
 });
@@ -132,7 +141,7 @@ test('Keine automatische Freigabe bei Pause, Entlastung, unbestätigtem Bestand 
   m.wait(120000);
   m.tick();
   assert.equal(m.state().signal.reason, 'batch');
-  assert.ok(texts(m.dial()).includes('Tablet: Alle haben Essen'));
+  assert.ok(shown(m.dial()).includes('Tablet: Alle haben Essen'));
   assert.equal(m.cmd({ type: 'measurementFinish' }).ok, true);
   assert.equal(m.tick().changed, true);
   assert.equal(m.state().signal.reason, 'free');
@@ -187,52 +196,48 @@ test('Alte Speicherstände übernehmen Gruppenmessungen, Neustart verwirft Count
 });
 test('Dial-Anzeige: groß, farbig, alles passt in die runde Anzeige', async () => {
   const x = await setup();
-  const fits = (y, size, t) => {
-    const h = 8 * size,
-      top = y - h / 2,
-      bottom = top + h - 1,
-      dy = Math.max(Math.abs(top - 120), Math.abs(bottom - 119)),
-      half = Math.floor(Math.sqrt(14400 - dy * dy));
-    return t.length * 6 * size <= 2 * half;
-  };
   const check = list => {
     for (const i of list.filter(i => i[0] === 't')) {
-      assert.match(i[5], /^[\x20-\x7e]*$/);
+      assert.ok(supported(i[5], i[3]), `${i[5]}: Zeichen fehlen in Größe ${i[3]}`);
       assert.ok(fits(i[2], i[3], i[5]), `${i[5]} (Größe ${i[3]})`);
     }
     return list;
   };
   let list = check(x.dial());
-  assert.deepEqual(list[0], ['f', 0x07e0]);
-  assert.ok(texts(list).includes('PLATZ FREI'));
-  assert.ok(texts(list).includes('K 48  M 0'));
-  assert.ok(list.some(i => i[0] === 't' && i[3] === 3 && i[4] === 0));
+  assert.deepEqual(list[0], ['f', 0x1407]);
+  assert.ok(shown(list).includes('PLATZ FREI'));
+  assert.ok(shown(list).includes('K 48 · M 0'));
+  assert.ok(list.some(i => i[0] === 't' && i[3] === 3 && i[4] === 0xffff));
   list = check(
     x.dial({ feedback: 'Einlass pausiert. Nur Rückgaben möglich, bitte später erneut versuchen.', feedbackOk: false }),
   );
-  assert.ok(texts(list).includes('Einlass pausiert. Nur'));
-  assert.ok(list.some(i => i[0] === 't' && i[2] === 205 && i[4] === 0xfda0));
-  assert.deepEqual(x.dial({ blocked: true })[0], ['f', 0xf800]);
-  assert.ok(texts(x.dial({ hint: 'Leser pruefen!' })).includes('Leser pruefen!'));
+  assert.ok(shown(list).includes('Einlass pausiert. Nur'));
+  assert.ok(list.some(i => i[0] === 't' && i[2] === 201 && i[4] === 0xfde4 && i[5].endsWith('…')));
+  assert.deepEqual(x.dial({ blocked: true })[0], ['f', 0xd924]);
+  assert.ok(shown(x.dial({ hint: 'Leser prüfen!' })).includes('Leser prüfen!'));
   x.group();
   list = check(x.dial());
-  assert.equal(list[0][1], 0xf800);
+  assert.equal(list[0][1], 0xd924);
   const arcs = list.filter(i => i[0] === 'a');
-  assert.equal(arcs.length, 2);
-  assert.deepEqual(arcs[0].slice(1, 7), [120, 120, 110, 119, 270, 360]);
-  assert.ok(texts(list).includes('Weiter in 1:00'));
+  assert.equal(arcs.length, 2, 'Spur und Fortschritt');
+  assert.deepEqual(arcs[0].slice(1, 7), [120, 120, 110, 118, 0, 360]);
+  assert.deepEqual(arcs[1].slice(1, 7), [120, 120, 110, 118, 270, 630]);
+  assert.ok(shown(list).includes('Weiter in 1:00'));
   x.wait(45000);
   assert.deepEqual(
     x
       .dial()
       .filter(i => i[0] === 'a')
       .map(i => i.slice(5, 7)),
-    [[270, 360]],
+    [
+      [0, 360],
+      [270, 360],
+    ],
   );
   x.cmd({ type: 'relief' });
   check(x.dial());
   assert.ok(!x.dial().some(i => i[0] === 'a'));
-  assert.ok(texts(x.dial()).includes('Entlastung'));
+  assert.ok(shown(x.dial()).includes('Entlastung'));
   check(
     x.dial({
       screen: 'credentials',
@@ -261,10 +266,10 @@ test('PC-Dienst: Zeitgeber gibt Gruppe frei, speichert und meldet am Dial', asyn
     assert.equal(app.state().flow.clockValid, true);
     t({ type: 'tap', uid: 'sim:K01' });
     assert.equal(app.state().signal.reason, 'batch');
-    assert.ok(app.state().dial.some(i => i[5] === 'K01 ausgegeben. Ein Platz'));
+    assert.ok(app.state().dial.some(i => i[5] === 'K01 ausgegeben. Ein'));
     t({ type: 'advance', seconds: 10 });
     assert.equal(app.state().signal.reason, 'free');
-    assert.ok(app.state().dial.some(i => i[5] === 'Naechste Gruppe automatisch'));
+    assert.ok(shown(app.state().dial).includes('Nächste Gruppe'));
     const again = await createApp({ dataDir: dir });
     assert.equal(again.state().flow.autoOn, true);
     assert.equal(again.state().flow.autoReleased, false);
@@ -290,10 +295,10 @@ test('Startgruppe zu Beginn, danach normale Gruppen im Takt', async () => {
   let f = x.state().flow;
   assert.equal(f.auto.nextSize, 6);
   assert.equal(f.auto.nextIsStart, true);
-  assert.ok(texts(x.dial()).includes('Startgruppe 6'));
+  assert.ok(shown(x.dial()).includes('Startgruppe 6'));
   x.take(5);
   assert.equal(x.state().signal.reason, 'free');
-  assert.ok(texts(x.dial()).includes('Noch 1 Kind'));
+  assert.ok(shown(x.dial()).includes('Noch 1 Kind'));
   x.take(1);
   assert.equal(x.state().signal.reason, 'batch');
   assert.equal(x.state().flow.auto.releaseIn, 60);
@@ -303,7 +308,7 @@ test('Startgruppe zu Beginn, danach normale Gruppen im Takt', async () => {
   f = x.state().flow;
   assert.equal(f.auto.nextSize, 3);
   assert.equal(f.auto.nextIsStart, false);
-  assert.ok(texts(x.dial()).includes('Gruppe 3'));
+  assert.ok(shown(x.dial()).includes('Gruppe 3'));
   x.take(3);
   assert.equal(x.state().signal.reason, 'batch');
   x.wait(60000);
@@ -362,7 +367,7 @@ test('Neuer Essenstag: mit Karten draußen erst nach 3 s Halten, fehlende Karten
   x.wait(100 * 60000);
   assert.equal(x.tick().changed, false, 'Karten draußen: kein automatischer Tagesstart');
   assert.equal(x.state().dayWaiting, true);
-  assert.ok(texts(x.dial()).includes('Neuer Tag? Taste 3 s halten'));
+  assert.ok(shown(x.dial()).includes('Neuer Tag? Taste 3 s halten'));
   const r = x.cmd({ type: 'dialHold' });
   assert.equal(r.ok, true);
   assert.match(r.message, /Bestandsprüfung/);
@@ -391,7 +396,7 @@ test('Neuer Essenstag: mit Karten draußen erst nach 3 s Halten, fehlende Karten
 test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis', async () => {
   const x = await setup({ auto: false });
   x.cmd({ type: 'restart' });
-  assert.ok(texts(x.dial()).includes('Bestand ok?'));
+  assert.ok(shown(x.dial()).includes('Bestand ok?'));
   assert.equal(x.cmd({ type: 'dialPress' }).ok, false);
   assert.equal(x.cmd({ type: 'dialHold' }).ok, true);
   assert.equal(x.state().ready, true);
@@ -401,8 +406,8 @@ test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis', async () =>
   x.tap('sim:M02');
   assert.equal(x.cmd({ type: 'dialTurn', steps: -10 }).changed, false);
   assert.equal(x.state().mensaEdit, 2);
-  assert.ok(texts(x.dial()).includes('2') && texts(x.dial()).includes('MENSA'));
-  assert.ok(!texts(x.dial()).some(t => t.startsWith('Kueche') || t === 'PLATZ FREI' || t === 'EINLASS ZU'));
+  assert.ok(shown(x.dial()).includes('2') && shown(x.dial()).includes('MENSA'));
+  assert.ok(!texts(x.dial()).some(t => t.startsWith('Küche') || t === 'PLATZ FREI' || t === 'EINLASS ZU'));
   assert.equal(x.cmd({ type: 'relief' }).changed, false, 'Druck direkt beim Drehen wird ignoriert');
   assert.equal(x.state().mensaEdit, 2);
   x.cmd({ type: 'dialTurn', steps: 28 });
@@ -419,7 +424,7 @@ test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis', async () =>
   assert.equal(x.state().paused, true);
   x.wait(1200000);
   assert.equal(x.state().cardsMissing, true);
-  assert.ok(texts(x.dial()).includes('2 Karten fehlen'));
+  assert.ok(shown(x.dial()).includes('2 Karten fehlen'));
   assert.deepEqual(x.state().outCards, ['M01', 'M02']);
 });
 test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Änderung', async () => {
@@ -456,7 +461,7 @@ test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Än
     await new Promise(done => setTimeout(done, 600));
     assert.equal(t({ type: 'dialPress' }).ok, true);
     assert.equal(app.state().rooms.M.limit, 2);
-    assert.ok(!app.state().dial.some(i => i[5] === 'Ampel draussen getrennt!'));
+    assert.ok(!app.state().dial.some(i => i[5] === 'Ampel draußen'));
     await new Promise(done => app.server.listen(0, '127.0.0.1', done));
     const port = app.server.address().port;
     const res = await fetch(`http://127.0.0.1:${port}/api/signal`);
@@ -466,7 +471,7 @@ test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Än
     const realNow = Date.now;
     Date.now = () => realNow() + 11000;
     try {
-      assert.ok(app.state().dial.some(i => i[5] === 'Ampel draussen getrennt!'));
+      assert.ok(app.state().dial.some(i => i[5] === 'Ampel draußen'));
     } finally {
       Date.now = realNow;
     }
@@ -526,8 +531,8 @@ test('Karten am Stück einlernen: der Reihe nach, überspringen, Doppelte, keine
   assert.equal(s.series.label, 'K01');
   assert.equal(s.paused, true);
   const texts = l => l.filter(i => i[0] === 't').map(i => i[5]);
-  assert.ok(texts(e.call({ op: 'dial', now })).includes('EINLERNEN'));
-  assert.ok(texts(e.call({ op: 'dial', now })).includes('K01'));
+  assert.ok(shown(e.call({ op: 'dial', now })).includes('EINLERNEN'));
+  assert.ok(shown(e.call({ op: 'dial', now })).includes('K01'));
   assert.equal(tap('04:AA:01').message, 'K01 gespeichert.');
   assert.equal(e.status(now).series.label, 'K02');
   assert.match(tap('04:AA:01').message, /schon K01/);
@@ -607,14 +612,6 @@ test('Neue Dial-Bildschirme passen in die runde Anzeige', async () => {
   const e = await createEngine();
   let now = 1000;
   const cmd = c => e.command(c, now);
-  const fits = (y, size, t) => {
-    const h = 8 * size,
-      top = y - h / 2,
-      bottom = top + h - 1,
-      dy = Math.max(Math.abs(top - 120), Math.abs(bottom - 119)),
-      half = Math.floor(Math.sqrt(14400 - dy * dy));
-    return t.length * 6 * size <= 2 * half;
-  };
   const check = () => {
     for (const i of e.call({ op: 'dial', now }).filter(i => i[0] === 't'))
       assert.ok(fits(i[2], i[3], i[5]), `${i[5]} (Größe ${i[3]})`);
@@ -649,7 +646,7 @@ test('Gerätetest (PC-Simulation): Scans buchen nicht, Anzeige zeigt Karte und E
     assert.equal(s.testMode, true);
     assert.equal(s.rooms.K.occupied, 0);
     const lines = s.dial.filter(i => i[0] === 't').map(i => i[5]);
-    assert.ok(lines.includes('GERAETETEST'));
+    assert.ok(lines.includes('GERÄTETEST'));
     assert.ok(lines.includes('Karte: sim:K01'));
     assert.ok(lines.some(l => l.startsWith('Lesungen: 2')));
     assert.ok(lines.includes('Ring: 3  Taste: kurz'));

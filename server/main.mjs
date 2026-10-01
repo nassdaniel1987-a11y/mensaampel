@@ -105,10 +105,10 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       now: now(),
       blocked: !!error,
       hint: error
-        ? 'Speicher pruefen!'
+        ? 'Speicher prüfen!'
         : ampelLost()
           ? ampelSeenAt
-            ? 'Ampel draussen getrennt!'
+            ? 'Ampel draußen getrennt!'
             : 'Ampel nicht verbunden!'
           : '',
       ...(Date.now() - feedback.at < 3500 ? { feedback: feedback.text, feedbackOk: feedback.ok } : {}),
@@ -344,7 +344,7 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
   const timer = setInterval(() => {
     if (!loadError && !forceWriteFailure) transact({ type: 'tick' });
     const lost = ampelLost();
-    if (lost && !ampelWarned) note('Ampel draussen getrennt!', false);
+    if (lost && !ampelWarned) note('Ampel draußen getrennt!', false);
     ampelWarned = lost;
   }, 500);
   timer.unref();

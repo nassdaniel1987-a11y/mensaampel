@@ -3,7 +3,7 @@ import { Volume2, VolumeX, RotateCcw, RotateCw } from 'lucide-react';
 import { paintDial, dialSize as size } from './dial-paint.mjs';
 import type { State } from './types';
 // Pixel-exact rendering of the Dial screen from the core's draw list (see dial-paint.mjs).
-const touch = { x: 30, y: 142, w: 180, h: 35 };
+const touch = { x: 30, y: 131, w: 180, h: 38 };
 let audio: AudioContext | null = null;
 function beep(ok: boolean, volume: number) {
   if (volume <= 0) return;

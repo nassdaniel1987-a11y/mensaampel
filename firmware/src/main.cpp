@@ -599,34 +599,12 @@ void configureWeb() {
   });
   web.begin();
 }
-// Draws the core's draw list. Redraws only on change. Flicker-free in five horizontal strips of 240x48 pixels
-// (23 KB buffer instead of 115 KB for a full frame: the Dial has no PSRAM, WLAN and the web server need the memory).
+// Draws the core's draw list, smooth (core/dial_raster.hpp, same pixels as the browser). Redraws only on change.
+// Flicker-free in five horizontal strips of 240x48 pixels in a static buffer (23 KB, not from the heap: the Dial has
+// no PSRAM, WLAN and the web server need the memory).
 constexpr int stripH = 48;
-M5Canvas frame(&M5.Display);
-bool frameReady = false;
+uint16_t strip[240 * stripH];
 std::string lastScreen;
-// dy: vertical offset of the strip (all y coordinates are shifted by it; the sprite clips the rest).
-template <typename G> void paint(G &d, const Json &list, int dy = 0) {
-  d.setTextDatum(middle_center);
-  for (auto &i : list) {
-    const std::string kind = i[0];
-    if (kind == "f")
-      d.fillScreen(uint16_t(i[1].get<int>()));
-    else if (kind == "c")
-      d.fillCircle(i[1].get<int>(), i[2].get<int>() - dy, i[3].get<int>(), uint16_t(i[4].get<int>()));
-    else if (kind == "r")
-      d.fillRoundRect(i[1].get<int>(), i[2].get<int>() - dy, i[3].get<int>(), i[4].get<int>(), i[5].get<int>(),
-                      uint16_t(i[6].get<int>()));
-    else if (kind == "a")
-      d.fillArc(i[1].get<int>(), i[2].get<int>() - dy, i[3].get<int>(), i[4].get<int>(), float(i[5].get<int>()),
-                float(i[6].get<int>()), uint16_t(i[7].get<int>()));
-    else {
-      d.setTextSize(i[3].get<int>());
-      d.setTextColor(uint16_t(i[4].get<int>()));
-      d.drawString(i[5].get<std::string>().c_str(), i[1].get<int>(), i[2].get<int>() - dy);
-    }
-  }
-}
 // Builds the Dial picture under the state lock; returns false when nothing changed.
 bool buildScreen(Json &list) {
   Guard g;
@@ -670,10 +648,10 @@ bool buildScreen(Json &list) {
       x.hint = crashHint;
     else
       x.hint = !webStarted && config.configured ? "Webserver aus - Dial neu starten"
-               : !reader.healthy                ? "Leser pruefen!"
-               : !storage.error.empty()         ? "Speicher pruefen!"
+               : !reader.healthy                ? "Leser prüfen!"
+               : !storage.error.empty()         ? "Speicher prüfen!"
                : !captureTarget.empty()         ? "Karte einlernen am Tablet"
-               : ampelLost()                    ? (ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!")
+               : ampelLost()                    ? (ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!")
                : noClock                        ? "Uhr nicht gestellt"
                                                 : "";
     if (feedbackAt && now - feedbackAt < 3500) {
@@ -696,22 +674,13 @@ void draw() {
   drawAt = now;
   Json list;
   if (!buildScreen(list)) return;
-  static bool frameTried = false;
-  if (!frameTried) {
-    frameTried = true;
-    frame.setColorDepth(16);
-    frameReady = frame.createSprite(240, stripH) != nullptr;
-    if (Serial)
-      Serial.printf("strip buffer %s, heap %u, max block %u\n", frameReady ? "ok" : "off", unsigned(ESP.getFreeHeap()),
-                    unsigned(ESP.getMaxAllocHeap()));
+  M5.Display.startWrite();
+  for (int y = 0; y < 240; y += stripH) {
+    mensa::raster::Target t{strip, 240, y, stripH, true};
+    mensa::raster::paint(t, list);
+    M5.Display.pushImage(0, y, 240, stripH, (const lgfx::swap565_t *)strip);
   }
-  if (frameReady)
-    for (int y = 0; y < 240; y += stripH) {
-      paint(frame, list, y);
-      frame.pushSprite(0, y);
-    }
-  else
-    paint(M5.Display, list);
+  M5.Display.endWrite();
 }
 void webTask(void *) {
   for (;;) {
@@ -736,7 +705,7 @@ void setup() {
   case ESP_RST_INT_WDT:
   case ESP_RST_TASK_WDT:
   case ESP_RST_WDT:
-    resetReason = "Watchdog (haengt)";
+    resetReason = "Watchdog (hängt)";
     resetWasError = true;
     break;
   case ESP_RST_BROWNOUT:
@@ -820,7 +789,7 @@ void step(uint64_t now) {
   if (testMode && touch.wasPressed()) testButton = "Touch " + std::to_string(touch.x) + "," + std::to_string(touch.y);
   // Touch field: "ENTLASTEN" on the main screen; in menu, enrolment and Mensa setting the core treats it as the button.
   bool touchOk = engine.menuOpen(now) || engine.seriesActive() || engine.editingMensa(now);
-  if (touch.wasPressed() && touch.x >= 30 && touch.x <= 210 && touch.y >= 142 && touch.y <= 177 && configValid &&
+  if (touch.wasPressed() && touch.x >= 30 && touch.x <= 210 && touch.y >= 131 && touch.y <= 169 && configValid &&
       config.configured && !needsReview && now >= showCredentialsUntil && now >= resetConfirmUntil &&
       (touchOk || !engine.isRelieving()) && !testMode) {
     auto r = transact({{"type", "relief"}});
@@ -846,7 +815,7 @@ void step(uint64_t now) {
     resetConfirmUntil = 0;
   } else if (resetConfirmUntil > now && M5.BtnA.wasClicked()) {
     resetConfirmUntil = 0;
-    note("Zuruecksetzen abgebrochen.", true);
+    note("Zurücksetzen abgebrochen.", true);
   } else if (now < showCredentialsUntil && M5.BtnA.wasClicked()) {
     // A short press only closes the WLAN screen; it must not pause or release the entrance.
     showCredentialsUntil = 0;
@@ -859,7 +828,7 @@ void step(uint64_t now) {
     bool handled = false;
     if (configValid && config.configured && !needsReview && engine.wantsHold(now)) {
       if (blocked() && !engine.isReady())
-        note("Leser und Speicher zuerst pruefen.", false);
+        note("Leser und Speicher zuerst prüfen.", false);
       else {
         auto r = transact({{"type", "dialHold"}});
         handled = r.value("handled", true);
@@ -892,7 +861,7 @@ void step(uint64_t now) {
     if (engine.isReady() && !readySince) readySince = now;
     if (!engine.isReady()) readySince = 0;
     bool lost = ampelLost();
-    if (lost && !ampelWarned) note(ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!", false);
+    if (lost && !ampelWarned) note(ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!", false);
     ampelWarned = lost;
     // Reminder while a pause, relief or full group waits for a person: short double beep each interval.
     int due = engine.reminders(now);
@@ -950,7 +919,7 @@ void step(uint64_t now) {
         capturedUid = edge.uid;
         note("Karte erkannt. Zuordnung am Tablet speichern.", true);
       } else if (!config.configured || needsReview || !storage.error.empty()) {
-        note("Einrichtung oder Speicher zuerst pruefen.", false);
+        note("Einrichtung oder Speicher zuerst prüfen.", false);
       } else {
         auto r = transact({{"type", "scan"}, {"uid", edge.uid}});
         note(r.value("message", std::string()), r.value("ok", false));

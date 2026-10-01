@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createEngine } from '../server/engine.mjs';
 
 const texts = list => list.filter(i => i[0] === 't').map(i => i[5]);
+// Shown text with wrapped lines joined.
+const shown = list => texts(list).join(' ');
 // Engine with a clock: `at(y, m, d, h, mi)` sets tablet/RTC time including the calendar date.
 async function setup() {
   const e = await createEngine();
@@ -121,7 +123,7 @@ test('Ring: eine Raste öffnet die Mensa nicht, zwei schon; Touch-Feld ist OK', 
   x.cmd({ type: 'confirm' });
   x.cmd({ type: 'dialTurn', steps: 1 });
   assert.equal(x.state().mensaEdit, -1);
-  assert.ok(texts(x.dial()).includes('Mensa: weiter drehen'));
+  assert.ok(shown(x.dial()).includes('Mensa: weiter drehen'));
   x.wait(2000);
   x.cmd({ type: 'dialTurn', steps: 1 });
   assert.equal(x.state().mensaEdit, -1, 'zwei einzelne Rasten mit Pause');
@@ -144,7 +146,7 @@ test('Erinnerung: Pause oder Entlastung länger als eingestellt', async () => {
   assert.equal(x.state().reminders, 0);
   x.wait(3 * 60000 + 1000);
   assert.equal(x.state().reminders, 1);
-  assert.ok(texts(x.dial()).includes('Noch Entlastung? Taste'));
+  assert.ok(shown(x.dial()).includes('Noch Entlastung? Taste'));
   x.wait(3 * 60000);
   assert.equal(x.state().reminders, 2);
   x.cmd({ type: 'pause', paused: false });
@@ -163,10 +165,10 @@ test('Halten: Fortschrittsring am Dial', async () => {
   assert.equal(arcs(x.dial({ holdMs: 0 })).length, 0);
   const half = x.dial({ holdMs: 1500 });
   assert.ok(arcs(half).length >= 1);
-  assert.ok(texts(half).includes('Halten ...'));
-  assert.ok(texts(x.dial({ holdMs: 3200 })).includes('Loslassen: 3 s erreicht'));
-  assert.ok(texts(x.dial({ holdMs: 10500 })).includes('Loslassen: Zugang zuruecksetzen'));
-  assert.ok(texts(x.dial({ screen: 'reset' })).includes('Nochmal 3 s halten: JA'));
+  assert.ok(shown(half).includes('Halten …'));
+  assert.ok(shown(x.dial({ holdMs: 3200 })).includes('Loslassen: 3 s erreicht'));
+  assert.ok(shown(x.dial({ holdMs: 10500 })).includes('Loslassen: Zugang zurücksetzen'));
+  assert.ok(shown(x.dial({ screen: 'reset' })).includes('Nochmal 3 s halten: JA'));
 });
 
 test('Alte Stände ohne Datum laden weiter', async () => {
@@ -197,10 +199,10 @@ test('Sperrzeit: Countdown am Dial, eingelernte Karten sofort nutzbar', async ()
   assert.equal(r.ok, false);
   assert.match(r.message, /K05: Sperrzeit, noch 2 s/);
   // tap() advances the clock by 1 s after each scan: 0.5 s of the lock are left now.
-  assert.ok(texts(x.dial()).includes('K05 gesperrt'));
-  assert.ok(texts(x.dial()).includes('noch 1 s'), 'zählt live herunter');
+  assert.ok(shown(x.dial()).includes('K05 gesperrt'));
+  assert.ok(shown(x.dial()).includes('noch 1 s'), 'zählt live herunter');
   x.wait(600);
-  assert.ok(!texts(x.dial()).includes('K05 gesperrt'));
+  assert.ok(!shown(x.dial()).includes('K05 gesperrt'));
   const e = x.e;
   e.call({ op: 'hardware' });
   const now = x.now;
@@ -304,7 +306,7 @@ test('Rückgängig stellt Gruppenzähler zurück; Sperr-Countdown verdeckt keine
   // K01 is locked; then another child's scan shows its own feedback instead of the countdown.
   e.command({ type: 'scan', uid: 'sim:K01' }, 500);
   e.command({ type: 'remove' }, 500);
-  assert.ok(texts(e.call({ op: 'dial', now: 600 })).includes('K01 gesperrt'));
+  assert.ok(shown(e.call({ op: 'dial', now: 600 })).includes('K01 gesperrt'));
   e.command({ type: 'scan', uid: 'sim:K03' }, 600);
-  assert.ok(!texts(e.call({ op: 'dial', now: 700, feedback: 'K03 ausgegeben.' })).includes('K01 gesperrt'));
+  assert.ok(!shown(e.call({ op: 'dial', now: 700, feedback: 'K03 ausgegeben.' })).includes('K01 gesperrt'));
 });

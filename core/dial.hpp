@@ -1,5 +1,6 @@
 #pragma once
 #include "vendor/json.hpp"
+#include "dial_raster.hpp"
 #include <string>
 #include <vector>
 #include <cmath>
@@ -7,108 +8,86 @@
 #include <algorithm>
 namespace mensa {
 // Main screen of the round 240x240 Dial display as a draw list. Firmware and simulation render the same list.
-// Items: ["c",x,y,r,color] filled circle, ["r",x,y,w,h,radius,color] filled round rect, ["t",x,y,size,color,text] text
-// (middle_center, GLCD font 6x8).
+// Items: ["f",color] fill, ["c",x,y,r,color] filled circle, ["r",x,y,w,h,radius,color] filled round rect,
+// ["a",cx,cy,r0,r1,a0,a1,color] ring, ["t",x,y,size,color,text] text centred at x,y (UTF-8, Inter sizes 1-4).
+// Painted smoothly by core/dial_raster.hpp (Dial) and src/dial-paint.mjs (browser), pixel for pixel the same.
 namespace dial {
-constexpr int black = 0x0000, white = 0xFFFF, red = 0xF800, green = 0x07E0, yellow = 0xFFE0, orange = 0xFDA0,
-              grey = 0x7BEF;
-// The GLCD font only has ASCII glyphs that look right; German texts are transliterated.
-inline std::string ascii(const std::string &s) {
+// Calm, high-contrast palette (RGB565). The whole screen keeps the signal colour: green, amber, red.
+constexpr int black = 0x0000, white = 0xFFFF, green = 0x1407, yellow = 0xFE62, red = 0xD924, orange = 0xFB82,
+              grey = 0xA515, dark = 0x18C3, panel = 0x2125, button = 0x39E8, okText = 0x4EF0, warnText = 0xFDE4;
+// Darker shade of a colour (share 0..16 of black), same arithmetic as raster::mix.
+inline int shade(int c, int share) {
+  return raster::mix(uint16_t(c), 0, share);
+}
+// Text as the font can show it: characters the size does not have become '?'.
+inline std::string clean(const std::string &s, int size) {
   std::string out;
-  for (size_t i = 0; i < s.size(); i++) {
-    unsigned char c = s[i];
-    if (c < 0x80) {
-      out += char(c);
-      continue;
-    }
-    if (c == 0xC3 && i + 1 < s.size()) {
-      unsigned char d = s[++i];
-      switch (d) {
-      case 0xA4:
-        out += "ae";
-        break;
-      case 0xB6:
-        out += "oe";
-        break;
-      case 0xBC:
-        out += "ue";
-        break;
-      case 0x84:
-        out += "Ae";
-        break;
-      case 0x96:
-        out += "Oe";
-        break;
-      case 0x9C:
-        out += "Ue";
-        break;
-      case 0x9F:
-        out += "ss";
-        break;
-      default:
-        out += '?';
-      }
-      continue;
-    }
-    if (c == 0xE2 && i + 2 < s.size()) {
-      unsigned char d = s[i + 1], e = s[i + 2];
-      i += 2;
-      if (d == 0x80 && (e == 0x93 || e == 0x94))
-        out += '-';
-      else if (d == 0x80 && (e == 0x9E || e == 0x9C || e == 0x9D))
-        out += '"';
-      else if (d == 0x80 && e == 0xA6)
-        out += "...";
-      else
-        out += '?';
-      continue;
-    }
-    while (i + 1 < s.size() && (static_cast<unsigned char>(s[i + 1]) & 0xC0) == 0x80)
-      i++;
-    out += '?';
+  for (size_t i = 0; i < s.size();) {
+    size_t from = i;
+    uint32_t cp = raster::next(s, i);
+    auto g = raster::glyph(size, cp);
+    if (g && g->code == cp)
+      out.append(s, from, i - from);
+    else
+      out += '?';
   }
   return out;
 }
-// Characters that fit completely inside the round display on a text line centred at y.
-inline int chars(int y, int size = 1) {
-  int h = 8 * size, top = y - h / 2, bottom = top + h - 1;
-  int dy = std::max(std::abs(top - 120), std::abs(bottom - 119));
-  if (dy >= 120) return 0;
-  int half = int(std::floor(std::sqrt(120.0 * 120.0 - double(dy) * dy)));
-  return (2 * half) / (6 * size);
+// Usable text width on a line centred at y inside the round display (edge margin included).
+inline int span(int y, int size) {
+  int cap = raster::capHeight(size), top = y - cap / 2 - 2, bottom = y + cap / 2 + 4;
+  int dy = std::max(std::abs(top - 120), std::abs(bottom - 120));
+  if (dy >= 116) return 0;
+  int h = 0;
+  while ((h + 1) * (h + 1) <= 116 * 116 - dy * dy)
+    h++;
+  return 2 * h - 8;
 }
-// Word wrap onto the given lines; overlong text ends with "..".
-inline std::vector<std::string> wrap(const std::string &text, const std::vector<int> &ys) {
+// Cuts a text to a pixel width, ending with "…".
+inline std::string fit(const std::string &text, int size, int width) {
+  if (raster::textWidth(text, size) <= width) return text;
+  std::string out;
+  for (size_t i = 0; i < text.size();) {
+    size_t from = i;
+    raster::next(text, i);
+    std::string longer = out + text.substr(from, i - from);
+    if (raster::textWidth(longer + "…", size) > width) break;
+    out = longer;
+  }
+  while (!out.empty() && out.back() == ' ')
+    out.pop_back();
+  return out + "…";
+}
+// Word wrap onto lines of the given pixel widths; overlong text ends with "…".
+inline std::vector<std::string> wrap(const std::string &text, const std::vector<int> &widths, int size = 1) {
   std::vector<std::string> lines;
-  std::string rest = ascii(text);
-  for (size_t n = 0; n < ys.size() && !rest.empty(); n++) {
-    size_t width = size_t(chars(ys[n]));
-    if (rest.size() <= width) {
+  std::string rest = clean(text, size);
+  for (size_t n = 0; n < widths.size() && !rest.empty(); n++) {
+    if (raster::textWidth(rest, size) <= widths[n]) {
       lines.push_back(rest);
-      rest.clear();
       break;
     }
-    bool last = n + 1 == ys.size();
-    size_t limit = last ? width - 2 : width;
-    size_t cut = rest.rfind(' ', limit);
-    if (cut == std::string::npos || cut == 0) cut = limit;
-    std::string line = rest.substr(0, cut);
-    while (!line.empty() && line.back() == ' ')
-      line.pop_back();
-    if (last) {
-      lines.push_back(line + "..");
-      rest.clear();
-    } else {
-      lines.push_back(line);
-      rest = rest.substr(cut);
-      while (!rest.empty() && rest.front() == ' ')
-        rest.erase(rest.begin());
+    if (n + 1 == widths.size()) {
+      lines.push_back(fit(rest, size, widths[n]));
+      break;
     }
+    // Longest prefix up to a space that fits; a single overlong word is cut.
+    size_t cut = std::string::npos;
+    for (size_t i = rest.find(' '); i != std::string::npos; i = rest.find(' ', i + 1)) {
+      if (raster::textWidth(rest.substr(0, i), size) > widths[n]) break;
+      cut = i;
+    }
+    if (cut == std::string::npos) {
+      lines.push_back(fit(rest, size, widths[n]));
+      break;
+    }
+    lines.push_back(rest.substr(0, cut));
+    rest = rest.substr(cut + 1);
   }
   return lines;
 }
 inline nlohmann::json text(int x, int y, int size, int color, const std::string &t) {
-  return nlohmann::json::array({"t", x, y, size, color, ascii(t)});
+  return nlohmann::json::array({"t", x, y, size, color, clean(t, size)});
 }
 inline nlohmann::json fill(int color) {
   return nlohmann::json::array({"f", color});
@@ -116,13 +95,12 @@ inline nlohmann::json fill(int color) {
 inline nlohmann::json rect(int x, int y, int w, int h, int r, int color) {
   return nlohmann::json::array({"r", x, y, w, h, r, color});
 }
-// Countdown ring clockwise from the top; angles as in M5GFX fillArc (0 = right, clockwise), split so that each arc
-// stays within 0..360.
-inline void ring(nlohmann::json &list, double share, int color) {
+// Ring along the edge: faint full track, progress clockwise from the top with round ends (0 = right, clockwise).
+inline void ring(nlohmann::json &list, double share, int color, int track) {
   if (share <= 0) return;
+  list.push_back(nlohmann::json::array({"a", 120, 120, 110, 118, 0, 360, track}));
   int end = 270 + int(std::lround(360 * std::min(share, 1.0)));
-  list.push_back(nlohmann::json::array({"a", 120, 120, 110, 119, 270, std::min(end, 360), color}));
-  if (end > 360) list.push_back(nlohmann::json::array({"a", 120, 120, 110, 119, 0, end - 360, color}));
+  list.push_back(nlohmann::json::array({"a", 120, 120, 110, 118, 270, std::max(end, 271), color}));
 }
 } // namespace dial
 // Device-specific additions supplied by firmware or simulation host.

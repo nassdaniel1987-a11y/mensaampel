@@ -7,7 +7,7 @@ Die jeweiligen Lizenztexte liegen im Ordner `licenses` bzw. bei der Node-Laufzei
 - Lucide React 0.468.0: `licenses/Lucide.txt`.
 - nlohmann/json 3.11.3: MIT, `licenses/nlohmann-json.txt`.
 - Emscripten 4.0.15: `licenses/Emscripten.txt`; kompiliertes WASM und Laufzeit-Glue.
-- Dial-Simulation: ASCII-Zeichen der M5GFX-Standardschrift (Adafruit GLCD 5×7, BSD): `licenses/Adafruit-GFX.txt`, erzeugt in `src/glcdfont.mjs`.
+- Dial-Schrift: Inter (SemiBold/Bold, SIL Open Font License 1.1): `licenses/Inter.txt`, Quelle `vendor/fonts/`, als Glyphen erzeugt in `core/dial_font.hpp` und `src/dial-font.mjs` (`scripts/build-dial-font.py`).
 
 Die Entwicklungsabhängigkeiten sind in `package-lock.json` festgehalten. Die PC-Laufzeit verwendet ausschließlich lokale Dateien und keine externen Schriftarten, Tracker oder Webdienste.
 

@@ -1,0 +1,181 @@
+#pragma once
+// Smooth rendering of the Dial draw list into an RGB565 strip (firmware) or a whole frame (native test). Integer
+// arithmetic only, so that src/dial-paint.mjs paints exactly the same pixels (tests/dial-raster.test.mjs).
+// Edges: 4x4 samples per pixel (coverage 0..16). Text: 4-bit alpha glyphs from core/dial_font.hpp.
+#include "dial_font.hpp"
+#include "vendor/json.hpp"
+#include <cstdint>
+#include <string>
+namespace mensa::raster {
+// Rows y0..y0+h-1 of the 240-pixel-wide screen. swap: bytes swapped as in the M5GFX sprite buffer.
+struct Target {
+  uint16_t *px;
+  int w, y0, h;
+  bool swap;
+  uint16_t get(int x, int y) const {
+    uint16_t v = px[(y - y0) * w + x];
+    return swap ? uint16_t(v << 8 | v >> 8) : v;
+  }
+  void set(int x, int y, uint16_t c) { px[(y - y0) * w + x] = swap ? uint16_t(c << 8 | c >> 8) : c; }
+};
+inline uint16_t mix(uint16_t bg, uint16_t fg, int a) {
+  if (a >= 16) return fg;
+  if (a <= 0) return bg;
+  int r = (((fg >> 11) & 31) * a + ((bg >> 11) & 31) * (16 - a) + 8) / 16,
+      g = (((fg >> 5) & 63) * a + ((bg >> 5) & 63) * (16 - a) + 8) / 16,
+      b = ((fg & 31) * a + (bg & 31) * (16 - a) + 8) / 16;
+  return uint16_t(r << 11 | g << 5 | b);
+}
+inline void blend(Target &t, int x, int y, uint16_t c, int a) {
+  if (x < 0 || x >= t.w || y < t.y0 || y >= t.y0 + t.h || a <= 0) return;
+  t.set(x, y, a >= 16 ? c : mix(t.get(x, y), c, a));
+}
+inline int rowFrom(const Target &t, int y) {
+  return y > t.y0 ? y : t.y0;
+}
+inline int rowTo(const Target &t, int y) {
+  return y < t.y0 + t.h ? y : t.y0 + t.h;
+}
+inline void fill(Target &t, uint16_t c) {
+  for (int y = t.y0; y < t.y0 + t.h; y++)
+    for (int x = 0; x < t.w; x++)
+      t.set(x, y, c);
+}
+// Sample (i,j) of pixel (x,y) in 1/8 pixel units: 8x+2i+1.
+template <typename In> int coverage(int x, int y, In inside) {
+  int n = 0;
+  for (int j = 0; j < 4; j++)
+    for (int i = 0; i < 4; i++)
+      n += inside(8 * x + 2 * i + 1, 8 * y + 2 * j + 1) ? 1 : 0;
+  return n;
+}
+inline bool inCircle(long long sx, long long sy, long long cx, long long cy, long long r) {
+  return (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy) <= r * r;
+}
+// Rounded rectangle; corners are quarter circles of radius r (a pill when r = h/2).
+inline void rect(Target &t, int x, int y, int w, int h, int r, uint16_t c) {
+  if (r * 2 > w) r = w / 2;
+  if (r * 2 > h) r = h / 2;
+  for (int yy = rowFrom(t, y); yy < rowTo(t, y + h); yy++)
+    for (int xx = x < 0 ? 0 : x; xx < x + w && xx < t.w; xx++) {
+      bool left = xx < x + r, right = xx >= x + w - r, top = yy < y + r, bottom = yy >= y + h - r;
+      if (!((left || right) && (top || bottom))) {
+        t.set(xx, yy, c);
+        continue;
+      }
+      long long cx = 8LL * (left ? x + r : x + w - r), cy = 8LL * (top ? y + r : y + h - r);
+      blend(t, xx, yy, c,
+            coverage(xx, yy, [&](long long sx, long long sy) { return inCircle(sx, sy, cx, cy, 8LL * r); }));
+    }
+}
+// Filled circle around the pixel corner (cx, cy).
+inline void circle(Target &t, int cx, int cy, int r, uint16_t c) {
+  for (int y = rowFrom(t, cy - r - 1); y < rowTo(t, cy + r + 1); y++)
+    for (int x = cx - r - 1; x <= cx + r; x++)
+      if (x >= 0 && x < t.w)
+        blend(t, x, y, c, coverage(x, y, [&](long long sx, long long sy) {
+                return inCircle(sx, sy, 8LL * cx, 8LL * cy, 8LL * r);
+              }));
+}
+inline long long floorDiv(long long a, long long b) {
+  return a >= 0 ? a / b : -((-a + b - 1) / b);
+}
+inline long long cosine(int d) {
+  return font::sine[((d % 360) + 450) % 360];
+}
+inline long long sine(int d) {
+  return font::sine[((d % 360) + 360) % 360];
+}
+// Ring between radii r0 and r1 from angle a0 to a1 (degrees, 0 = right, clockwise); a partial ring has round ends.
+inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint16_t c) {
+  int span = a1 - a0;
+  if (span <= 0) return;
+  bool full = span >= 360;
+  long long d0x = cosine(a0), d0y = sine(a0), d1x = cosine(a1), d1y = sine(a1);
+  long long ox = 8LL * cx, oy = 8LL * cy, R0 = 8LL * r0, R1 = 8LL * r1;
+  // Round ends: circles of half the ring width on the middle radius.
+  long long rm = 4LL * (r0 + r1), cap = 4LL * (r1 - r0);
+  long long e0x = ox + floorDiv(rm * d0x, 16384), e0y = oy + floorDiv(rm * d0y, 16384),
+            e1x = ox + floorDiv(rm * d1x, 16384), e1y = oy + floorDiv(rm * d1y, 16384);
+  auto inside = [&](long long sx, long long sy) {
+    long long px = sx - ox, py = sy - oy, d2 = px * px + py * py;
+    if (!full && (inCircle(sx, sy, e0x, e0y, cap) || inCircle(sx, sy, e1x, e1y, cap))) return true;
+    if (d2 < R0 * R0 || d2 > R1 * R1) return false;
+    if (full) return true;
+    long long c0 = d0x * py - d0y * px, c1 = px * d1y - py * d1x;
+    if (span <= 180) return c0 >= 0 && c1 >= 0;
+    long long k0 = d1x * py - d1y * px, k1 = px * d0y - py * d0x;
+    return !(k0 > 0 && k1 > 0);
+  };
+  long long lo = (r0 - 2) > 0 ? (r0 - 2) * (r0 - 2) : 0, hi = (r1 + 2) * (r1 + 2);
+  for (int y = rowFrom(t, cy - r1 - 2); y < rowTo(t, cy + r1 + 2); y++)
+    for (int x = cx - r1 - 2; x < cx + r1 + 2; x++) {
+      if (x < 0 || x >= t.w) continue;
+      long long dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
+      if (d < lo || d > hi) continue;
+      blend(t, x, y, c, coverage(x, y, inside));
+    }
+}
+// Next code point of UTF-8 text; unsupported sequences count as '?'.
+inline uint32_t next(const std::string &s, size_t &i) {
+  unsigned char b = s[i++];
+  if (b < 0x80) return b;
+  int extra = b >= 0xf0 ? 3 : b >= 0xe0 ? 2 : b >= 0xc0 ? 1 : 0;
+  uint32_t cp = b & (0x3f >> extra);
+  for (int k = 0; k < extra && i < s.size(); k++)
+    cp = cp << 6 | (s[i++] & 0x3f);
+  return extra ? cp : '?';
+}
+inline const font::Glyph *glyph(int size, uint32_t cp) {
+  const auto &f = font::faces[size < 1 ? 0 : size > 4 ? 3 : size - 1];
+  for (int k = 0; k < 2; k++, cp = '?')
+    for (int n = f.first; n < f.first + f.count; n++)
+      if (font::glyphs[n].code == cp) return &font::glyphs[n];
+  return nullptr;
+}
+// Width in pixels (sum of advances) of a text in a size.
+inline int textWidth(const std::string &s, int size) {
+  int w = 0;
+  for (size_t i = 0; i < s.size();)
+    if (auto g = glyph(size, next(s, i))) w += g->advance;
+  return w;
+}
+inline int capHeight(int size) {
+  return font::faces[size < 1 ? 0 : size > 4 ? 3 : size - 1].cap;
+}
+// Text centred on (x, y): horizontally by its width, vertically by the capital height.
+inline void text(Target &t, int x, int y, int size, uint16_t c, const std::string &s) {
+  int pen = x - textWidth(s, size) / 2, base = y + capHeight(size) / 2;
+  for (size_t i = 0; i < s.size();) {
+    auto g = glyph(size, next(s, i));
+    if (!g) continue;
+    for (int row = 0; row < g->h; row++) {
+      int yy = base + g->y + row;
+      if (yy < t.y0 || yy >= t.y0 + t.h) continue;
+      for (int col = 0; col < g->w; col++) {
+        int k = row * g->w + col, v = font::alpha[g->offset + k / 2];
+        int a = k % 2 ? v & 15 : v >> 4;
+        blend(t, pen + g->x + col, yy, c, (a * 16 + 7) / 15);
+      }
+    }
+    pen += g->advance;
+  }
+}
+// Paints a whole draw list (see core/dial.hpp) into the target.
+inline void paint(Target &t, const nlohmann::json &list) {
+  for (const auto &i : list) {
+    const std::string kind = i[0];
+    auto n = [&](int k) { return i[k].get<int>(); };
+    if (kind == "f")
+      fill(t, uint16_t(n(1)));
+    else if (kind == "c")
+      circle(t, n(1), n(2), n(3), uint16_t(n(4)));
+    else if (kind == "r")
+      rect(t, n(1), n(2), n(3), n(4), n(5), uint16_t(n(6)));
+    else if (kind == "a")
+      arc(t, n(1), n(2), n(3), n(4), n(5), n(6), uint16_t(n(7)));
+    else if (kind == "t")
+      text(t, n(1), n(2), n(3), uint16_t(n(4)), i[5].get<std::string>());
+  }
+}
+} // namespace mensa::raster

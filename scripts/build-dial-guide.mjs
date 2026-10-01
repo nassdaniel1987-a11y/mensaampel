@@ -60,7 +60,7 @@ const screens = [
     id: 'countdown',
     title: 'Warten auf die nächste Gruppe',
     meaning: 'Rot mit Ring: Die Gruppe ist voll. Der Ring läuft ab, dann öffnet die Ampel von selbst.',
-    action: 'Nichts tun. Ausgabe schon frei? Taste drücken. Zu voll? Orange Fläche antippen.',
+    action: 'Nichts tun. Ausgabe schon frei? Taste drücken. Zu voll? Knopf „ENTLASTEN“ antippen.',
     items: await scenario(({ tap, wait }) => {
       for (let i = 1; i <= 6; i++) tap(K(i));
       wait(20000);
@@ -69,7 +69,7 @@ const screens = [
   {
     id: 'rueckmeldung',
     title: 'Karte gebucht',
-    meaning: 'Nach jedem Scan steht kurz eine Rückmeldung im schwarzen Feld, mit Piepton.',
+    meaning: 'Nach jedem Scan steht kurz eine Rückmeldung im dunklen Feld unten, mit Piepton.',
     action: 'Nichts tun.',
     items: await scenario(({ tap }) => tap(K(7)), {
       feedback: 'K07 ausgegeben. Ein Platz reserviert.',
@@ -79,7 +79,7 @@ const screens = [
   {
     id: 'abgewiesen',
     title: 'Karte abgewiesen',
-    meaning: 'Orange Schrift und tiefer Ton: Die Karte wurde nicht gebucht, z. B. weil sie gerade erst gescannt wurde.',
+    meaning: 'Gelbe Schrift und tiefer Ton: Die Karte wurde nicht gebucht, z. B. weil sie gerade erst gescannt wurde.',
     action: 'Kind kurz warten lassen oder Karte prüfen.',
     items: await scenario(() => {}, { feedback: 'Sperrzeit aktiv. Bitte später erneut vorhalten.', feedbackOk: false }),
   },
@@ -133,14 +133,14 @@ const screens = [
     title: 'Ampel draußen getrennt',
     meaning: 'Das Tablet vor der Tür fragt nicht mehr nach (Akku leer, Bildschirm aus, WLAN weg).',
     action: 'Tablet vor der Tür prüfen und die Ampelseite wieder öffnen.',
-    items: await scenario(() => {}, { hint: 'Ampel draussen getrennt!' }),
+    items: await scenario(() => {}, { hint: 'Ampel draußen getrennt!' }),
   },
   {
     id: 'stoerung',
     title: 'Störung',
     meaning: 'Rot: Kartenleser oder Speicher melden einen Fehler. Kein Einlass.',
     action: 'Betreuung verständigen. Am Tablet unter „Gerät“ steht die Ursache.',
-    items: await scenario(() => {}, { blocked: true, hint: 'Leser pruefen!' }),
+    items: await scenario(() => {}, { blocked: true, hint: 'Leser prüfen!' }),
   },
   {
     id: 'einlernen',
@@ -225,7 +225,7 @@ const screens = [
 const handgriffe = [
   ['Morgens / nach dem Einschalten', 'bestand', 'Bestand ok? Taste 3 Sekunden halten.'],
   ['Mensa für freies Essen öffnen', 'mensa', 'Ring drehen bis zur Platzzahl, Taste drücken.'],
-  ['Es wird zu voll an der Ausgabe', 'entlastung', 'Orange Fläche „ENTLASTEN“ antippen. Weiter: Taste.'],
+  ['Es wird zu voll an der Ausgabe', 'entlastung', 'Knopf „ENTLASTEN“ antippen. Weiter: Taste.'],
   ['Ausgabe ist schon frei, Ring läuft noch', 'countdown', 'Taste drücken: nächste Gruppe sofort.'],
   ['Betreuerkarte vorhalten', 'betreuung', 'Menü: Ring = Auswahl, Taste = ausführen.'],
   ['Neuer Tag, Karten noch draußen', 'neuertag', 'Karten einsammeln, Taste 3 Sekunden halten.'],
@@ -321,7 +321,7 @@ ${device}
 <h2>Was zeigt das Dial?</h2><div class="grid">${screens.map(s => `<div class="screen">${img(s.id, 'dial small')}<div><h3>${esc(s.title)}</h3><p>${esc(s.meaning)}</p><p class="do">${esc(s.action)}</p></div></div>`).join('')}</div>
 <h2>Ablauf an einem Tag</h2><ol><li><b>Einschalten</b> (USB-Strom). Das Dial zeigt „Bestand ok?“ → Karten kurz prüfen → <b>Taste 3 s halten</b>. Ist der automatische Essenstag eingestellt, sind die Belegungen vom Vortag schon zurückgesetzt.</li><li><b>Tablet vor der Tür</b>: Ampelseite öffnen (http://192.168.4.1/ampel), Vollbild. Optional „Ton an“ für einen Gong bei Grün.</li><li><b>Mittag</b>: Kinder halten ihre Platzkarte ans Dial. Die erste Gruppe ist größer, danach öffnet die Ampel im Takt von selbst.</li><li><b>Begleitete Kinder fertig</b>: Ring drehen, Mensaplätze einstellen, Taste.</li><li><b>Nur bei Bedarf</b>: zu voll → ENTLASTEN; Ausgabe schon frei → Taste.</li><li><b>Ende</b>: Fehlen Karten, zeigt das Dial „Karten fehlen“ – einsammeln.</li></ol>
 <h2>iPad vor der Tür (Ampel)</h2><p><b>Einmalig:</b> im Dial-WLAN „Automatisch verbinden“ an, beim Schul-WLAN aus · Safari: http://192.168.4.1/ampel zum Home-Bildschirm · Automatische Sperre „Nie“, Stromsparmodus aus, „Nicht stören“ an · Bedienungshilfen → <b>Geführter Zugriff</b> an, Code festlegen, Anzeige-Autosperre „Nie“.</p><p><b>Täglich / nach iPad-Neustart:</b> Ampelseite öffnen, Vollbild · <b>dreimal die obere Taste</b> drücken · Tasten aus → Starten · bei „Ton an“ einmal auf den Bildschirm tippen. Beenden: dreimal drücken, Code. iPad am Ladekabel lassen.</p>
-<h2>Wenn etwas nicht stimmt</h2><ul><li><b>Alles rot, „Stoerung“</b>: Leser oder Speicher. Betreuung verständigen; am Tablet unter „Gerät“ steht die Ursache.</li><li><b>„Ampel draussen getrennt!“</b>: Tablet vor der Tür prüfen (Akku, Bildschirm, WLAN).</li><li><b>Kind wird abgewiesen</b> (orange Schrift, tiefer Ton): Karte wurde gerade erst gescannt, Raum ist gesperrt oder die Karte ist unbekannt.</li><li><b>Strom weg</b>: Der Bestand bleibt gespeichert. Nach dem Einschalten wieder Taste 3 s halten.</li></ul>
+<h2>Wenn etwas nicht stimmt</h2><ul><li><b>Alles rot, „Störung“</b>: Leser oder Speicher. Betreuung verständigen; am Tablet unter „Gerät“ steht die Ursache.</li><li><b>„Ampel draußen getrennt!“</b>: Tablet vor der Tür prüfen (Akku, Bildschirm, WLAN).</li><li><b>Kind wird abgewiesen</b> (gelbe Schrift, tiefer Ton): Karte wurde gerade erst gescannt, Raum ist gesperrt oder die Karte ist unbekannt.</li><li><b>Strom weg</b>: Der Bestand bleibt gespeichert. Nach dem Einschalten wieder Taste 3 s halten.</li></ul>
 <p class="note">Die Automatik lernt aus euren Eingriffen: „ENTLASTEN“ nach einer automatischen Freigabe = künftig länger warten, Taste im Countdown = künftig schneller. Ohne Eingriff wird sie vorsichtig etwas schneller.</p>
 <h2>Karten einrichten</h2><p>Am Tablet unter „Betreuung“ bzw. „Gerät“: <b>Karten am Stück einlernen</b> für Küche oder Mensa starten. Das Dial zeigt die nächste freie Nummer groß an; Karte vorhalten, mit dieser Nummer beschriften (Etiketten: <code>Etiketten-Tool.html</code> am PC öffnen). <b>Betreuerkarte</b>: am Tablet unter Einstellungen „Neue Betreuerkarte einlernen“, dann die Karte ans Dial halten. Sie ist kein Sicherheitsschlüssel und öffnet nur das Alltagsmenü.</p>
 <h2>Nur für die Einlernphase (zweite Person)</h2><p>Mit Handy oder Tablet im Dial-WLAN anmelden → „Einlass &amp; Messungen“ → vor einer Gruppe „Gruppe messen“, wenn das letzte Kind sein Essen hat „Alle haben Essen“. Jede Messung verbessert die Automatik.</p>

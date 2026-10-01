@@ -199,7 +199,7 @@ public:
     else if (flow.relief || paused)
       m.push_back({"resume", "Weiter"});
     else if (flow.waiting)
-      m.push_back({"resume", "Naechste Gruppe"});
+      m.push_back({"resume", "Nächste Gruppe"});
     else
       m.push_back({"pause", "Pause"});
     m.push_back({"mensa", "Mensa freigeben"});
@@ -259,71 +259,81 @@ public:
     return flow.autoOn && flow.waiting && ready && !paused && !flow.relief && !(flow.started >= 0 && flow.kind == 1);
   }
   bool autoDue(long long now) const { return autoPending() && (flow.releaseAt < 0 || now >= flow.releaseAt); }
-  // Dial screen plus, while the button is held, a white progress ring (3 s: confirm/WLAN, 10 s: access reset).
+  // Dial screen plus, while the button is held, a progress ring (3 s: confirm/WLAN, 10 s: access reset).
   Json dialScreen(long long now, const DialExtras &x) const {
     using namespace dial;
     auto list = dialBase(now, x);
     if (x.holdMs >= 400 && x.screen != "reset") {
       bool longHold = x.holdMs >= 3000;
-      list.push_back(rect(22, 181, 196, 34, 8, black));
-      list.push_back(text(120, 198, 1, white,
-                          x.holdMs >= 10000 ? "Loslassen: Zugang zuruecksetzen"
-                          : longHold        ? "Loslassen: 3 s erreicht"
-                                            : "Halten ..."));
-      ring(list, longHold ? std::min(1.0, (x.holdMs - 3000) / 7000.0) : x.holdMs / 3000.0, longHold ? orange : white);
+      list.push_back(rect(30, 175, 180, 36, 18, panel));
+      if (x.holdMs >= 3000) {
+        list.push_back(text(120, 186, 1, white, "Loslassen:"));
+        list.push_back(text(120, 201, 1, white, x.holdMs >= 10000 ? "Zugang zurücksetzen" : "3 s erreicht"));
+      } else
+        list.push_back(text(120, 193, 1, white, "Halten …"));
+      ring(list, longHold ? std::min(1.0, (x.holdMs - 3000) / 7000.0) : x.holdMs / 3000.0, longHold ? orange : white,
+           panel);
     }
     return list;
   }
-  // Dial main screen: whole background in the signal colour, large text readable from a distance.
+  // Dial main screen: whole background in the signal colour, large text readable from a distance. Layout from the
+  // top: what the button does, status, main line, free seats, touch button (pill), info pill.
   Json dialBase(long long now, const DialExtras &x) const {
     using namespace dial;
     Json list = Json::array();
-    auto info = [&](const std::vector<std::string> &lines, int color) {
+    // Info pill: one or two lines (pixel widths fit the round edge).
+    const std::vector<int> infoWidths = {164, 152};
+    auto info = [&](const std::vector<std::string> &lines, int color, int pill) {
       if (lines.empty()) return;
-      list.push_back(rect(22, 181, 196, 34, 8, black));
+      list.push_back(rect(30, 175, 180, 36, 18, pill));
       for (size_t i = 0; i < lines.size() && i < 2; i++)
-        list.push_back(text(120, lines.size() == 1 ? 198 : i ? 205 : 191, 1, color, lines[i]));
+        list.push_back(text(120, lines.size() == 1 ? 193 : i ? 201 : 186, 1, color, fit(lines[i], 1, infoWidths[i])));
+    };
+    auto key = [&](int color, const std::string &t) { list.push_back(text(120, 28, 1, color, fit(t, 1, 130))); };
+    auto pillButton = [&](int color, int textColor, const std::string &t) {
+      list.push_back(rect(30, 131, 180, 38, 19, color));
+      list.push_back(text(120, 150, 2, textColor, t));
     };
     if (x.screen == "test") {
-      list.push_back(fill(black));
-      list.push_back(text(120, 44, 2, yellow, "GERAETETEST"));
-      for (size_t i = 0; i < x.lines.size() && i < 9; i++) {
-        auto l = wrap(x.lines[i], {int(72 + i * 16)});
-        if (!l.empty()) list.push_back(text(120, 72 + int(i) * 16, 1, white, l[0]));
+      list.push_back(fill(dark));
+      list.push_back(text(120, 40, 2, yellow, "GERÄTETEST"));
+      for (size_t i = 0; i < x.lines.size() && i < 8; i++) {
+        int y = 66 + int(i) * 16;
+        list.push_back(text(120, y, 1, white, fit(x.lines[i], 1, span(y, 1))));
       }
-      list.push_back(text(120, 224, 1, yellow, "Scans buchen nicht"));
+      list.push_back(text(120, 202, 1, yellow, "Scans buchen nicht"));
       return list;
     }
     if (x.screen == "reset") {
       list.push_back(fill(red));
-      list.push_back(text(120, 70, 2, white, "ZUGANG"));
-      list.push_back(text(120, 94, 2, white, "ZURUECKSETZEN?"));
-      list.push_back(text(120, 132, 1, white, "Nochmal 3 s halten: JA"));
-      list.push_back(text(120, 150, 1, white, "Kurz druecken: abbrechen"));
-      list.push_back(text(120, 178, 1, white, "Bestand bleibt erhalten"));
+      list.push_back(text(120, 72, 2, white, "ZUGANG"));
+      list.push_back(text(120, 98, 2, white, "ZURÜCKSETZEN?"));
+      list.push_back(text(120, 134, 1, white, "Nochmal 3 s halten: JA"));
+      list.push_back(text(120, 154, 1, white, "Kurz drücken: abbrechen"));
+      list.push_back(text(120, 182, 1, white, "Bestand bleibt erhalten"));
       return list;
     }
     if (x.screen == "broken") {
       list.push_back(fill(red));
-      list.push_back(text(120, 80, 2, white, "KONFIGURATION"));
-      list.push_back(text(120, 104, 2, white, "DEFEKT"));
-      list.push_back(text(120, 145, 1, white, "Taste 10 s halten"));
+      list.push_back(text(120, 84, 2, white, "KONFIGURATION"));
+      list.push_back(text(120, 110, 2, white, "DEFEKT"));
+      list.push_back(text(120, 148, 1, white, "Taste 10 s halten"));
       return list;
     }
     if (x.screen == "credentials") {
-      list.push_back(fill(black));
-      list.push_back(text(120, 46, 2, white, "WLAN"));
-      list.push_back(text(120, 74, 1, white, x.ssid));
-      auto pw = wrap("Kennwort: " + x.wifi, {94, 106});
+      list.push_back(fill(dark));
+      list.push_back(text(120, 44, 2, white, "WLAN"));
+      list.push_back(text(120, 72, 1, white, fit(x.ssid, 1, span(72, 1))));
+      auto pw = wrap("Kennwort: " + x.wifi, {span(94, 1), span(110, 1)});
       for (size_t i = 0; i < pw.size(); i++)
-        list.push_back(text(120, i ? 106 : 94, 1, white, pw[i]));
-      list.push_back(text(120, 130, 1, yellow, "http://192.168.4.1"));
+        list.push_back(text(120, i ? 110 : 94, 1, white, pw[i]));
+      list.push_back(text(120, 134, 1, yellow, "http://192.168.4.1"));
       if (!x.configured) {
-        list.push_back(text(120, 158, 1, white, "Einrichtungscode:"));
-        list.push_back(text(120, 180, 2, yellow, x.setupCode));
+        list.push_back(text(120, 160, 1, white, "Einrichtungscode:"));
+        list.push_back(text(120, 184, 2, yellow, x.setupCode));
       } else
         list.push_back(text(120, 164, 1, white, "Kennwort im Browser"));
-      if (!x.hint.empty()) list.push_back(text(120, 206, 1, orange, x.hint));
+      if (!x.hint.empty()) list.push_back(text(120, 208, 1, warnText, fit(x.hint, 1, span(208, 1))));
       return list;
     }
     bool g = !x.blocked && isGreen(), y = !x.blocked && isYellow(),
@@ -331,67 +341,66 @@ public:
     if (menuOpen(now)) {
       auto items = menuItems();
       int n = items.size(), sel = menuSel % n;
-      list.push_back(fill(black));
-      list.push_back(text(120, 52, 2, white, "BETREUUNG"));
-      list.push_back(text(120, 86, 1, grey, items[(sel + n - 1) % n].second));
-      list.push_back(text(120, 108, 2, yellow, items[sel].second));
-      list.push_back(text(120, 130, 1, grey, items[(sel + 1) % n].second));
-      list.push_back(rect(30, 142, 180, 35, 8, grey));
-      list.push_back(text(120, 160, 2, white, "TASTE = OK"));
-      info({"Ring drehen: Auswahl", "Karte erneut: schliessen"}, white);
-      list.push_back(text(120, 224, 1, white, "Taste: ausfuehren"));
+      list.push_back(fill(dark));
+      key(grey, "Taste: ausführen");
+      list.push_back(text(120, 54, 2, white, "BETREUUNG"));
+      list.push_back(text(120, 79, 1, grey, items[(sel + n - 1) % n].second));
+      list.push_back(text(120, 99, 2, yellow, items[sel].second));
+      list.push_back(text(120, 118, 1, grey, items[(sel + 1) % n].second));
+      pillButton(button, white, "TASTE = OK");
+      info({"Ring drehen: Auswahl", "Karte: schließen"}, white, panel);
       return list;
     }
     if (seriesActive() && !editingMensa(now)) {
       auto p = seriesProgress();
-      list.push_back(fill(black));
-      list.push_back(text(120, 50, 2, white, "EINLERNEN"));
-      list.push_back(text(120, 90, 4, yellow, seriesLabel));
-      list.push_back(text(120, 124, 1, white,
-                          std::string(seriesRoom ? "Mensa " : "Kueche ") + std::to_string(p.first) + " von " +
+      list.push_back(fill(dark));
+      key(grey, "Taste: weiter");
+      list.push_back(text(120, 52, 2, white, "EINLERNEN"));
+      list.push_back(text(120, 85, 4, yellow, seriesLabel));
+      list.push_back(text(120, 115, 1, white,
+                          std::string(seriesRoom ? "Mensa " : "Küche ") + std::to_string(p.first) + " von " +
                               std::to_string(p.second)));
-      list.push_back(rect(30, 142, 180, 35, 8, grey));
-      list.push_back(text(120, 160, 2, white, "VORHALTEN"));
+      pillButton(button, white, "VORHALTEN");
       if (!x.feedback.empty())
-        info(wrap(x.feedback, {191, 205}), x.feedbackOk ? green : orange);
+        info(wrap(x.feedback, infoWidths), x.feedbackOk ? okText : warnText, panel);
       else
-        info({"Taste: Nummer ueberspringen", "3 s halten: Ende"}, white);
-      list.push_back(text(120, 224, 1, white, "Taste: weiter"));
+        info({"Taste: überspringen", "3 s halten: Ende"}, white, panel);
       return list;
     }
     if (editingMensa(now)) {
-      list.push_back(fill(black));
-      list.push_back(text(120, 56, 2, white, "MENSA"));
-      list.push_back(text(120, 96, 4, yellow, std::to_string(mensaEdit)));
-      list.push_back(text(120, 128, 1, white,
+      list.push_back(fill(dark));
+      key(grey, "Taste: OK");
+      list.push_back(text(120, 52, 2, white, "MENSA"));
+      list.push_back(text(120, 85, 4, yellow, std::to_string(mensaEdit)));
+      list.push_back(text(120, 115, 1, white,
                           "belegt " + std::to_string(occupied(1)) + " von " + std::to_string(rooms[1].capacity)));
-      list.push_back(rect(30, 142, 180, 35, 8, grey));
-      list.push_back(text(120, 160, 2, white, mensaEdit ? "FREIGEBEN" : "SPERREN"));
-      info({"Ring drehen: Anzahl", "Ohne Eingabe: Abbruch"}, white);
-      list.push_back(text(120, 224, 1, white, "Taste: OK"));
+      pillButton(button, white, mensaEdit ? "FREIGEBEN" : "SPERREN");
+      info({"Ring drehen: Anzahl", "Sonst Abbruch"}, white, panel);
       return list;
     }
-    int bg = g ? green : y ? yellow : red, fg = bg == red ? white : black;
+    int bg = g ? green : y ? yellow : red, fg = y ? dark : white, pill = shade(bg, 11);
     long long left = flow.releaseIn(now);
     int next = flow.target(now);
     list.push_back(fill(bg));
     bool countdown =
         flow.waiting && flow.autoOn && left >= 0 && !flow.relief && !paused && ready && !measuringGroup && !x.blocked;
-    if (countdown)
-      ring(list, flow.releaseShare(now),
-           black); // black ring on red: visible, and the white footer text stays readable on top
-    list.push_back(text(120, 62, 3, fg, g ? "PLATZ FREI" : y ? "FAST VOLL" : "EINLASS ZU"));
+    if (countdown) ring(list, flow.releaseShare(now), fg, shade(bg, 4));
+    key(fg, !ready || dayWaiting(now) ? "Taste 3 s halten"
+            : flow.relief || paused   ? "Taste: weiter"
+            : flow.waiting            ? "Taste: freigeben"
+                                      : "Taste: Pause");
+    list.push_back(text(120, 58, 3, fg, g ? "PLATZ FREI" : y ? "FAST VOLL" : "EINLASS ZU"));
     std::string main;
     if (x.blocked)
-      main = "Stoerung";
+      main = "Störung";
     else if (!ready)
-      main = "Bestand pruefen";
+      main = "Bestand prüfen";
     else if (flow.relief)
       main = "Entlastung";
     else if (paused)
       main = "Pause";
     else if (flow.waiting)
-      main = measuringGroup ? "Messung laeuft"
+      main = measuringGroup ? "Messung läuft"
              : countdown    ? "Weiter in " + std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") +
                                std::to_string(left % 60)
                          : "Gruppe voll";
@@ -402,15 +411,16 @@ public:
       main = "Noch " + std::to_string(r) + (r == 1 ? " Kind" : " Kinder");
     } else if (available(0) + available(1) == 0)
       main = "Kein Platz";
-    list.push_back(text(120, 98, 2, fg, main));
-    list.push_back(text(120, 124, 2, fg, "K " + std::to_string(available(0)) + "  M " + std::to_string(available(1))));
-    list.push_back(rect(28, 140, 184, 39, 9, black));
-    list.push_back(rect(30, 142, 180, 35, 8, flow.relief ? grey : orange));
-    list.push_back(text(120, 160, 2, flow.relief ? white : black, flow.relief ? "ENTLASTUNG" : "ENTLASTEN"));
+    list.push_back(text(120, 89, 2, fg, main));
+    list.push_back(text(120, 113, 2, fg, "K " + std::to_string(available(0)) + " · M " + std::to_string(available(1))));
+    if (flow.relief)
+      pillButton(button, white, "ENTLASTUNG");
+    else
+      pillButton(dark, orange, "ENTLASTEN");
     if (lockUntil > now && !lockLabel.empty())
-      info({lockLabel + " gesperrt", "noch " + std::to_string((lockUntil - now + 999) / 1000) + " s"}, orange);
+      info({lockLabel + " gesperrt", "noch " + std::to_string((lockUntil - now + 999) / 1000) + " s"}, warnText, pill);
     else if (!x.feedback.empty())
-      info(wrap(x.feedback, {191, 205}), x.feedbackOk ? green : orange);
+      info(wrap(x.feedback, infoWidths), x.feedbackOk ? okText : warnText, pill);
     else {
       bool remindNow = reminders(now) > 0 && needsAttention();
       std::string hint = !x.hint.empty()                  ? x.hint
@@ -424,13 +434,8 @@ public:
                                        : paused    ? "Noch Pause? Taste: weiter"
                                                    : "Gruppe wartet: Taste"
                                      : "";
-      info(wrap(hint, {198}), white);
+      info(wrap(hint, infoWidths), white, pill);
     }
-    list.push_back(text(120, 224, 1, fg,
-                        !ready || dayWaiting(now) ? "Taste 3 s halten"
-                        : flow.relief || paused   ? "Taste: weiter"
-                        : flow.waiting            ? "Taste: freigeben"
-                                                  : "Taste: Pause"));
     return list;
   }
   // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory).

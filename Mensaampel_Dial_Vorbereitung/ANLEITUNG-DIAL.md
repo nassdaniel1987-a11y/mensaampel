@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.10.5-preview · Stand 30.09.2026**
+**Vorbereitete Geräteversion 0.11.0-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -188,7 +188,7 @@ Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern,
 
 Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG-DIAL.html) bzw. `BEDIENUNG-DIAL.pdf`. Die Kurzkarte `DIAL-KURZKARTE.pdf` (zwei Karten pro A4-Seite) neben das Dial kleben. Dieselben Inhalte stehen am Tablet unter **Hilfe**.
 
-**Anzeige:** Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Große Schrift zeigt den Zustand, darunter die freien Plätze „K 45 M 0“ (Küche/Mensa). Wartet die Automatik auf die nächste Gruppe, läuft ein schwarzer Ring am Rand ab („Weiter in 0:42“). Rückmeldungen und Hinweise erscheinen im schwarzen Feld unten.
+**Anzeige:** Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Ganz oben steht, was die Taste gerade bewirkt (z. B. „Taste: Pause“). Große Schrift zeigt den Zustand, darunter die freien Plätze „K 45 · M 0“ (Küche/Mensa). Wartet die Automatik auf die nächste Gruppe, läuft ein Ring am Rand ab („Weiter in 0:42“). Rückmeldungen und Hinweise erscheinen im dunklen Feld unten.
 
 | Handgriff | Wirkung |
 |---|---|
@@ -218,6 +218,13 @@ Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG
 | Anzeige ohne Flackern | Bildwechsel ruhig (Zwischenspeicher aktiv) | ☐ |
 | Uhr nach Stromlosigkeit | Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt | ☐ |
 | Ampel-Tablet ausschalten | nach 10 s „Ampel draussen getrennt!“ am Dial | ☐ |
+
+## Neu in 0.11
+
+- **Neues Aussehen am Dial:** geglättete, deutlich größere Schrift (Inter) mit echten Umlauten, ruhigere kontrastreiche Ampelfarben, Knopf und Infofeld als abgerundete „Pillen“, Ring mit runden Enden. Was die Taste gerade bewirkt, steht jetzt oben. Simulation, Hilfe und gedruckte Anleitung zeigen pixelgenau dasselbe Bild wie das Dial (automatisch geprüft).
+- **Stromausfall an jeder Stelle geprüft:** Ein abgebrochenes Speichern führt nicht mehr zu „Bestand manuell abgleichen“ – das Dial nimmt den zuletzt bestätigten Stand. Ein unterbrochener Abgleich verliert nie Karten und lässt sich beliebig oft wiederholen. Getestet mit einem simulierten Stromausfall nach jedem einzelnen Schreibschritt.
+- **Verbindung:** Antworten an das Tablet werden ohne Sperre gesendet – ein Tablet, das mitten in der Antwort das WLAN verlässt, hält Scans und Ampel nicht mehr auf. Befehle vom Tablet tragen eine Kennung: eine Wiederholung nach einem Aussetzer wird nie doppelt ausgeführt (z. B. „Neuer Essenstag“).
+- **Sicherer Betrieb:** Ein abgewiesener Scan bleibt nie gebucht. Eine eingespielte Sicherung muss immer neu bestätigt werden. „Rückgängig“ stellt auch die Gruppe zurück. Im Gerätetest ist die Ampel draußen rot. Eine Betreuerkarte kann nicht versehentlich als Kinderkarte eingelernt werden.
 
 ## Neu in 0.10
 

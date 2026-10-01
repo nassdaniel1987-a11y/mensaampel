@@ -16,7 +16,7 @@ export function createDemoController(engine, clock = () => Date.now()) {
       op: 'dial',
       now: now(),
       blocked: !!storageError,
-      hint: storageError ? 'Speicher pruefen!' : '',
+      hint: storageError ? 'Speicher prüfen!' : '',
       ...(clock() - feedback.at < 3500 ? { feedback: feedback.text, feedbackOk: feedback.ok } : {}),
     });
   // Device test as on the Dial: scans, ring and button are only shown, nothing is booked.

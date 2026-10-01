@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.10.5-preview · Stand 30.09.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.11.0-preview · Stand 01.10.2026</strong></p>
 <blockquote>
 <p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
 </blockquote>
@@ -258,7 +258,7 @@
 </ul>
 <h2>Bedienung im Alltag (Stand 0.8)</h2>
 <p>Ausführlich und mit echten Bildschirmbildern in <a href="BEDIENUNG-DIAL.html">BEDIENUNG-DIAL.html</a> bzw. <code>BEDIENUNG-DIAL.pdf</code>. Die Kurzkarte <code>DIAL-KURZKARTE.pdf</code> (zwei Karten pro A4-Seite) neben das Dial kleben. Dieselben Inhalte stehen am Tablet unter <strong>Hilfe</strong>.</p>
-<p><strong>Anzeige:</strong> Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Große Schrift zeigt den Zustand, darunter die freien Plätze „K 45 M 0“ (Küche/Mensa). Wartet die Automatik auf die nächste Gruppe, läuft ein schwarzer Ring am Rand ab („Weiter in 0:42“). Rückmeldungen und Hinweise erscheinen im schwarzen Feld unten.</p>
+<p><strong>Anzeige:</strong> Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Ganz oben steht, was die Taste gerade bewirkt (z. B. „Taste: Pause“). Große Schrift zeigt den Zustand, darunter die freien Plätze „K 45 · M 0“ (Küche/Mensa). Wartet die Automatik auf die nächste Gruppe, läuft ein Ring am Rand ab („Weiter in 0:42“). Rückmeldungen und Hinweise erscheinen im dunklen Feld unten.</p>
 <table>
 <thead>
 <tr>
@@ -336,6 +336,13 @@
 </tr>
 </tbody>
 </table>
+<h2>Neu in 0.11</h2>
+<ul>
+<li><strong>Neues Aussehen am Dial:</strong> geglättete, deutlich größere Schrift (Inter) mit echten Umlauten, ruhigere kontrastreiche Ampelfarben, Knopf und Infofeld als abgerundete „Pillen“, Ring mit runden Enden. Was die Taste gerade bewirkt, steht jetzt oben. Simulation, Hilfe und gedruckte Anleitung zeigen pixelgenau dasselbe Bild wie das Dial (automatisch geprüft).</li>
+<li><strong>Stromausfall an jeder Stelle geprüft:</strong> Ein abgebrochenes Speichern führt nicht mehr zu „Bestand manuell abgleichen“ – das Dial nimmt den zuletzt bestätigten Stand. Ein unterbrochener Abgleich verliert nie Karten und lässt sich beliebig oft wiederholen. Getestet mit einem simulierten Stromausfall nach jedem einzelnen Schreibschritt.</li>
+<li><strong>Verbindung:</strong> Antworten an das Tablet werden ohne Sperre gesendet – ein Tablet, das mitten in der Antwort das WLAN verlässt, hält Scans und Ampel nicht mehr auf. Befehle vom Tablet tragen eine Kennung: eine Wiederholung nach einem Aussetzer wird nie doppelt ausgeführt (z. B. „Neuer Essenstag“).</li>
+<li><strong>Sicherer Betrieb:</strong> Ein abgewiesener Scan bleibt nie gebucht. Eine eingespielte Sicherung muss immer neu bestätigt werden. „Rückgängig“ stellt auch die Gruppe zurück. Im Gerätetest ist die Ampel draußen rot. Eine Betreuerkarte kann nicht versehentlich als Kinderkarte eingelernt werden.</li>
+</ul>
 <h2>Neu in 0.10</h2>
 <ul>
 <li><strong>0.10.5:</strong> Verbindung stabiler: Der Webserver läuft im Dial als eigene Aufgabe und wird nicht mehr durch Zeichnen, Kartenleser oder Speichern aufgehalten. Das Tablet holt die Kartenliste nur noch, wenn sich etwas geändert hat, fragt ruhiger (1,5 s), versucht es nach einem Aussetzer sofort erneut und meldet „Verbindung unterbrochen“ erst nach 8 s (die Ampel draußen bleibt bei 3 s → Rot). Unter Gerät steht jetzt „Verbindung: letzte Antwort … · Aussetzer …“.</li>
