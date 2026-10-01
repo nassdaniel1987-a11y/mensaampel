@@ -40,6 +40,7 @@ await build({
   define: { 'process.env.NODE_ENV': '"production"' },
   outfile: 'build/demo/app.js',
   legalComments: 'inline',
+  loader: { '.woff2': 'dataurl' },
 });
 const safe = s => s.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync('build/demo/app.css', 'utf8');

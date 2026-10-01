@@ -45,7 +45,9 @@ export function Signal({
   const [sound, setSound] = useState(() => full && readChime()),
     // After a reload the browser keeps sound blocked until someone taps the page once.
     [locked, setLocked] = useState(() => full && readChime()),
-    was = useRef<boolean | null>(null);
+    was = useRef<boolean | null>(null),
+    // Longest wait seen in this countdown: the ring shows the share still to go.
+    span = useRef(0);
   useEffect(() => {
     if (!locked) return;
     const unlock = () => {
@@ -81,6 +83,11 @@ export function Signal({
       : reason === 'confirm'
         ? 'Wir bereiten alles vor.'
         : 'Die Anzeige hat gerade keine Verbindung oder ist nicht bereit.';
+  const releaseIn = reason === 'batch' && connected ? (state?.signal.releaseIn ?? -1) : -1;
+  if (releaseIn <= 0) span.current = 0;
+  else if (releaseIn > span.current) span.current = releaseIn;
+  const share = releaseIn > 0 && span.current > 0 ? releaseIn / span.current : 0;
+  const time = releaseIn > 0 ? `${Math.floor(releaseIn / 60)}:${String(releaseIn % 60).padStart(2, '0')}` : '';
   useEffect(() => {
     if (was.current === false && admitting && sound) chime();
     was.current = admitting;
@@ -97,18 +104,28 @@ export function Signal({
   };
   return (
     <section
-      className={`signal ${full ? 'fullscreen-signal' : ''} ${yellow ? 'yellow' : green ? 'green' : 'red'}`}
+      className={`signal ${full ? 'fullscreen-signal' : ''} ${yellow ? 'yellow' : green ? 'green' : 'red'} ${time ? 'counting' : ''}`}
       aria-label="Ampelanzeige"
     >
-      <div className="signal-circle" aria-hidden="true">
-        {admitting ? <Check /> : reason === 'offline' ? <WifiOff /> : <Hand />}
+      <div className="signal-disc" aria-hidden="true">
+        <div className="signal-circle">{admitting ? <Check /> : reason === 'offline' ? <WifiOff /> : <Hand />}</div>
+        {full && share > 0 && (
+          <svg className="signal-ring" viewBox="0 0 100 100">
+            <circle className="track" cx="50" cy="50" r="46" />
+            <circle
+              className="progress"
+              cx="50"
+              cy="50"
+              r="46"
+              strokeDasharray={2 * Math.PI * 46}
+              strokeDashoffset={2 * Math.PI * 46 * (1 - share)}
+            />
+          </svg>
+        )}
       </div>
-      <h2>{title}</h2>
-      <p>
-        {reason === 'batch' && connected && (state?.signal.releaseIn ?? -1) > 0
-          ? `Gleich geht's weiter · ${Math.floor(state!.signal.releaseIn! / 60)}:${String(state!.signal.releaseIn! % 60).padStart(2, '0')}`
-          : text}
-      </p>
+      <h2>{time && full ? "Gleich geht's weiter" : title}</h2>
+      {time && full && <p className="signal-time">{time}</p>}
+      <p>{time && !full ? `Gleich geht's weiter · ${time}` : time ? 'Bitte kurz warten.' : text}</p>
       {full && (
         <>
           <p className="signal-note">

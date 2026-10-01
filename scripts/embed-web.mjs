@@ -25,6 +25,7 @@ files.forEach((f, i) => {
       '.js': 'text/javascript; charset=utf-8',
       '.css': 'text/css; charset=utf-8',
       '.svg': 'image/svg+xml',
+      '.woff2': 'font/woff2',
     }[extname(f)] || 'application/octet-stream';
   out += `{${JSON.stringify(path)},${JSON.stringify(mime)},asset${i},sizeof(asset${i})},\n`;
 });
