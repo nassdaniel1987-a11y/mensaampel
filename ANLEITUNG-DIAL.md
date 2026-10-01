@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.12.1-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.13.0-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -191,7 +191,7 @@ Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern,
 
 Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG-DIAL.html) bzw. `BEDIENUNG-DIAL.pdf`. Die Kurzkarte `DIAL-KURZKARTE.pdf` (zwei Karten pro A4-Seite) neben das Dial kleben. Dieselben Inhalte stehen am Tablet unter **Hilfe**.
 
-**Anzeige:** Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Ganz oben steht, was die Taste gerade bewirkt (z. B. „Taste: Pause“). Große Schrift zeigt den Zustand, darunter die freien Plätze „K 45 · M 0“ (Küche/Mensa). Wartet die Automatik auf die nächste Gruppe, läuft ein Ring am Rand ab („Weiter in 0:42“). Rückmeldungen und Hinweise erscheinen im dunklen Feld unten.
+**Anzeige:** Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Ganz oben steht, was die Taste gerade bewirkt (z. B. „Taste: Pause“). Darunter ein Symbol (✓ frei, ⏸ Pause/Warten, ! Hinweis, ✕ Störung) und eine **große Zahl**: Läuft eine Gruppe, wie viele Kinder dieser Gruppe noch kommen dürfen – in Klammern die insgesamt freien Plätze „(46 frei: K 42 · M 4)“; ohne Gruppen die freien Plätze. Wartet die Automatik auf die nächste Gruppe, zeigt die Zahl die Restzeit („0:42“) und ein Ring läuft am Rand ab. Nach jedem Scan erscheint kurz ein ✓ (gebucht) oder ! (abgewiesen) mit der Meldung. Hinweise stehen in einem dunklen Feld über dem Knopf „ENTLASTEN“ (unten).
 
 | Handgriff | Wirkung |
 |---|---|
@@ -233,6 +233,11 @@ Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspie
 5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen.
 
 Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.
+
+## Neu in 0.13
+
+- **Neues Dial-Design:** Ampelfarbe als weicher Verlauf, Symbol, große Zahl (Rest der Gruppe bzw. freie Plätze, Countdown), Knopf „ENTLASTEN“ jetzt unten. Nach jedem Scan ein kurzer Bestätigungsbildschirm (✓ / !).
+- **Klänge:** vier Klangsets (Klassisch, Ping, Gong, Marimba) mit eigenen Tönen für Ausgabe, Rückgabe und Abweisung. Auswahl unter **Betreuung → Einstellungen → Klang am Dial**, „Anhören“ spielt sie am Dial vor. Neuer Standard: Ping.
 
 ## Neu in 0.12
 

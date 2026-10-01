@@ -86,6 +86,7 @@ export function createDemoController(engine, clock = () => Date.now()) {
       offlineUntil = clock() + 8000;
       return reply(true, 'Verbindung für acht Sekunden unterbrochen.');
     }
+    if (c.type === 'soundTest') return reply(true, 'Klang wird am Tablet abgespielt.');
     if (c.type === 'deviceTest') {
       test = c.on ? { uid: '', reads: 0, at: 0, turn: 0, button: '-' } : null;
       return reply(true, test ? 'Gerätetest gestartet. Scans buchen nicht.' : 'Gerätetest beendet.');

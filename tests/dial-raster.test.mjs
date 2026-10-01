@@ -16,6 +16,19 @@ const hash = frame => {
 // Shapes at awkward positions and angles, all font sizes, umlauts, clipping at the strip and screen borders.
 const shapes = [
   [
+    ['g', 0x1407, 0x0a83, 1],
+    ['a', 120, 120, 100, 119, 0, 360, 0xffff, 3],
+    ['l', 80, 120, 108, 148, 14, 0xffff],
+    ['l', 108, 148, 160, 92, 14, 0xffff],
+    ['t', 120, 190, 5, 0xffff, '46'],
+    ['l', 10, -5, 250, 250, 3, 0xf800],
+  ],
+  [
+    ['g', 0xd924, 0x18c3, 0],
+    ['l', 100, 100, 100, 100, 20, 0x07e0],
+    ['t', 120, 120, 5, 0xffe0, '12:05'],
+  ],
+  [
     ['f', 0x2104],
     ['a', 120, 120, 104, 116, 0, 360, 0x4208],
     ['a', 120, 120, 104, 116, 270, 397, 0xffff],

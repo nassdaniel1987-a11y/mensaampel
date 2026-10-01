@@ -96,6 +96,39 @@ inline nlohmann::json rect(int x, int y, int w, int h, int r, int color) {
   return nlohmann::json::array({"r", x, y, w, h, r, color});
 }
 // Ring along the edge: faint full track, progress clockwise from the top with round ends (0 = right, clockwise).
+// Background: radial gradient from a lighter centre to a deeper edge (design 0.13).
+struct Tone {
+  int centre, edge, text;
+};
+constexpr Tone toneGreen{0x1D08, 0x0AC5, white}, toneRed{0xEA28, 0x90C3, white}, toneAmber{0xFE89, 0xDCA0, dark},
+    toneDark{0x31A7, 0x0841, white};
+inline nlohmann::json gradient(const Tone &t) {
+  return nlohmann::json::array({"g", t.centre, t.edge, 1});
+}
+inline nlohmann::json line(int x0, int y0, int x1, int y1, int w, int color) {
+  return nlohmann::json::array({"l", x0, y0, x1, y1, w, color});
+}
+inline nlohmann::json circle(int x, int y, int r, int color) {
+  return nlohmann::json::array({"c", x, y, r, color});
+}
+// Symbols drawn from lines (s = half size in pixels).
+inline void iconCheck(nlohmann::json &l, int cx, int cy, int s, int w, int c) {
+  l.push_back(line(cx - s, cy, cx - s / 3, cy + 2 * s / 3, w, c));
+  l.push_back(line(cx - s / 3, cy + 2 * s / 3, cx + s, cy - 2 * s / 3, w, c));
+}
+inline void iconCross(nlohmann::json &l, int cx, int cy, int s, int w, int c) {
+  l.push_back(line(cx - s, cy - s, cx + s, cy + s, w, c));
+  l.push_back(line(cx + s, cy - s, cx - s, cy + s, w, c));
+}
+inline void iconPause(nlohmann::json &l, int cx, int cy, int s, int c) {
+  int bar = s * 7 / 10;
+  l.push_back(rect(cx - s, cy - s, bar, 2 * s, 3, c));
+  l.push_back(rect(cx + s - bar, cy - s, bar, 2 * s, 3, c));
+}
+inline void iconAlert(nlohmann::json &l, int cx, int cy, int s, int c) {
+  l.push_back(line(cx, cy - s, cx, cy + s / 3, std::max(3, s / 2), c));
+  l.push_back(circle(cx, cy + s, std::max(2, s / 4), c));
+}
 inline void ring(nlohmann::json &list, double share, int color, int track) {
   if (share <= 0) return;
   list.push_back(nlohmann::json::array({"a", 120, 120, 110, 118, 0, 360, track}));

@@ -166,8 +166,8 @@ test('Halten: Fortschrittsring am Dial', async () => {
   const half = x.dial({ holdMs: 1500 });
   assert.ok(arcs(half).length >= 1);
   assert.ok(shown(half).includes('Halten …'));
-  assert.ok(shown(x.dial({ holdMs: 3200 })).includes('Loslassen: 3 s erreicht'));
-  assert.ok(shown(x.dial({ holdMs: 10500 })).includes('Loslassen: Zugang zurücksetzen'));
+  assert.ok(shown(x.dial({ holdMs: 3200 })).includes('Jetzt loslassen'));
+  assert.ok(shown(x.dial({ holdMs: 10500 })).includes('Loslassen: Zugang neu'));
   assert.ok(shown(x.dial({ screen: 'reset' })).includes('Nochmal 3 s halten: JA'));
 });
 
@@ -200,7 +200,10 @@ test('Sperrzeit: Countdown am Dial, eingelernte Karten sofort nutzbar', async ()
   assert.match(r.message, /K05: Sperrzeit, noch 2 s/);
   // tap() advances the clock by 1 s after each scan: 0.5 s of the lock are left now.
   assert.ok(shown(x.dial()).includes('K05 gesperrt'));
-  assert.ok(shown(x.dial()).includes('noch 1 s'), 'zählt live herunter');
+  assert.ok(
+    x.dial().some(i => i[0] === 't' && i[3] === 5 && i[5] === '1'),
+    'zählt live herunter',
+  );
   x.wait(600);
   assert.ok(!shown(x.dial()).includes('K05 gesperrt'));
   const e = x.e;

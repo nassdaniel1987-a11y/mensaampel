@@ -173,6 +173,8 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       offlineUntil = Date.now() + 8000;
       return { ok: true, message: 'Verbindung für acht Sekunden unterbrochen.', state: state() };
     }
+    // Sounds play on the tablet itself (WebAudio, src/sounds.mjs); the PC has no buzzer.
+    if (command.type === 'soundTest') return { ok: true, message: 'Klang wird am Tablet abgespielt.', state: state() };
     if (command.type === 'deviceTest') {
       test = command.on ? { uid: '', reads: 0, at: 0, turn: 0, button: '-' } : null;
       return {

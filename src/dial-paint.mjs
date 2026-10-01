@@ -8,6 +8,19 @@ const mix = (bg, fg, a) => {
   const ch = (shift, mask) => Math.floor((((fg >> shift) & mask) * a + ((bg >> shift) & mask) * (16 - a) + 8) / 16);
   return (ch(11, 31) << 11) | (ch(5, 63) << 5) | ch(0, 31);
 };
+const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// Same dithered gradient colour as raster::gradientColor.
+const gradientColor = (c1, c2, w, x, y) => {
+  const d = bayer[(y & 3) * 4 + (x & 3)];
+  const ch = (shift, mask) => {
+    const a = Math.floor((((c1 >> shift) & mask) * 255) / mask),
+      b = Math.floor((((c2 >> shift) & mask) * 255) / mask),
+      v = Math.floor((a * (256 - w) + b * w) / 256),
+      q = Math.floor((v * mask * 16 + d * 255) / (255 * 16));
+    return q > mask ? mask : q;
+  };
+  return (ch(11, 31) << 11) | (ch(5, 63) << 5) | ch(0, 31);
+};
 const coverage = (x, y, inside) => {
   let n = 0;
   for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) if (inside(8 * x + 2 * i + 1, 8 * y + 2 * j + 1)) n++;
@@ -16,7 +29,7 @@ const coverage = (x, y, inside) => {
 const inCircle = (sx, sy, cx, cy, r) => (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy) <= r * r;
 const cosine = d => sine[((d % 360) + 450) % 360];
 const sin = d => sine[((d % 360) + 360) % 360];
-const faceOf = size => faces[size < 1 ? 0 : size > 4 ? 3 : size - 1];
+const faceOf = size => faces[size < 1 ? 0 : size > faces.length ? faces.length - 1 : size - 1];
 const glyphOf = (size, cp) => {
   const [first, count] = faceOf(size);
   for (const code of [cp, 63]) for (let n = first; n < first + count; n++) if (glyphs[n * 7] === code) return n * 7;
@@ -50,7 +63,42 @@ export function paintFrame(items) {
   for (const item of items) {
     const kind = item[0];
     if (kind === 'f') px.fill(item[1]);
-    else if (kind === 'r') {
+    else if (kind === 'g') {
+      const [, c1, c2, type] = item;
+      for (let y = 0; y < size; y++)
+        for (let x = 0; x < size; x++) {
+          let w;
+          if (type === 1) {
+            const dx = 2 * x - 239,
+              dy = 2 * y - 239;
+            w = Math.min(256, Math.floor(((dx * dx + dy * dy) * 256) / (239 * 239 * 2)));
+          } else w = Math.floor((y * 256 + 119) / 239);
+          px[y * size + x] = gradientColor(c1, c2, w, x, y);
+        }
+    } else if (kind === 'l') {
+      const [, x0, y0, x1, y1, w, c] = item,
+        ax = 8 * x0,
+        ay = 8 * y0,
+        bx = 8 * x1,
+        by = 8 * y1,
+        r = 4 * w,
+        ex = bx - ax,
+        ey = by - ay,
+        len = ex * ex + ey * ey;
+      const inside = (sx, sy) => {
+        const qx = sx - ax,
+          qy = sy - ay,
+          dot = qx * ex + qy * ey;
+        if (len === 0 || dot <= 0) return qx * qx + qy * qy <= r * r;
+        if (dot >= len) return (sx - bx) * (sx - bx) + (sy - by) * (sy - by) <= r * r;
+        return (qx * qx + qy * qy) * len - dot * dot <= r * r * len;
+      };
+      const pad = Math.trunc(w / 2) + 2,
+        xa = Math.min(x0, x1) - pad,
+        xb = Math.max(x0, x1) + pad;
+      for (let y = Math.max(Math.min(y0, y1) - pad, 0); y < Math.min(Math.max(y0, y1) + pad, size); y++)
+        for (let x = Math.max(xa, 0); x < xb && x < size; x++) blend(x, y, c, coverage(x, y, inside));
+    } else if (kind === 'r') {
       let [, x, y, w, h, r, c] = item;
       if (r * 2 > w) r = Math.floor(w / 2);
       if (r * 2 > h) r = Math.floor(h / 2);
@@ -86,6 +134,7 @@ export function paintFrame(items) {
             );
     } else if (kind === 'a') {
       const [, cx, cy, r0, r1, a0, a1, c] = item,
+        alpha = item.length > 8 ? item[8] : 16,
         span = a1 - a0;
       if (span <= 0) continue;
       const full = span >= 360,
@@ -120,7 +169,7 @@ export function paintFrame(items) {
           if (x < 0 || x >= size) continue;
           const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
           if (d < lo || d > hi) continue;
-          blend(x, y, c, coverage(x, y, inside));
+          blend(x, y, c, Math.trunc((coverage(x, y, inside) * alpha) / 16));
         }
     } else if (kind === 't') {
       const [, x, y, s, c, text] = item;

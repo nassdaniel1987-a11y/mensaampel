@@ -40,6 +40,7 @@ export type Info = { mode: 'pc' | 'device'; configured?: boolean; nonce?: string
 export type State = {
   cardsRev?: number;
   volume?: number;
+  sound?: number;
   remind?: number;
   dayWaiting?: boolean;
   reminders?: number;

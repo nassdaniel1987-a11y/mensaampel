@@ -125,11 +125,30 @@ template <typename F> std::function<void()> guarded(F f) {
     sendPending();
   };
 }
-void note(const std::string &text, bool ok) {
+// Sound: melodies from core/sounds.hpp, played note by note from the loop (never blocks; note() may run in the web
+// task and only queues the melody under the state lock).
+std::vector<mensa::sound::Note> tune;
+size_t tuneAt = 0;
+uint64_t tuneNext = 0;
+void play(int event, int set = -1) {
+  if (set < 0) set = engine.soundSet();
+  tune.clear();
+  for (int n = 0; n < mensa::sound::length(set, event); n++)
+    tune.push_back(mensa::sound::table[set][event][n]);
+  tuneAt = 0;
+  tuneNext = 0;
+}
+void playTick(uint64_t now) {
+  if (tuneAt >= tune.size() || now < tuneNext) return;
+  const auto &n = tune[tuneAt++];
+  if (n.freq) M5.Speaker.tone(n.freq, n.ms);
+  tuneNext = now + n.ms + n.gap;
+}
+void note(const std::string &text, bool ok, int event = -1) {
   feedback = text;
   feedbackOk = ok;
   feedbackAt = nowMs();
-  M5.Speaker.tone(ok ? 1800 : 400, ok ? 90 : 220);
+  play(event >= 0 ? event : ok ? mensa::sound::Info : mensa::sound::Error);
 }
 // Mark and version inside the firmware image: the update check (tablet and Dial) recognises a Mensaampel firmware.
 extern "C" __attribute__((used)) const char firmwareMark[] = "MENSAAMPEL-FIRMWARE-1:" MENSA_VERSION;
@@ -421,6 +440,20 @@ Json command(const Json &j) {
     auto r = transact({{"type", "restart"}});
     if (r["ok"].get<bool>()) restartAt = nowMs() + 1000;
     return r;
+  }
+  if (type == "soundTest") {
+    // Plays issue, return and rejection of one set with short pauses (to choose a set by ear).
+    int set = j.value("set", engine.soundSet());
+    if (set < 0 || set >= mensa::sound::setCount) return result(false, "Unbekannter Klang.");
+    tune.clear();
+    for (int e : {mensa::sound::Issue, mensa::sound::Return, mensa::sound::Error}) {
+      for (int n = 0; n < mensa::sound::length(set, e); n++)
+        tune.push_back(mensa::sound::table[set][e][n]);
+      tune.push_back({0, 1, 500});
+    }
+    tuneAt = 0;
+    tuneNext = 0;
+    return result(true, std::string("Klang „") + mensa::sound::setNames[set] + "“: Ausgabe, Rückgabe, abgewiesen.");
   }
   if (type == "memoryTest") {
     if (needsReview || !storage.error.empty() || !storage.mounted)
@@ -770,10 +803,10 @@ bool buildScreen(Json &list) {
     if (!crashHint.empty())
       x.hint = crashHint;
     else
-      x.hint = !webStarted && config.configured ? "Webserver aus - Dial neu starten"
+      x.hint = !webStarted && config.configured ? "Webserver aus: neu starten"
                : !reader.healthy                ? "Leser prüfen!"
                : !storage.error.empty()         ? "Speicher prüfen!"
-               : !captureTarget.empty()         ? "Karte einlernen am Tablet"
+               : !captureTarget.empty()         ? "Einlernen am Tablet"
                : ampelLost()                    ? (ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!")
                : noClock                        ? "Uhr nicht gestellt"
                                                 : "";
@@ -881,7 +914,7 @@ void setup() {
   }
   draw();
 }
-uint64_t healAt = 0, secondBeepAt = 0;
+uint64_t healAt = 0;
 void step(uint64_t now);
 void loop() {
   const auto now = nowMs();
@@ -913,10 +946,7 @@ void step(uint64_t now) {
     note(otaNote, false);
     otaNote.clear();
   }
-  if (secondBeepAt && now >= secondBeepAt) {
-    secondBeepAt = 0;
-    M5.Speaker.tone(1400, 120);
-  }
+  playTick(now);
   if (captureUntil && now >= captureUntil) {
     clearCapture();
     note("Einlernen abgelaufen. Einlass bleibt pausiert.", false);
@@ -925,7 +955,7 @@ void step(uint64_t now) {
   if (testMode && touch.wasPressed()) testButton = "Touch " + std::to_string(touch.x) + "," + std::to_string(touch.y);
   // Touch field: "ENTLASTEN" on the main screen; in menu, enrolment and Mensa setting the core treats it as the button.
   bool touchOk = engine.menuOpen(now) || engine.seriesActive() || engine.editingMensa(now);
-  if (touch.wasPressed() && touch.x >= 30 && touch.x <= 210 && touch.y >= 131 && touch.y <= 169 && configValid &&
+  if (touch.wasPressed() && touch.x >= 44 && touch.x <= 196 && touch.y >= 182 && touch.y <= 222 && configValid &&
       config.configured && !needsReview && now >= showCredentialsUntil && now >= resetConfirmUntil &&
       (touchOk || !engine.isRelieving()) && !testMode) {
     auto r = transact({{"type", "relief"}});
@@ -1002,10 +1032,7 @@ void step(uint64_t now) {
     ampelWarned = lost;
     // Reminder while a pause, relief or full group waits for a person: short double beep each interval.
     int due = engine.reminders(now);
-    if (due > remindersBeeped) {
-      M5.Speaker.tone(1400, 120);
-      secondBeepAt = now + 160;
-    }
+    if (due > remindersBeeped) { play(mensa::sound::Remind); }
     remindersBeeped = due;
   }
   if (configValid && config.configured && !needsReview && storage.error.empty() && !blocked() && !testMode &&
@@ -1059,7 +1086,12 @@ void step(uint64_t now) {
         note("Einrichtung oder Speicher zuerst prüfen.", false);
       } else {
         auto r = transact({{"type", "scan"}, {"uid", edge.uid}});
-        note(r.value("message", std::string()), r.value("ok", false));
+        bool ok = r.value("ok", false);
+        int event = !ok                               ? mensa::sound::Error
+                    : !r.value("booking", false)      ? mensa::sound::Info
+                    : engine.cardState(edge.uid) == 2 ? mensa::sound::Issue
+                                                      : mensa::sound::Return;
+        note(r.value("message", std::string()), ok, event);
       }
     }
   }

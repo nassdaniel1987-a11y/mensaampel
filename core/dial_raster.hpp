@@ -26,6 +26,19 @@ inline uint16_t mix(uint16_t bg, uint16_t fg, int a) {
       b = ((fg & 31) * a + (bg & 31) * (16 - a) + 8) / 16;
   return uint16_t(r << 11 | g << 5 | b);
 }
+// Ordered 4x4 dither thresholds for smooth gradients in RGB565.
+constexpr int bayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+// Colour between c1 (w = 0) and c2 (w = 256), dithered by pixel position.
+inline uint16_t gradientColor(uint16_t c1, uint16_t c2, int w, int x, int y) {
+  int d = bayer[(y & 3) * 4 + (x & 3)];
+  auto ch = [&](int shift, int mask) {
+    int a = ((c1 >> shift) & mask) * 255 / mask, b = ((c2 >> shift) & mask) * 255 / mask;
+    int v = (a * (256 - w) + b * w) / 256; // 0..255
+    int q = (v * mask * 16 + d * 255) / (255 * 16);
+    return q > mask ? mask : q;
+  };
+  return uint16_t(ch(11, 31) << 11 | ch(5, 63) << 5 | ch(0, 31));
+}
 inline void blend(Target &t, int x, int y, uint16_t c, int a) {
   if (x < 0 || x >= t.w || y < t.y0 || y >= t.y0 + t.h || a <= 0) return;
   t.set(x, y, a >= 16 ? c : mix(t.get(x, y), c, a));
@@ -40,6 +53,20 @@ inline void fill(Target &t, uint16_t c) {
   for (int y = t.y0; y < t.y0 + t.h; y++)
     for (int x = 0; x < t.w; x++)
       t.set(x, y, c);
+}
+// Background gradient: kind 0 vertical (c1 top, c2 bottom), kind 1 radial (c1 centre, c2 at the edge).
+inline void gradient(Target &t, uint16_t c1, uint16_t c2, int kind) {
+  for (int y = t.y0; y < t.y0 + t.h; y++)
+    for (int x = 0; x < t.w; x++) {
+      int w;
+      if (kind == 1) {
+        long long dx = 2 * x - 239, dy = 2 * y - 239, d2 = dx * dx + dy * dy;
+        w = int(d2 * 256 / (239LL * 239 * 2));
+        if (w > 256) w = 256;
+      } else
+        w = (y * 256 + 119) / 239;
+      t.set(x, y, gradientColor(c1, c2, w, x, y));
+    }
 }
 // Sample (i,j) of pixel (x,y) in 1/8 pixel units: 8x+2i+1.
 template <typename In> int coverage(int x, int y, In inside) {
@@ -87,7 +114,7 @@ inline long long sine(int d) {
   return font::sine[((d % 360) + 360) % 360];
 }
 // Ring between radii r0 and r1 from angle a0 to a1 (degrees, 0 = right, clockwise); a partial ring has round ends.
-inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint16_t c) {
+inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint16_t c, int alpha = 16) {
   int span = a1 - a0;
   if (span <= 0) return;
   bool full = span >= 360;
@@ -113,8 +140,23 @@ inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint1
       if (x < 0 || x >= t.w) continue;
       long long dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
       if (d < lo || d > hi) continue;
-      blend(t, x, y, c, coverage(x, y, inside));
+      blend(t, x, y, c, coverage(x, y, inside) * alpha / 16);
     }
+}
+// Line from (x0,y0) to (x1,y1), width w pixels, round ends (pixel corner coordinates like circles).
+inline void line(Target &t, int x0, int y0, int x1, int y1, int w, uint16_t c) {
+  long long ax = 8LL * x0, ay = 8LL * y0, bx = 8LL * x1, by = 8LL * y1, r = 4LL * w;
+  long long ex = bx - ax, ey = by - ay, len = ex * ex + ey * ey;
+  auto inside = [&](long long sx, long long sy) {
+    long long px = sx - ax, py = sy - ay, dot = px * ex + py * ey;
+    if (len == 0 || dot <= 0) return px * px + py * py <= r * r;
+    if (dot >= len) return (sx - bx) * (sx - bx) + (sy - by) * (sy - by) <= r * r;
+    return (px * px + py * py) * len - dot * dot <= r * r * len;
+  };
+  int pad = w / 2 + 2, xa = (x0 < x1 ? x0 : x1) - pad, xb = (x0 > x1 ? x0 : x1) + pad;
+  for (int y = rowFrom(t, (y0 < y1 ? y0 : y1) - pad); y < rowTo(t, (y0 > y1 ? y0 : y1) + pad); y++)
+    for (int x = xa < 0 ? 0 : xa; x < xb && x < t.w; x++)
+      blend(t, x, y, c, coverage(x, y, inside));
 }
 // Next code point of UTF-8 text; unsupported sequences count as '?'.
 inline uint32_t next(const std::string &s, size_t &i) {
@@ -126,8 +168,12 @@ inline uint32_t next(const std::string &s, size_t &i) {
     cp = cp << 6 | (s[i++] & 0x3f);
   return extra ? cp : '?';
 }
+constexpr int faceCount = sizeof(font::faces) / sizeof(font::faces[0]);
+inline int face(int size) {
+  return size < 1 ? 0 : size > faceCount ? faceCount - 1 : size - 1;
+}
 inline const font::Glyph *glyph(int size, uint32_t cp) {
-  const auto &f = font::faces[size < 1 ? 0 : size > 4 ? 3 : size - 1];
+  const auto &f = font::faces[face(size)];
   for (int k = 0; k < 2; k++, cp = '?')
     for (int n = f.first; n < f.first + f.count; n++)
       if (font::glyphs[n].code == cp) return &font::glyphs[n];
@@ -141,7 +187,7 @@ inline int textWidth(const std::string &s, int size) {
   return w;
 }
 inline int capHeight(int size) {
-  return font::faces[size < 1 ? 0 : size > 4 ? 3 : size - 1].cap;
+  return font::faces[face(size)].cap;
 }
 // Text centred on (x, y): horizontally by its width, vertically by the capital height.
 inline void text(Target &t, int x, int y, int size, uint16_t c, const std::string &s) {
@@ -168,12 +214,16 @@ inline void paint(Target &t, const nlohmann::json &list) {
     auto n = [&](int k) { return i[k].get<int>(); };
     if (kind == "f")
       fill(t, uint16_t(n(1)));
+    else if (kind == "g")
+      gradient(t, uint16_t(n(1)), uint16_t(n(2)), n(3));
+    else if (kind == "l")
+      line(t, n(1), n(2), n(3), n(4), n(5), uint16_t(n(6)));
     else if (kind == "c")
       circle(t, n(1), n(2), n(3), uint16_t(n(4)));
     else if (kind == "r")
       rect(t, n(1), n(2), n(3), n(4), n(5), uint16_t(n(6)));
     else if (kind == "a")
-      arc(t, n(1), n(2), n(3), n(4), n(5), n(6), uint16_t(n(7)));
+      arc(t, n(1), n(2), n(3), n(4), n(5), n(6), uint16_t(n(7)), i.size() > 8 ? n(8) : 16);
     else if (kind == "t")
       text(t, n(1), n(2), n(3), uint16_t(n(4)), i[5].get<std::string>());
   }

@@ -18,6 +18,20 @@ extern "C" const char *mensa_call(const char *input) {
     } else if (op == "rebootClock") {
       engine.rebootClock(q.at("now"));
       result = {{"ok", true}};
+    } else if (op == "sounds") {
+      result = mensa::Json::array();
+      for (int set = 0; set < mensa::sound::setCount; set++) {
+        mensa::Json events = mensa::Json::array();
+        for (int e = 0; e < mensa::sound::EventCount; e++) {
+          mensa::Json notes = mensa::Json::array();
+          for (int n = 0; n < mensa::sound::length(set, e); n++) {
+            auto &x = mensa::sound::table[set][e][n];
+            notes.push_back({x.freq, x.ms, x.gap});
+          }
+          events.push_back(notes);
+        }
+        result.push_back({{"name", mensa::sound::setNames[set]}, {"events", events}});
+      }
     } else if (op == "requireConfirmation") {
       engine.requireConfirmation();
       result = {{"ok", true}};

@@ -2,6 +2,7 @@
 #include "vendor/json.hpp"
 #include "flow.hpp"
 #include "dial.hpp"
+#include "sounds.hpp"
 #include <string>
 #include <set>
 #include <vector>
@@ -31,7 +32,7 @@ class Engine {
   std::vector<Event> events;
   std::array<Room, 2> rooms;
   bool ready = false, paused = false, hasUndo = false;
-  int cooldown = 3, day = 1, volume = 7;
+  int cooldown = 3, day = 1, volume = 7, sound = 1; // sound: set in core/sounds.hpp
   std::string held;
   Card undo;
   // Transient Dial state (not stored): Mensa seats being set with the rotary ring.
@@ -253,6 +254,7 @@ public:
     return turnAcc != 0 && turnAt >= 0 && now - turnAt < 1500 && !editingMensa(now);
   }
   int volumeLevel() const { return volume; }
+  int soundSet() const { return sound; }
   const Flow &flowState() const { return flow; }
   // Automatic release is only due while the group waits and nothing else holds the entrance closed.
   bool autoPending() const {
@@ -265,37 +267,40 @@ public:
     auto list = dialBase(now, x);
     if (x.holdMs >= 400 && x.screen != "reset" && x.screen != "update") {
       bool longHold = x.holdMs >= 3000;
-      list.push_back(rect(30, 175, 180, 36, 18, panel));
-      if (x.holdMs >= 3000) {
-        list.push_back(text(120, 186, 1, white, "Loslassen:"));
-        list.push_back(text(120, 201, 1, white, x.holdMs >= 10000 ? "Zugang zurücksetzen" : "3 s erreicht"));
-      } else
-        list.push_back(text(120, 193, 1, white, "Halten …"));
+      list.push_back(rect(22, 161, 196, 22, 11, shade(dark, 6)));
+      list.push_back(text(120, 172, 1, white,
+                          x.holdMs >= 10000 ? "Loslassen: Zugang neu"
+                          : longHold        ? "Jetzt loslassen"
+                                            : "Halten …"));
       ring(list, longHold ? std::min(1.0, (x.holdMs - 3000) / 7000.0) : x.holdMs / 3000.0, longHold ? orange : white,
-           panel);
+           shade(dark, 6));
     }
     return list;
   }
-  // Dial main screen: whole background in the signal colour, large text readable from a distance. Layout from the
-  // top: what the button does, status, main line, free seats, touch button (pill), info pill.
+  // Dial screen (design 0.13, "big number + symbol"): the whole screen glows in the signal colour (radial gradient),
+  // a small symbol, one big number, a label, one info line and the touch button "ENTLASTEN" at the bottom.
+  // Layout (y): key hint 26, symbol 52, big number 104, label 148, info line 172, button 188..216.
   Json dialBase(long long now, const DialExtras &x) const {
     using namespace dial;
     Json list = Json::array();
-    // Info pill: one or two lines (pixel widths fit the round edge).
-    const std::vector<int> infoWidths = {164, 152};
-    auto info = [&](const std::vector<std::string> &lines, int color, int pill) {
-      if (lines.empty()) return;
-      list.push_back(rect(30, 175, 180, 36, 18, pill));
-      for (size_t i = 0; i < lines.size() && i < 2; i++)
-        list.push_back(text(120, lines.size() == 1 ? 193 : i ? 201 : 186, 1, color, fit(lines[i], 1, infoWidths[i])));
+    auto key = [&](int color, const std::string &t) { list.push_back(text(120, 26, 1, color, fit(t, 1, 150))); };
+    // Info line: plain text, or a darker pill for hints that need attention.
+    auto infoLine = [&](const std::string &t, int color) {
+      if (!t.empty()) list.push_back(text(120, 172, 1, color, fit(t, 1, 184)));
     };
-    auto key = [&](int color, const std::string &t) { list.push_back(text(120, 28, 1, color, fit(t, 1, 130))); };
+    auto hintPill = [&](const std::string &t, int pill) {
+      if (t.empty()) return;
+      list.push_back(rect(22, 161, 196, 22, 11, pill));
+      list.push_back(text(120, 172, 1, white, fit(t, 1, 186)));
+    };
     auto pillButton = [&](int color, int textColor, const std::string &t) {
-      list.push_back(rect(30, 131, 180, 38, 19, color));
-      list.push_back(text(120, 150, 2, textColor, t));
+      list.push_back(rect(52, 188, 136, 28, 14, color));
+      list.push_back(text(120, 202, 1, textColor, t));
     };
+    auto big = [&](int color, const std::string &t) { list.push_back(text(120, 104, 5, color, t)); };
+    auto label = [&](int color, const std::string &t) { list.push_back(text(120, 148, 2, color, fit(t, 2, 200))); };
     if (x.screen == "test") {
-      list.push_back(fill(dark));
+      list.push_back(gradient(toneDark));
       list.push_back(text(120, 40, 2, yellow, "GERÄTETEST"));
       for (size_t i = 0; i < x.lines.size() && i < 8; i++) {
         int y = 66 + int(i) * 16;
@@ -305,16 +310,16 @@ public:
       return list;
     }
     if (x.screen == "update") {
-      list.push_back(fill(dark));
-      ring(list, std::max(0.01, x.progress / 100.0), yellow, panel);
-      list.push_back(text(120, 66, 2, white, "UPDATE"));
-      list.push_back(text(120, 118, 4, yellow, std::to_string(x.progress)));
-      list.push_back(text(120, 156, 1, white, "Prozent übertragen"));
-      list.push_back(text(120, 182, 1, warnText, "Nicht ausschalten"));
+      list.push_back(gradient(toneDark));
+      ring(list, std::max(0.01, x.progress / 100.0), yellow, shade(dark, 6));
+      list.push_back(text(120, 48, 2, white, "UPDATE"));
+      big(yellow, std::to_string(x.progress));
+      label(white, "Prozent übertragen");
+      infoLine("Nicht ausschalten", warnText);
       return list;
     }
     if (x.screen == "reset") {
-      list.push_back(fill(red));
+      list.push_back(gradient(toneRed));
       list.push_back(text(120, 72, 2, white, "ZUGANG"));
       list.push_back(text(120, 98, 2, white, "ZURÜCKSETZEN?"));
       list.push_back(text(120, 134, 1, white, "Nochmal 3 s halten: JA"));
@@ -323,14 +328,15 @@ public:
       return list;
     }
     if (x.screen == "broken") {
-      list.push_back(fill(red));
-      list.push_back(text(120, 84, 2, white, "KONFIGURATION"));
-      list.push_back(text(120, 110, 2, white, "DEFEKT"));
-      list.push_back(text(120, 148, 1, white, "Taste 10 s halten"));
+      list.push_back(gradient(toneRed));
+      iconCross(list, 120, 56, 13, 6, white);
+      list.push_back(text(120, 104, 2, white, "KONFIGURATION"));
+      list.push_back(text(120, 128, 2, white, "DEFEKT"));
+      list.push_back(text(120, 160, 1, white, "Taste 10 s halten"));
       return list;
     }
     if (x.screen == "credentials") {
-      list.push_back(fill(dark));
+      list.push_back(gradient(toneDark));
       list.push_back(text(120, 44, 2, white, "WLAN"));
       list.push_back(text(120, 72, 1, white, fit(x.ssid, 1, span(72, 1))));
       auto pw = wrap("Kennwort: " + x.wifi, {span(94, 1), span(110, 1)});
@@ -347,94 +353,135 @@ public:
     }
     bool g = !x.blocked && isGreen(), y = !x.blocked && isYellow(),
          measuringGroup = flow.started >= 0 && flow.kind == 1;
+    const int panelPill = shade(dark, 6);
     if (menuOpen(now)) {
       auto items = menuItems();
       int n = items.size(), sel = menuSel % n;
-      list.push_back(fill(dark));
+      list.push_back(gradient(toneDark));
       key(grey, "Taste: ausführen");
-      list.push_back(text(120, 54, 2, white, "BETREUUNG"));
-      list.push_back(text(120, 79, 1, grey, items[(sel + n - 1) % n].second));
-      list.push_back(text(120, 99, 2, yellow, items[sel].second));
-      list.push_back(text(120, 118, 1, grey, items[(sel + 1) % n].second));
-      pillButton(button, white, "TASTE = OK");
-      info({"Ring drehen: Auswahl", "Karte: schließen"}, white, panel);
+      list.push_back(text(120, 52, 2, white, "BETREUUNG"));
+      list.push_back(text(120, 80, 1, grey, items[(sel + n - 1) % n].second));
+      list.push_back(rect(30, 90, 180, 30, 15, panel));
+      list.push_back(text(120, 105, 2, yellow, items[sel].second));
+      list.push_back(text(120, 132, 1, grey, items[(sel + 1) % n].second));
+      infoLine("Drehen: Auswahl", grey);
+      pillButton(white, dark, "OK");
       return list;
     }
     if (seriesActive() && !editingMensa(now)) {
       auto p = seriesProgress();
-      list.push_back(fill(dark));
+      list.push_back(gradient(toneDark));
       key(grey, "Taste: weiter");
       list.push_back(text(120, 52, 2, white, "EINLERNEN"));
-      list.push_back(text(120, 85, 4, yellow, seriesLabel));
-      list.push_back(text(120, 115, 1, white,
+      list.push_back(text(120, 98, 4, yellow, seriesLabel));
+      list.push_back(text(120, 136, 1, white,
                           std::string(seriesRoom ? "Mensa " : "Küche ") + std::to_string(p.first) + " von " +
                               std::to_string(p.second)));
-      pillButton(button, white, "VORHALTEN");
       if (!x.feedback.empty())
-        info(wrap(x.feedback, infoWidths), x.feedbackOk ? okText : warnText, panel);
+        list.push_back(text(120, 172, 1, x.feedbackOk ? okText : warnText, fit(x.feedback, 1, 168)));
       else
-        info({"Taste: überspringen", "3 s halten: Ende"}, white, panel);
+        infoLine("Ende: 3 s halten", grey);
+      pillButton(white, dark, "ÜBERSPRINGEN");
       return list;
     }
     if (editingMensa(now)) {
-      list.push_back(fill(dark));
+      list.push_back(gradient(toneDark));
       key(grey, "Taste: OK");
       list.push_back(text(120, 52, 2, white, "MENSA"));
-      list.push_back(text(120, 85, 4, yellow, std::to_string(mensaEdit)));
-      list.push_back(text(120, 115, 1, white,
+      big(yellow, std::to_string(mensaEdit));
+      list.push_back(text(120, 148, 1, white,
                           "belegt " + std::to_string(occupied(1)) + " von " + std::to_string(rooms[1].capacity)));
-      pillButton(button, white, mensaEdit ? "FREIGEBEN" : "SPERREN");
-      info({"Ring drehen: Anzahl", "Sonst Abbruch"}, white, panel);
+      infoLine("Drehen: Anzahl", grey);
+      pillButton(white, dark, mensaEdit ? "FREIGEBEN" : "SPERREN");
       return list;
     }
-    int bg = g ? green : y ? yellow : red, fg = y ? dark : white, pill = shade(bg, 11);
+    const Tone &tone = g ? toneGreen : y ? toneAmber : toneRed;
+    const int fg = tone.text, buttonText = g ? green : y ? dark : red, pill = shade(tone.edge, 8);
     long long left = flow.releaseIn(now);
-    int next = flow.target(now);
-    list.push_back(fill(bg));
+    int next = flow.target(now), free = available(0) + available(1);
+    list.push_back(gradient(tone));
     bool countdown =
         flow.waiting && flow.autoOn && left >= 0 && !flow.relief && !paused && ready && !measuringGroup && !x.blocked;
-    if (countdown) ring(list, flow.releaseShare(now), fg, shade(bg, 4));
+    if (countdown) ring(list, flow.releaseShare(now), fg, shade(tone.edge, 6));
     key(fg, !ready || dayWaiting(now) ? "Taste 3 s halten"
             : flow.relief || paused   ? "Taste: weiter"
             : flow.waiting            ? "Taste: freigeben"
                                       : "Taste: Pause");
-    list.push_back(text(120, 58, 3, fg, g ? "PLATZ FREI" : y ? "FAST VOLL" : "EINLASS ZU"));
-    std::string main;
-    if (x.blocked)
-      main = "Störung";
-    else if (!ready)
-      main = "Bestand prüfen";
-    else if (flow.relief)
-      main = "Entlastung";
-    else if (paused)
-      main = "Pause";
-    else if (flow.waiting)
-      main = measuringGroup ? "Messung läuft"
-             : countdown    ? "Weiter in " + std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") +
-                               std::to_string(left % 60)
-                         : "Gruppe voll";
-    else if (flow.batch && flow.issued == 0 && flow.autoOn)
-      main = (flow.startDue(now) ? "Startgruppe " : "Gruppe ") + std::to_string(next);
-    else if (flow.batch) {
-      int r = groupRemaining(now);
-      main = "Noch " + std::to_string(r) + (r == 1 ? " Kind" : " Kinder");
-    } else if (available(0) + available(1) == 0)
-      main = "Kein Platz";
-    list.push_back(text(120, 89, 2, fg, main));
-    list.push_back(text(120, 113, 2, fg, "K " + std::to_string(available(0)) + " · M " + std::to_string(available(1))));
-    if (flow.relief)
-      pillButton(button, white, "ENTLASTUNG");
-    else
-      pillButton(dark, orange, "ENTLASTEN");
-    if (lockUntil > now && !lockLabel.empty())
-      info({lockLabel + " gesperrt", "noch " + std::to_string((lockUntil - now + 999) / 1000) + " s"}, warnText, pill);
-    else if (!x.feedback.empty())
-      info(wrap(x.feedback, infoWidths), x.feedbackOk ? okText : warnText, pill);
-    else {
+    const std::string seats = "K " + std::to_string(available(0)) + " · M " + std::to_string(available(1));
+    std::string sub;
+    bool locked = lockUntil > now && !lockLabel.empty();
+    if (locked) {
+      // Card still in its cooldown: seconds left as the big number.
+      iconAlert(list, 120, 44, 9, fg);
+      big(fg, std::to_string((lockUntil - now + 999) / 1000));
+      label(fg, lockLabel + " gesperrt");
+      sub = "Sekunden warten";
+    } else if (!x.feedback.empty()) {
+      // Booking feedback as a short full-screen moment: symbol in a white disc and the message.
+      list.push_back(circle(120, 80, 32, white));
+      if (x.feedbackOk)
+        iconCheck(list, 120, 80, 15, 7, tone.edge);
+      else
+        iconAlert(list, 120, 76, 14, tone.edge);
+      // First sentence large, the rest small below it.
+      std::string first = x.feedback, rest;
+      size_t dot = x.feedback.find(". ");
+      if (dot != std::string::npos) {
+        first = x.feedback.substr(0, dot + 1);
+        rest = x.feedback.substr(dot + 2);
+      }
+      auto top = wrap(first, {200, 190}, 2);
+      for (size_t i = 0; i < top.size() && i < 2; i++)
+        list.push_back(text(120, i ? 152 : 130, 2, fg, top[i]));
+      if (!rest.empty() && top.size() < 2) list.push_back(text(120, 156, 1, fg, fit(rest, 1, 216)));
+    } else if (x.blocked) {
+      iconCross(list, 120, 88, 22, 9, fg);
+      label(fg, "Störung");
+    } else if (!ready) {
+      iconAlert(list, 120, 84, 22, fg);
+      label(fg, "Bestand prüfen");
+    } else if (flow.relief) {
+      iconPause(list, 120, 90, 22, fg);
+      label(fg, "Entlastung");
+      sub = "Rückgaben möglich";
+    } else if (paused) {
+      iconPause(list, 120, 90, 22, fg);
+      label(fg, "Pause");
+      sub = "Rückgaben möglich";
+    } else if (flow.waiting && countdown) {
+      iconPause(list, 120, 47, 8, fg);
+      big(fg, std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") + std::to_string(left % 60));
+      label(fg, "nächste Gruppe");
+      sub = std::to_string(free) + " frei: " + seats;
+    } else if (flow.waiting) {
+      iconPause(list, 120, 90, 22, fg);
+      label(fg, measuringGroup ? "Messung läuft" : "Gruppe voll");
+      sub = std::to_string(free) + " frei: " + seats;
+    } else if (flow.batch && flow.issued == 0 && flow.autoOn) {
+      iconCheck(list, 120, 47, 10, 6, fg);
+      big(fg, std::to_string(std::min(next, free)));
+      label(fg, flow.startDue(now) ? "Startgruppe" : "nächste Gruppe");
+      sub = "(" + std::to_string(free) + " frei: " + seats + ")";
+    } else if (flow.batch) {
+      iconCheck(list, 120, 47, 10, 6, fg);
+      big(fg, std::to_string(groupRemaining(now)));
+      label(fg, "noch diese Gruppe");
+      sub = "(" + std::to_string(free) + " frei: " + seats + ")";
+    } else {
+      if (y)
+        iconAlert(list, 120, 44, 9, fg);
+      else if (free > 0)
+        iconCheck(list, 120, 47, 10, 6, fg);
+      big(fg, std::to_string(free));
+      label(fg, free == 0 ? "Kein Platz" : free == 1 ? "Platz frei" : "Plätze frei");
+      sub = seats;
+    }
+    if (x.feedback.empty() || locked) {
       bool remindNow = reminders(now) > 0 && needsAttention();
-      std::string hint = !x.hint.empty()                  ? x.hint
-                         : dayWaiting(now)                ? "Neuer Tag? Taste 3 s halten"
-                         : !ready                         ? "Bestand ok?"
+      std::string hint = locked                           ? ""
+                         : !x.hint.empty()                ? x.hint
+                         : dayWaiting(now)                ? "Neuer Tag? 3 s halten"
+                         : !ready                         ? "Bestand ok? 3 s halten"
                          : turnHint(now)                  ? "Mensa: weiter drehen"
                          : measuringGroup && flow.waiting ? "Tablet: Alle haben Essen"
                          : cardsMissing(now)
@@ -443,8 +490,15 @@ public:
                                        : paused    ? "Noch Pause? Taste: weiter"
                                                    : "Gruppe wartet: Taste"
                                      : "";
-      info(wrap(hint, infoWidths), white, pill);
+      if (!hint.empty())
+        hintPill(hint, pill);
+      else
+        infoLine(sub, fg);
     }
+    if (flow.relief)
+      pillButton(shade(tone.edge, 8), white, "ENTLASTUNG");
+    else
+      pillButton(fg == white ? white : dark, fg == white ? buttonText : yellow, "ENTLASTEN");
     return list;
   }
   // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory).
@@ -454,6 +508,7 @@ public:
               {"paused", paused},
               {"cooldown", cooldown},
               {"volume", volume},
+              {"sound", sound},
               {"remind", remind},
               {"readyDate", readyDate},
               {"held", held},
@@ -484,6 +539,7 @@ public:
     next.paused = v["paused"];
     next.cooldown = number(v, "cooldown", 1, 600);
     next.volume = v.contains("volume") ? number(v, "volume", 0, 10) : 7;
+    next.sound = v.contains("sound") ? number(v, "sound", 0, mensa::sound::setCount - 1) : 1;
     next.remind = v.contains("remind") ? number(v, "remind", 0, 30) : 3;
     next.readyDate = v.contains("readyDate") ? number(v, "readyDate", -1, 50000) : -1;
     next.day = number(v, "day", 1, 1000000);
@@ -939,6 +995,7 @@ private:
       } else if (action == "settings") {
         cooldown = number(cmd, "cooldown", 1, 600);
         if (cmd.contains("volume")) volume = number(cmd, "volume", 0, 10);
+        if (cmd.contains("sound")) sound = number(cmd, "sound", 0, mensa::sound::setCount - 1);
         if (cmd.contains("remind")) remind = number(cmd, "remind", 0, 30);
         hasUndo = false;
         message = "Sperrzeit und Lautstärke gespeichert.";

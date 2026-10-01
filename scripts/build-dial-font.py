@@ -1,4 +1,4 @@
-"""Builds the Dial's smooth font (Inter, SIL OFL) as 4-bit alpha glyphs in four sizes, plus an integer sine table.
+"""Builds the Dial's smooth font (Inter, SIL OFL) as 4-bit alpha glyphs in five sizes, plus an integer sine table.
 
 Writes the same data twice so that the Dial and the browser paint identical pixels:
   core/dial_font.hpp  (const arrays in flash, used by core/dial_raster.hpp and for text measurement)
@@ -13,12 +13,13 @@ root = Path(__file__).resolve().parent.parent
 fonts = root / 'vendor/fonts'
 text_chars = ''.join(chr(c) for c in range(0x20, 0x7F)) + 'ÄÖÜäöüß·–…„“”°'
 upper_chars = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-:!?.,·/'
-# size: (file, pixel size, characters). Size 1 = small text, 2 = main lines, 3 = status, 4 = big numbers.
+# size: (file, pixel size, characters). Size 1 = small text, 2 = main lines, 3 = status, 4 = big numbers, 5 = huge digits.
 sizes = [
     ('Inter-SemiBold.ttf', 15, text_chars),
     ('Inter-Bold.ttf', 20, text_chars),
     ('Inter-Bold.ttf', 27, upper_chars),
     ('Inter-Bold.ttf', 52, upper_chars),
+    ('InterDisplay-Bold.ttf', 84, ' 0123456789:/'),
 ]
 data = bytearray()
 fontinfo, glyphs = [], []

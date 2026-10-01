@@ -53,7 +53,7 @@ test('Automatik: volle Gruppe wird nach gelernter Zeit von selbst freigegeben', 
   x.group();
   assert.equal(x.state().signal.reason, 'batch');
   assert.equal(x.state().flow.auto.releaseIn, 60);
-  assert.ok(shown(x.dial()).includes('Weiter in 1:00'));
+  assert.ok(shown(x.dial()).includes('1:00 nächste Gruppe'));
   x.wait(59000);
   assert.equal(x.tick().changed, false);
   assert.equal(x.state().signal.reason, 'batch');
@@ -204,25 +204,36 @@ test('Dial-Anzeige: groß, farbig, alles passt in die runde Anzeige', async () =
     return list;
   };
   let list = check(x.dial());
-  assert.deepEqual(list[0], ['f', 0x1407]);
-  assert.ok(shown(list).includes('PLATZ FREI'));
+  assert.deepEqual(list[0], ['g', 0x1d08, 0x0ac5, 1], 'grüner Verlauf');
+  assert.ok(
+    list.some(i => i[0] === 't' && i[3] === 5 && i[5] === '3'),
+    'große Zahl: Startgruppe',
+  );
+  assert.ok(shown(list).includes('Startgruppe'));
   assert.ok(shown(list).includes('K 48 · M 0'));
-  assert.ok(list.some(i => i[0] === 't' && i[3] === 3 && i[4] === 0xffff));
+  assert.ok(
+    list.some(i => i[0] === 't' && i[5] === 'ENTLASTEN' && i[2] === 202),
+    'Knopf unten',
+  );
   list = check(
     x.dial({ feedback: 'Einlass pausiert. Nur Rückgaben möglich, bitte später erneut versuchen.', feedbackOk: false }),
   );
-  assert.ok(shown(list).includes('Einlass pausiert. Nur'));
-  assert.ok(list.some(i => i[0] === 't' && i[2] === 201 && i[4] === 0xfde4 && i[5].endsWith('…')));
-  assert.deepEqual(x.dial({ blocked: true })[0], ['f', 0xd924]);
+  assert.ok(shown(list).includes('Einlass pausiert.'), 'erster Satz groß');
+  assert.ok(list.some(i => i[0] === 't' && i[3] === 1 && i[5].startsWith('Nur Rückgaben') && i[5].endsWith('…')));
+  assert.ok(
+    list.some(i => i[0] === 'c' && i[4] === 0xffff),
+    'Symbol in weißer Scheibe',
+  );
+  assert.deepEqual(x.dial({ blocked: true })[0], ['g', 0xea28, 0x90c3, 1]);
   assert.ok(shown(x.dial({ hint: 'Leser prüfen!' })).includes('Leser prüfen!'));
   x.group();
   list = check(x.dial());
-  assert.equal(list[0][1], 0xd924);
+  assert.equal(list[0][1], 0xea28);
   const arcs = list.filter(i => i[0] === 'a');
   assert.equal(arcs.length, 2, 'Spur und Fortschritt');
   assert.deepEqual(arcs[0].slice(1, 7), [120, 120, 110, 118, 0, 360]);
   assert.deepEqual(arcs[1].slice(1, 7), [120, 120, 110, 118, 270, 630]);
-  assert.ok(shown(list).includes('Weiter in 1:00'));
+  assert.ok(shown(list).includes('1:00 nächste Gruppe'));
   x.wait(45000);
   assert.deepEqual(
     x
@@ -266,10 +277,10 @@ test('PC-Dienst: Zeitgeber gibt Gruppe frei, speichert und meldet am Dial', asyn
     assert.equal(app.state().flow.clockValid, true);
     t({ type: 'tap', uid: 'sim:K01' });
     assert.equal(app.state().signal.reason, 'batch');
-    assert.ok(app.state().dial.some(i => i[5] === 'K01 ausgegeben. Ein'));
+    assert.ok(app.state().dial.some(i => i[5] === 'K01 ausgegeben.'));
     t({ type: 'advance', seconds: 10 });
     assert.equal(app.state().signal.reason, 'free');
-    assert.ok(shown(app.state().dial).includes('Nächste Gruppe'));
+    assert.ok(shown(app.state().dial).includes('Nächste Gruppe automatisch'));
     const again = await createApp({ dataDir: dir });
     assert.equal(again.state().flow.autoOn, true);
     assert.equal(again.state().flow.autoReleased, false);
@@ -295,10 +306,10 @@ test('Startgruppe zu Beginn, danach normale Gruppen im Takt', async () => {
   let f = x.state().flow;
   assert.equal(f.auto.nextSize, 6);
   assert.equal(f.auto.nextIsStart, true);
-  assert.ok(shown(x.dial()).includes('Startgruppe 6'));
+  assert.ok(shown(x.dial()).includes('6 Startgruppe'));
   x.take(5);
   assert.equal(x.state().signal.reason, 'free');
-  assert.ok(shown(x.dial()).includes('Noch 1 Kind'));
+  assert.ok(shown(x.dial()).includes('1 noch diese Gruppe'));
   x.take(1);
   assert.equal(x.state().signal.reason, 'batch');
   assert.equal(x.state().flow.auto.releaseIn, 60);
@@ -308,7 +319,7 @@ test('Startgruppe zu Beginn, danach normale Gruppen im Takt', async () => {
   f = x.state().flow;
   assert.equal(f.auto.nextSize, 3);
   assert.equal(f.auto.nextIsStart, false);
-  assert.ok(shown(x.dial()).includes('Gruppe 3'));
+  assert.ok(shown(x.dial()).includes('3 nächste Gruppe'));
   x.take(3);
   assert.equal(x.state().signal.reason, 'batch');
   x.wait(60000);
@@ -367,7 +378,7 @@ test('Neuer Essenstag: mit Karten draußen erst nach 3 s Halten, fehlende Karten
   x.wait(100 * 60000);
   assert.equal(x.tick().changed, false, 'Karten draußen: kein automatischer Tagesstart');
   assert.equal(x.state().dayWaiting, true);
-  assert.ok(shown(x.dial()).includes('Neuer Tag? Taste 3 s halten'));
+  assert.ok(shown(x.dial()).includes('Neuer Tag? 3 s halten'));
   const r = x.cmd({ type: 'dialHold' });
   assert.equal(r.ok, true);
   assert.match(r.message, /Bestandsprüfung/);
@@ -407,7 +418,7 @@ test('Dial: Bestand per Halten, Mensa per Drehring, Karten-Hinweis', async () =>
   assert.equal(x.cmd({ type: 'dialTurn', steps: -10 }).changed, false);
   assert.equal(x.state().mensaEdit, 2);
   assert.ok(shown(x.dial()).includes('2') && shown(x.dial()).includes('MENSA'));
-  assert.ok(!texts(x.dial()).some(t => t.startsWith('Küche') || t === 'PLATZ FREI' || t === 'EINLASS ZU'));
+  assert.ok(!texts(x.dial()).some(t => t.startsWith('Küche') || t === 'Plätze frei' || t === 'Pause'));
   assert.equal(x.cmd({ type: 'relief' }).changed, false, 'Druck direkt beim Drehen wird ignoriert');
   assert.equal(x.state().mensaEdit, 2);
   x.cmd({ type: 'dialTurn', steps: 28 });
@@ -461,7 +472,7 @@ test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Än
     await new Promise(done => setTimeout(done, 600));
     assert.equal(t({ type: 'dialPress' }).ok, true);
     assert.equal(app.state().rooms.M.limit, 2);
-    assert.ok(!app.state().dial.some(i => i[5] === 'Ampel draußen'));
+    assert.ok(!shown(app.state().dial).includes('Ampel draußen'));
     await new Promise(done => app.server.listen(0, '127.0.0.1', done));
     const port = app.server.address().port;
     const res = await fetch(`http://127.0.0.1:${port}/api/signal`);
@@ -471,7 +482,7 @@ test('PC-Dienst: Sicherung einspielen, Ampel-Überwachung, Speichern nur bei Än
     const realNow = Date.now;
     Date.now = () => realNow() + 11000;
     try {
-      assert.ok(app.state().dial.some(i => i[5] === 'Ampel draußen'));
+      assert.ok(shown(app.state().dial).includes('Ampel draußen getrennt!'));
     } finally {
       Date.now = realNow;
     }

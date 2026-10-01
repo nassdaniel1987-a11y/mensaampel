@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { soundSets, playSoundSet } from './sounds.mjs';
 import {
   Check,
   Undo2,
@@ -37,7 +38,8 @@ export function Management({
   const [modal, setModal] = useState<'day' | 'settings' | 'enroll' | 'recover' | RoomId | Card | null>(null),
     [query, setQuery] = useState(''),
     [filter, setFilter] = useState(''),
-    [page, setPage] = useState(0);
+    [page, setPage] = useState(0),
+    [soundChoice, setSoundChoice] = useState<number | null>(null);
   const cards = s.cards.filter(
     c => (!filter || c.room === filter) && `${c.label} ${c.uid}`.toLowerCase().includes(query.toLowerCase()),
   );
@@ -445,6 +447,7 @@ export function Management({
                   type: 'settings',
                   cooldown: Number(d.get('cooldown')),
                   volume: Number(d.get('volume')),
+                  sound: Number(d.get('sound')),
                   remind: Number(d.get('remind')),
                 });
               else if (modal === 'enroll')
@@ -550,6 +553,37 @@ export function Management({
                   Lautstärke am Dial (0 = stumm, 10 = laut)
                   <input name="volume" type="range" min="0" max="10" step="1" defaultValue={s.volume ?? 7} />
                 </label>
+                <label>
+                  Klang am Dial
+                  <span className="action-row">
+                    <select
+                      name="sound"
+                      defaultValue={s.sound ?? 1}
+                      onChange={e => setSoundChoice(Number(e.currentTarget.value))}
+                    >
+                      {soundSets.map((set, i) => (
+                        <option key={set.name} value={i}>
+                          {set.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="outline"
+                      onClick={() => {
+                        const set = soundChoice ?? s.sound ?? 1;
+                        if (s.device) void send({ type: 'soundTest', set });
+                        else playSoundSet(set, s.volume ?? 7);
+                      }}
+                    >
+                      Anhören
+                    </button>
+                  </span>
+                </label>
+                <p className="hint">
+                  „Anhören“ spielt Ausgabe, Rückgabe und Abweisung nacheinander {s.device ? 'am Dial' : 'am Tablet'}.
+                  Übernommen wird der Klang mit „Speichern“.
+                </p>
                 <label>
                   Erinnerung, wenn Pause, Entlastung oder volle Gruppe auf jemanden warten
                   <select name="remind" defaultValue={s.remind ?? 3}>
