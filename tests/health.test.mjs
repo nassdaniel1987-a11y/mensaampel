@@ -28,3 +28,19 @@ test('Gesundheit: ohne Werte nichts, gute Werte grün, Grenzen gelb und rot', ()
   assert.match(bad[0].todo, /Netzteil/);
   for (const r of bad) assert.ok(r.todo.length > 5, `${r.name} hat einen Satz`);
 });
+
+test('Gesundheit: WLAN-Trennungen, abgebrochene Antworten, unklar gelesene Karten', () => {
+  const h = { ...good.health, wlanDrops: 3, sendAborts: 0, sendMaxMs: 120, unclearReads: 2 };
+  const rows = healthRows({ ...good, health: h }, undefined);
+  assert.equal(rows.find(r => r.name === 'WLAN-Trennungen').level, 1);
+  assert.match(rows.find(r => r.name === 'WLAN-Trennungen').todo, /Ohne Internet/);
+  assert.equal(rows.find(r => r.name === 'Antworten abgebrochen').level, 0);
+  const reader = rows.find(r => r.name === 'Kartenleser');
+  assert.equal(reader.level, 0, 'unklar gelesen ist keine Störung');
+  assert.match(reader.value, /2× Karte unklar/);
+  assert.equal(
+    healthRows(good, undefined).find(r => r.name === 'WLAN-Trennungen'),
+    undefined,
+    'ältere Firmware',
+  );
+});

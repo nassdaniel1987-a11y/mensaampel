@@ -1,5 +1,5 @@
 {
-  "version": "0.17.1-preview",
+  "version": "0.17.2-preview",
   "board": "M5Stack Dial v1.1 / ESP32-S3 / 8MB",
   "hardwareTested": false,
   "files": [
@@ -13,15 +13,15 @@
     },
     {
       "path": "firmware/firmware.bin",
-      "sha256": "80b7ced7ca7d3368f4c9ef436a3aadf54eddc740f2172de75278a5d79707bb6f"
+      "sha256": "782d5d99f76addc6a9ddec08fa9acf8b03b1b8ac79ba1f7ba4d2f1f3a80f1414"
     },
     {
       "path": "firmware/first-install.bin",
-      "sha256": "4f155a05dd27cd10e2d19d66f18f7c2ef400335bbbf49d2b9c7d1dd4dfd592d2"
+      "sha256": "0914d4285d417e3565eb91ecbe47a6a0cb24684b526eb5370a2368d6b2d2bdab"
     },
     {
       "path": "firmware/littlefs.bin",
-      "sha256": "37b2d61bd2afcdf7485c55df02ef25aba4bbe4c4fa790243971aa7f4738d3b78"
+      "sha256": "83987a860a3af91dab7b46f45ad95ca1c2b1924eaac2893774dcfa20d20283e1"
     },
     {
       "path": "firmware/partitions.bin",

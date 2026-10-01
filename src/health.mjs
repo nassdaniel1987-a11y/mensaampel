@@ -24,8 +24,12 @@ export function healthRows(device, diag) {
     {
       name: 'Kartenleser',
       level: rate(h.readerFaults, 1, 3),
-      value: `${h.readerFaults}× gestört`,
-      todo: h.readerFaults ? 'Stecker der RFID-Unit prüfen; Kabel nicht knicken.' : 'Alles in Ordnung.',
+      value: `${h.readerFaults}× gestört` + (h.unclearReads ? `, ${h.unclearReads}× Karte unklar gelesen` : ''),
+      todo: h.readerFaults
+        ? 'Stecker der RFID-Unit prüfen; Kabel nicht knicken.'
+        : h.unclearReads
+          ? 'In Ordnung. „Unklar gelesen“ heißt: Karte schräg, zwei Karten oder zu schnell weggezogen.'
+          : 'Alles in Ordnung.',
     },
     {
       name: 'Speichern',
@@ -50,6 +54,26 @@ export function healthRows(device, diag) {
         : 'Alles in Ordnung.',
     },
   ];
+  if (h.wlanDrops !== undefined)
+    rows.push({
+      name: 'WLAN-Trennungen',
+      level: rate(h.wlanDrops, 2, 6),
+      value: `${h.wlanDrops}× hat ein Tablet das Dial-WLAN verlassen`,
+      todo:
+        h.wlanDrops >= 2
+          ? 'Tablet im Dial-WLAN halten: „Ohne Internet verbunden bleiben“, mobile Daten und Netzwechsel aus, Bildschirm nie aus (Anleitung „Ampel-Tablet: WLAN stabil halten“).'
+          : 'Alles in Ordnung.',
+    });
+  if (h.sendAborts !== undefined)
+    rows.push({
+      name: 'Antworten abgebrochen',
+      level: rate(h.sendAborts, 3, 10),
+      value: `${h.sendAborts}× (längstes Senden ${h.sendMaxMs ?? 0} ms)`,
+      todo:
+        h.sendAborts >= 3
+          ? 'Ein Tablet war mitten in einer Antwort weg. Das Dial bricht nach 1,5 s ab, damit die Ampel weiterläuft. Bei Rot: WLAN der Tablets prüfen.'
+          : 'Alles in Ordnung.',
+    });
   if (device.webMaxMs !== undefined)
     rows.push({
       name: 'Antwortzeit',

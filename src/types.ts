@@ -36,7 +36,17 @@ export type Device = {
   webMaxMs?: number;
   lastCrumb?: string;
   memoryTest?: { running: boolean; ok: boolean; message: string };
-  health?: { crash: boolean; readerFaults: number; saveFailures: number; ampelDrops: number; minBlock: number };
+  health?: {
+    crash: boolean;
+    readerFaults: number;
+    saveFailures: number;
+    ampelDrops: number;
+    minBlock: number;
+    unclearReads?: number;
+    wlanDrops?: number;
+    sendAborts?: number;
+    sendMaxMs?: number;
+  };
   clients: number;
   uptime: number;
 };

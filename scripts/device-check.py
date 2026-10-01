@@ -21,6 +21,57 @@ MIN_VERSION = (0, 17, 1)
 LIMITS = {'block_kb': 32, 'ampel_s': 3, 'bench_ms': 1500, 'web_ms': 1500}
 
 
+REPLY = '@mensa-reply '
+
+
+def parse_reply(line, command):
+    """Answer to `command` anywhere in a line (a library log line may stand before it without a line end); None for
+    other lines and for answers to another command (firmware 0.17.2+ names it in "cmd")."""
+    at = line.find(REPLY)
+    if at < 0:
+        return None
+    try:
+        reply = json.loads(line[at + len(REPLY):])
+    except ValueError:
+        return None
+    if not isinstance(reply, dict) or reply.get('cmd', command) != command:
+        return None
+    return reply
+
+
+def pauses(samples):
+    """Ampel pauses (ampelAgo >= 4 s) with their probable cause from the counters around them."""
+    found, current = [], None
+    for prev, s in zip([None] + samples[:-1], samples):
+        ago = s.get('ampelAgo', -1)
+        if ago >= 4:
+            if current is None:
+                current = {'from': s.get('t', 0) - ago, 'longest': ago, 'start': prev or s, 'samples': []}
+            current['longest'] = max(current['longest'], ago)
+            current['samples'].append(s)
+        elif current is not None:
+            current['end'] = s
+            found.append(current)
+            current = None
+    if current is not None:
+        current['end'] = current['samples'][-1]
+        found.append(current)
+    result = []
+    for p in found:
+        a, b = p['start'], p['end']
+        ha, hb = a.get('health') or {}, b.get('health') or {}
+        rows = p['samples'] + [b]
+        if hb.get('wlanDrops', 0) > ha.get('wlanDrops', 0) or any(r.get('clients', 1) == 0 for r in rows):
+            cause = 'Tablet war kurz aus dem Dial-WLAN'
+        elif hb.get('sendAborts', 0) > ha.get('sendAborts', 0) or hb.get('sendMaxMs', 0) > max(1500, ha.get('sendMaxMs', 0)):
+            cause = 'Dial hat eine Antwort nicht losbekommen'
+        else:
+            cause = 'Tablet hat in der Zeit nicht gefragt (Bildschirm aus, Energiesparen, Browser im Hintergrund?)'
+        result.append({'at': time.strftime('%H:%M:%S', time.localtime(p['from'])) if p['from'] else '?',
+                       'seconds': p['longest'], 'cause': cause})
+    return result
+
+
 def version_tuple(text):
     parts = []
     for p in str(text).split('-')[0].split('.'):
@@ -50,16 +101,21 @@ def evaluate(record):
     if not samples:
         add('Messwerte', 'fehler', 'keine', 'Antworten alle 2 s', 'Dial antwortet nicht über USB.')
         return checks
+    samples = [s for s in samples if 'uptime' in s]
+    if not samples:
+        add('Messwerte', 'fehler', 'keine gültigen', 'Antworten alle 2 s', 'Dial antwortet nicht über USB.')
+        return checks
     first, last = samples[0], samples[-1]
-    restarts = sum(1 for a, b in zip(samples, samples[1:]) if b.get('uptime', 0) < a.get('uptime', 0))
+    restarts = sum(1 for a, b in zip(samples, samples[1:]) if b['uptime'] < a['uptime'])
     add('Keine Neustarts', 'ok' if restarts == 0 else 'fehler', f'{restarts} Neustart(s)', '0',
         'Neustart während der Prüfung: Uhrzeit und USB-Meldungen unten notieren und melden.' if restarts else '')
     crash = bool((last.get('health') or {}).get('crash'))
     add('Letzter Start ohne Absturz', 'warnung' if crash else 'ok', 'Absturz' if crash else 'normal', 'normal',
         'Das Dial ist vor dieser Prüfung einmal abgestürzt (Startgrund unter Gerät). Melden.' if crash else '')
-    blocks = [s.get('maxAllocHeap', 0) for s in samples] + [(s.get('health') or {}).get('minBlock', 10 ** 9)
-                                                            for s in samples]
-    blocks += [s.get('maxAllocHeap', 0) for s in record.get('test_samples') or []]
+    blocks = [s['maxAllocHeap'] for s in samples if 'maxAllocHeap' in s]
+    blocks += [(s.get('health') or {})['minBlock'] for s in samples if 'minBlock' in (s.get('health') or {})]
+    blocks += [s['maxAllocHeap'] for s in record.get('test_samples') or [] if 'maxAllocHeap' in s]
+    blocks = blocks or [0]
     block_kb = min(blocks) // 1024
     add('Größter freier Speicherblock', 'ok' if block_kb >= LIMITS['block_kb'] else 'fehler', f'{block_kb} KB',
         f"≥ {LIMITS['block_kb']} KB", 'Wert melden; Dial nach dem Mittag einmal neu starten.'
@@ -70,9 +126,19 @@ def evaluate(record):
             'Ampel-Tablet mit dem Dial-WLAN verbinden, /ampel öffnen und die Prüfung wiederholen.')
     else:
         worst = max(ampel)
-        add('Ampel wird bedient', 'ok' if worst <= LIMITS['ampel_s'] else 'fehler', f'längste Pause {worst} s',
-            f"≤ {LIMITS['ampel_s']} s", 'Ampel-Tablet: Ladekabel, Ruhezustand aus, näher ans Dial.'
-            if worst > LIMITS['ampel_s'] else '')
+        found = pauses(samples)
+        record['pauses'] = found
+        causes = {p['cause'] for p in found}
+        if any(c.startswith('Dial') for c in causes):
+            todo = 'Das Dial hat Antworten nicht losbekommen – Bericht an den Entwickler.'
+        elif causes:
+            todo = ('Am Ampel-Tablet WLAN stabil halten (ANLEITUNG-DIAL.md „Ampel-Tablet: WLAN stabil halten“): '
+                    'beim Dial-WLAN „Verbunden bleiben/ohne Internet“, mobile Daten und Netzwechsel aus, '
+                    'Bildschirm nie aus, Ladekabel.')
+        else:
+            todo = ''
+        add('Ampel wird bedient', 'ok' if worst <= LIMITS['ampel_s'] else 'fehler',
+            f'längste Pause {worst} s, {len(found)} Pause(n)', f"≤ {LIMITS['ampel_s']} s", todo)
     during = [s.get('ampelAgo', -1) for s in record.get('test_samples') or [] if s.get('ampelAgo', -1) >= 0]
     if during:
         worst = max(during)
@@ -97,10 +163,12 @@ def evaluate(record):
         else 'Am Tablet unter Gerät eine Sicherung herunterladen und dem Entwickler schicken.')
     h0, h1 = first.get('health') or {}, last.get('health') or {}
     faults = h1.get('readerFaults', 0) - h0.get('readerFaults', 0)
-    unhealthy = sum(1 for s in samples if not s.get('readerHealthy', True))
-    add('Kartenleser', 'ok' if faults == 0 and unhealthy == 0 else 'warnung',
-        f'{faults} Störung(en), {unhealthy} Messung(en) ohne Leser', '0',
-        'Stecker der RFID-Unit prüfen.' if faults or unhealthy else '')
+    unclear = h1.get('unclearReads', 0) - h0.get('unclearReads', 0)
+    add('Kartenleser', 'ok' if faults == 0 else 'fehler', f'{faults} Störung(en)', '0',
+        'Stecker der RFID-Unit prüfen.' if faults else '')
+    if unclear:
+        add('Karten unklar gelesen', 'hinweis', f'{unclear}×', '–',
+            'Karte schräg, zwei Karten oder zu schnell weggezogen – normal beim Ausprobieren.')
     fails = h1.get('saveFailures', 0) - h0.get('saveFailures', 0)
     errors = sorted({s.get('storageError') for s in samples if s.get('storageError')})
     add('Speichern', 'ok' if fails == 0 and not errors else 'fehler',
@@ -121,7 +189,7 @@ def evaluate(record):
 
 
 def report_md(record, checks):
-    mark = {'ok': '✓', 'fehler': '✗', 'warnung': '!', 'übersprungen': '–'}
+    mark = {'ok': '✓', 'fehler': '✗', 'warnung': '!', 'übersprungen': '–', 'hinweis': 'i'}
     info = record.get('info') or {}
     bad = [c for c in checks if c['status'] == 'fehler']
     lines = [
@@ -137,6 +205,10 @@ def report_md(record, checks):
     ]
     for c in checks:
         lines.append(f"| {mark.get(c['status'], '?')} | {c['name']} | {c['value']} | {c['limit']} | {c['todo']} |")
+    found = record.get('pauses') or []
+    if found:
+        lines += ['', '## Pausen der Ampel', '', '| Uhrzeit | Dauer | Vermutliche Ursache |', '|---|---|---|']
+        lines += [f"| {p['at']} | {p['seconds']} s | {p['cause']} |" for p in found]
     log = record.get('log') or []
     lines += ['', '## Weitere USB-Meldungen des Dials', '']
     lines += [f'- {t} {text}' for t, text in log[-50:]] or ['- keine']
@@ -171,17 +243,23 @@ class Dial:
                 time.sleep(0.02)
 
     def ask(self, command, timeout=4.0):
+        # Leftovers of an earlier, late answer must not be taken for this one.
+        self.buffer += self.s.read(self.s.in_waiting or 0)
+        for line in self.lines(time.time()):
+            self.note(line)
         self.s.write(f'@mensa {command}\n'.encode())
         self.s.flush()
         for line in self.lines(time.time() + timeout):
-            if line.startswith('@mensa-reply '):
-                try:
-                    return json.loads(line[len('@mensa-reply '):])
-                except ValueError:
-                    return None
-            if line:
-                self.log.append((datetime.datetime.now().strftime('%H:%M:%S'), line))
+            reply = parse_reply(line, command)
+            if reply is not None:
+                return reply
+            self.note(line)
         return None
+
+    def note(self, line):
+        before = line.split(REPLY, 1)[0].strip()
+        if before:
+            self.log.append((datetime.datetime.now().strftime('%H:%M:%S'), before))
 
 
 def find_port():
@@ -271,6 +349,36 @@ def selftest():
     assert status['Ampel wird bedient'] == 'übersprungen', status
     text = report_md(record, checks)
     assert 'alles in Ordnung' in text and '| ✓ |' in text
+    # A log line without its line end in front of an answer; answers to other commands are not taken.
+    glued = '[322372][E][WebServer.cpp:638] _handleRequest(): request handler' + REPLY + '{"ok": true, "cmd": "info"}'
+    assert parse_reply(glued, 'info') == {'ok': True, 'cmd': 'info'}
+    assert parse_reply(REPLY + '{"ok": true, "cmd": "memorytest"}', 'health') is None
+    assert parse_reply(REPLY + '{"ok": true}', 'health') == {'ok': True}, 'Firmware ohne cmd'
+    assert parse_reply('Neustart nach Fehler', 'health') is None
+    # A foreign answer among the samples is not taken for a restart or a 0 KB block.
+    mixed = dict(record)
+    mixed['samples'] = record['samples'][:3] + [{'ok': True, 'message': 'Dauertest läuft'}] + record['samples'][3:]
+    status = {c['name']: c['status'] for c in evaluate(mixed)}
+    assert status['Keine Neustarts'] == 'ok' and status['Größter freier Speicherblock'] == 'ok', status
+    # Pauses and their causes.
+    def at(t, ago, clients=2, drops=0, aborts=0):
+        return dict(good(t), ampelAgo=ago, clients=clients, t=1000 + t * 2,
+                    health={'crash': False, 'readerFaults': 0, 'saveFailures': 0, 'minBlock': 52000,
+                            'wlanDrops': drops, 'sendAborts': aborts, 'sendMaxMs': 200})
+    seq = [at(0, 0), at(1, 4), at(2, 6), at(3, 0), at(4, 5, clients=0, drops=1), at(5, 0, drops=1),
+           at(6, 0, drops=1), at(7, 7, drops=1, aborts=1), at(8, 0, drops=1, aborts=1)]
+    found = pauses(seq)
+    assert [p['cause'][:5] for p in found] == ['Table', 'Table', 'Dial '], found
+    assert 'nicht gefragt' in found[0]['cause'] and 'WLAN' in found[1]['cause']
+    rec = dict(record)
+    rec['samples'] = seq
+    checks = evaluate(rec)
+    assert '## Pausen der Ampel' in report_md(rec, checks)
+    # Unclear card reads are a hint, not a reader fault.
+    soft = dict(record)
+    soft['samples'] = [good(0), good(1, health={'readerFaults': 0, 'unclearReads': 2, 'minBlock': 52000})]
+    status = {c['name']: c['status'] for c in evaluate(soft)}
+    assert status['Kartenleser'] == 'ok' and status['Karten unklar gelesen'] == 'hinweis', status
     print('Selbsttest ok')
 
 

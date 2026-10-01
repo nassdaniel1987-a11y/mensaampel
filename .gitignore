@@ -9,3 +9,4 @@ build/storage-test
 build/raster-test
 build/ota-test
 pruefbericht/
+__pycache__/

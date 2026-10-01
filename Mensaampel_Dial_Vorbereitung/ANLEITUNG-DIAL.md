@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.17.1-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.17.2-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -270,6 +270,30 @@ Das rechnet das **Tablet** aus den Tagesberichten im Dial, das Dial braucht daf�
 ## Prüfung über USB (ab 0.17.1)
 
 Das Dial per USB-Datenkabel an den PC, die Tablets normal im Dial-WLAN: Ein Prüfskript beobachtet 10 Minuten lang Speicher, Ampel-Verbindung, Leser und Speichern, startet den Speicher-Dauertest und schreibt einen Bericht. Mit Claude Code am PC: „Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“ Einzelheiten in [PRUEFUNG-AM-PC.md](PRUEFUNG-AM-PC.md).
+
+## Ampel-Tablet: WLAN stabil halten
+
+Das Dial-WLAN hat absichtlich kein Internet. Viele Tablets verlassen so ein Netz deshalb immer wieder kurz oder hören im Energiesparmodus auf zu fragen – dann wird die Ampel für einige Sekunden rot. Einmal einstellen:
+
+**Android** (Bezeichnungen je nach Hersteller etwas anders):
+- Einstellungen → WLAN → beim Dial-Netz auf das Zahnrad: **„Automatisch verbinden“ an**; wenn gefragt „Kein Internet – verbunden bleiben?“: **„Ja, nicht mehr fragen“**.
+- **Mobile Daten aus** (bzw. keine SIM) und **„Intelligenter Netzwechsel“ / „Adaptives WLAN“ / „Zu mobilen Daten wechseln“ aus**.
+- Anzeige → **Bildschirm-Timeout auf das Maximum** bzw. „Nie“ (oft unter Entwickleroptionen „Aktiv lassen“ beim Laden) und **Ladekabel dran**.
+- Akku → Browser (Chrome) **nicht optimieren / „Uneingeschränkt“**.
+
+**iPad:**
+- Einstellungen → WLAN → (i) beim Dial-Netz: **„Automatisch verbinden“ an**, „Datenarmer Modus“ aus.
+- Einstellungen → Mobilfunk (falls vorhanden): **„WLAN-Assistent“ aus**.
+- Anzeige & Helligkeit → **Automatische Sperre: Nie**, Ladekabel dran. Am besten „Geführter Zugriff“ (siehe „iPad als Ampel einrichten“).
+
+**Immer:** Auf dem Ampel-Tablet nur **einen** Tab mit `/ampel` offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).
+
+## Neu in 0.17.2
+
+- **Ampel bleibt bedient, wenn ein Tablet mitten in einer Antwort verschwindet:** Bisher konnte das Dial dann bis zu 10 Sekunden niemandem antworten. Jetzt gibt es nach 1,5 Sekunden auf und bedient die anderen weiter.
+- **Gesundheit heute:** neu „WLAN-Trennungen“ und „Antworten abgebrochen“. Beim Kartenleser zählen nur noch echte Störungen; „Karte unklar gelesen“ (schräg, zwei Karten, zu schnell weggezogen) steht nur noch als Hinweis daneben.
+- **Prüfung über USB:** Die Auswertung verwechselt keine Antworten mehr (die erste Prüfung meldete deshalb fälschlich „Neustart“, „0 KB“ und „Dauertest nicht gestartet“) und nennt bei jeder Ampel-Pause die vermutliche Ursache.
+- Neuer Abschnitt „Ampel-Tablet: WLAN stabil halten“ (oben).
 
 ## Neu in 0.17.1
 

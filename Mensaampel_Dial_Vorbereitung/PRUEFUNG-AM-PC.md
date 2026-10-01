@@ -5,7 +5,7 @@ Ab Firmware **0.17.1**. Das Dial hängt per **USB-Datenkabel** am Windows-PC; de
 ## Für den Nutzer (vorher)
 
 1. Dial per USB-Datenkabel an den PC (dasselbe Kabel wie bei der Installation).
-2. Ampel-Tablet mit dem Dial-WLAN verbinden und `/ampel` öffnen; Betreuungs-Tablet anmelden (nur **ein** Browserfenster).
+2. **Beide** Tablets mit dem Dial-WLAN verbinden: Ampel-Tablet mit `/ampel`, Betreuungs-Tablet angemeldet (je nur **ein** Browserfenster). Vorher am Ampel-Tablet „Ampel-Tablet: WLAN stabil halten“ aus `ANLEITUNG-DIAL.md` einstellen.
 3. Claude Code am PC im Ordner des Projekts starten und schreiben: *„Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“*
 4. Während der Prüfung (10 Minuten) gern normal weiterarbeiten oder Karten scannen – nur das Dial nicht ausstecken.
 
@@ -30,7 +30,7 @@ Ab Firmware **0.17.1**. Das Dial hängt per **USB-Datenkabel** am Windows-PC; de
 | Verbindung über USB, Firmware-Version | Antwort, ≥ 0.17.1 |
 | Keine Neustarts während der Prüfung | 0 |
 | Größter freier Speicherblock (kleinster Wert) | ≥ 32 KB |
-| Ampel wird bedient (Sekunden seit der letzten Abfrage der Ampel) | ≤ 3 s |
+| Ampel wird bedient (Sekunden seit der letzten Abfrage der Ampel); jede Pause mit Uhrzeit und vermutlicher Ursache (Tablet aus dem WLAN / Tablet hat nicht gefragt / Dial hat abgebrochen) | ≤ 3 s |
 | Ampel während des Speicher-Dauertests | ≤ 3 s |
 | Speicher-Dauertest (20× Speichern im Hintergrund) | ohne Fehler |
 | Status für das Tablet bauen (10×) | ≤ 1500 ms |

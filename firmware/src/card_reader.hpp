@@ -15,6 +15,16 @@ public:
   // card is held.
   bool automatic = false;
   uint64_t probedAt = 0;
+  // Since power-on (health report): communication/hardware faults, and cards that could not be read cleanly (tilted,
+  // two cards, pulled away too fast). Counted when the reader turns from healthy to faulty.
+  uint32_t ioFaults = 0, unclearReads = 0;
+  bool fault(bool unclear, const char *text, mensa::Edge &edge, uint64_t now) {
+    if (healthy) (unclear ? unclearReads : ioFaults)++;
+    healthy = false;
+    error = text;
+    edge = latch.sample(mensa::Sample::Fault, "", now);
+    return true;
+  }
   bool externalPresent() {
     external.ioOk = true;
     uint8_t v = external.PCD_ReadRegister(MensaRFID::VersionReg);
@@ -61,28 +71,17 @@ public:
       internal.ioOk = true;
       auto internalField = internal.PCD_ReadRegister(MensaRFID::TxControlReg);
       if (!internal.ioOk || (internalField & 3) != 0) {
-        healthy = false;
-        error = "Interner Leser konnte nicht sicher abgeschaltet werden. Leser erneut prüfen.";
-        edge = latch.sample(mensa::Sample::Fault, "", now);
-        return true;
+        return fault(false, "Interner Leser konnte nicht sicher abgeschaltet werden. Leser erneut prüfen.", edge, now);
       }
     }
     auto version = active->PCD_ReadRegister(MensaRFID::VersionReg);
     auto field = active->PCD_ReadRegister(MensaRFID::TxControlReg);
     if (!active->ioOk || version == 0 || version == 0xff || (field & 3) != 3) {
-      healthy = false;
-      error = "Kartenleser gestört. Bitte Anschluss prüfen und Leser erneut prüfen.";
-      edge = latch.sample(mensa::Sample::Fault, "", now);
-      return true;
+      return fault(false, "Kartenleser gestört. Bitte Anschluss prüfen und Leser erneut prüfen.", edge, now);
     }
     uint8_t atqa[2] = {}, length = 2;
     auto result = active->PICC_WakeupA(atqa, &length);
-    if (!active->ioOk) {
-      healthy = false;
-      error = "Leserkommunikation gestört.";
-      edge = latch.sample(mensa::Sample::Fault, "", now);
-      return true;
-    }
+    if (!active->ioOk) { return fault(false, "Leserkommunikation gestört.", edge, now); }
     if (result == MensaRFID::STATUS_TIMEOUT) {
       healthy = true;
       error.clear();
@@ -90,16 +89,10 @@ public:
       return true;
     }
     if (result != MensaRFID::STATUS_OK && result != MensaRFID::STATUS_COLLISION) {
-      healthy = false;
-      error = "Karte nicht eindeutig lesbar. Bitte nur eine Karte vorhalten.";
-      edge = latch.sample(mensa::Sample::Fault, "", now);
-      return true;
+      return fault(true, "Karte nicht eindeutig lesbar. Bitte nur eine Karte vorhalten.", edge, now);
     }
     if (!active->PICC_ReadCardSerial() || !active->ioOk) {
-      healthy = false;
-      error = "Karte nicht eindeutig lesbar. Karte entfernen und erneut vorhalten.";
-      edge = latch.sample(mensa::Sample::Fault, "", now);
-      return true;
+      return fault(true, "Karte nicht eindeutig lesbar. Karte entfernen und erneut vorhalten.", edge, now);
     }
     std::string uid;
     char hex[4];
@@ -109,12 +102,7 @@ public:
       uid += hex;
     }
     active->PICC_HaltA();
-    if (!active->ioOk) {
-      healthy = false;
-      error = "Leserkommunikation gestört.";
-      edge = latch.sample(mensa::Sample::Fault, "", now);
-      return true;
-    }
+    if (!active->ioOk) { return fault(false, "Leserkommunikation gestört.", edge, now); }
     healthy = true;
     error.clear();
     edge = latch.sample(mensa::Sample::Present, uid, now);

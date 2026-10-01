@@ -14,6 +14,8 @@
 #include <Update.h>
 #include <Preferences.h>
 #include <esp_ota_ops.h>
+#include <lwip/sockets.h>
+#include <atomic>
 
 using mensa::Json;
 // Loop task stack: 20 KB instead of the default 8 KB (engine copies for rollback, storage, JSON). The web server runs
@@ -76,8 +78,7 @@ unsigned loginFailures = 0;
 bool ampelWarned = false;
 // Health since power-on (one lunch), only in RAM: reader faults, Ampel disconnects, smallest largest free block.
 struct Health {
-  uint32_t readerFaults = 0, ampelDrops = 0, minBlock = UINT32_MAX;
-  bool readerWasHealthy = false;
+  uint32_t ampelDrops = 0, minBlock = UINT32_MAX;
   uint64_t sampledAt = 0;
 } health;
 // Memory endurance test: runs in the loop one round at a time (a long web handler would block the Ampel, as the web
@@ -110,14 +111,74 @@ struct PendingReply {
   int code = 0;
   std::string body, disposition;
 } pending;
+// Sending with a hard limit: the library's WiFiClient::write waits up to 10 x 1 s per call when a tablet left the WLAN
+// mid-answer, and the web server answers nobody else meanwhile (the Ampel turns red). Here an answer is given up when
+// nothing moves for 1.5 s. Web task only; counters for the health report.
+std::atomic<uint32_t> sendMaxMs{0}, sendAborts{0}, wlanDrops{0};
+bool writeBounded(int fd, const char *data, size_t length) {
+  uint64_t progressAt = nowMs();
+  while (length > 0) {
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(fd, &set);
+    timeval tv{0, 100000};
+    int ready = select(fd + 1, nullptr, &set, nullptr, &tv);
+    if (ready < 0) return false;
+    if (ready > 0) {
+      int sent = send(fd, data, std::min<size_t>(length, 4096), MSG_DONTWAIT);
+      if (sent > 0) {
+        data += sent;
+        length -= size_t(sent);
+        progressAt = nowMs();
+        continue;
+      }
+      if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
+    }
+    if (nowMs() - progressAt > 1500) return false;
+  }
+  return true;
+}
+const char *statusText(int code) {
+  switch (code) {
+  case 200:
+    return "OK";
+  case 400:
+    return "Bad Request";
+  case 401:
+    return "Unauthorized";
+  case 403:
+    return "Forbidden";
+  case 404:
+    return "Not Found";
+  case 405:
+    return "Method Not Allowed";
+  case 429:
+    return "Too Many Requests";
+  default:
+    return "Service Unavailable";
+  }
+}
+// Writes one complete HTTP answer (headers + body) to the current client and closes the connection afterwards.
+void sendBounded(int code, const char *type, const char *body, size_t length, const std::string &extraHeaders) {
+  uint64_t t0 = nowMs();
+  WiFiClient client = web.client();
+  int fd = client.fd();
+  std::string head = "HTTP/1.1 " + std::to_string(code) + " " + statusText(code) + "\r\nContent-Type: " + type +
+                     "\r\nContent-Length: " + std::to_string(length) + "\r\n" + extraHeaders +
+                     "Connection: close\r\n\r\n";
+  bool ok = fd >= 0 && writeBounded(fd, head.data(), head.size()) && writeBounded(fd, body, length);
+  if (!ok) {
+    sendAborts++;
+    client.stop();
+  }
+  uint32_t took = uint32_t(nowMs() - t0);
+  if (took > sendMaxMs) sendMaxMs = took;
+}
 void sendPending() {
   if (!pending.code) return;
-  web.sendHeader("Cache-Control", "no-store");
-  web.sendHeader("X-Content-Type-Options", "nosniff");
-  if (!pending.disposition.empty()) web.sendHeader("Content-Disposition", pending.disposition.c_str());
-  web.setContentLength(pending.body.size());
-  web.send(pending.code, "application/json; charset=utf-8", "");
-  web.sendContent(pending.body.c_str(), pending.body.size());
+  std::string headers = "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n";
+  if (!pending.disposition.empty()) headers += "Content-Disposition: " + pending.disposition + "\r\n";
+  sendBounded(pending.code, "application/json; charset=utf-8", pending.body.data(), pending.body.size(), headers);
   pending = PendingReply{};
 }
 // Web handlers run in the web task: take the state lock and record the handler time for the diagnostics. Nothing a
@@ -274,9 +335,13 @@ Json state(bool withCards = true) {
       {"memoryTest", {{"running", memoryTest.left > 0}, {"ok", memoryTest.ok}, {"message", memoryTest.message}}},
       {"health",
        {{"crash", resetWasError},
-        {"readerFaults", health.readerFaults},
+        {"readerFaults", reader.ioFaults},
         {"saveFailures", storage.failures},
         {"ampelDrops", health.ampelDrops},
+        {"unclearReads", reader.unclearReads},
+        {"wlanDrops", wlanDrops.load()},
+        {"sendAborts", sendAborts.load()},
+        {"sendMaxMs", sendMaxMs.load()},
         {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
       {"clients", WiFi.softAPgetStationNum()},
       {"uptime", nowMs()}};
@@ -412,8 +477,12 @@ std::string backupText() {
 // Check interface on the USB cable (scripts/device-check.py): lines "@mensa <command>", answer "@mensa-reply {json}".
 // Read-only plus the memory test; no bookings, no settings (USB access means physical access anyway).
 std::string serialLine;
-void serialAnswer(const Json &j) {
-  std::string out = "@mensa-reply " + j.dump() + "\n";
+// The answer starts on a fresh line (library log lines may lack their line end) and names its command, so the PC
+// script never mixes up answers.
+std::string serialCmd;
+void serialAnswer(Json j) {
+  j["cmd"] = serialCmd;
+  std::string out = "\n@mensa-reply " + j.dump() + "\n";
   Serial.write((const uint8_t *)out.data(), out.size());
 }
 Json healthJson() {
@@ -423,9 +492,13 @@ Json healthJson() {
           {"version", MENSA_VERSION},
           {"health",
            {{"crash", resetWasError},
-            {"readerFaults", health.readerFaults},
+            {"readerFaults", reader.ioFaults},
             {"saveFailures", storage.failures},
             {"ampelDrops", health.ampelDrops},
+            {"unclearReads", reader.unclearReads},
+            {"wlanDrops", wlanDrops.load()},
+            {"sendAborts", sendAborts.load()},
+            {"sendMaxMs", sendMaxMs.load()},
             {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
           {"freeHeap", ESP.getFreeHeap()},
           {"minimumHeap", ESP.getMinFreeHeap()},
@@ -442,6 +515,7 @@ Json healthJson() {
           {"memoryTest", {{"running", memoryTest.left > 0}, {"ok", memoryTest.ok}, {"message", memoryTest.message}}}};
 }
 void serialCommand(const std::string &cmd) {
+  serialCmd = cmd;
   try {
     if (cmd == "info")
       serialAnswer({{"ok", true},
@@ -871,12 +945,11 @@ void configureWeb() {
     if (path == "/" || path == "/ampel" || path == "/geraet") path = "/index.html";
     for (auto &a : webAssets)
       if (path == a.path) {
-        web.sendHeader("Content-Encoding", "gzip");
-        web.sendHeader("Cache-Control", "no-cache");
-        web.sendHeader("Content-Security-Policy",
-                       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-                       "connect-src 'self'; frame-ancestors 'none'");
-        web.send_P(200, a.mime, (const char *)a.bytes, a.length);
+        // Assets lie in flash, which the ESP32 reads directly: sent in place, without a copy in RAM.
+        sendBounded(200, a.mime, (const char *)a.bytes, a.length,
+                    "Content-Encoding: gzip\r\nCache-Control: no-cache\r\nContent-Security-Policy: default-src 'self'; "
+                    "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+                    "frame-ancestors 'none'\r\n");
         return;
       }
     reply(404, result(false, "Nicht gefunden."));
@@ -1022,6 +1095,8 @@ void setup() {
     WiFi.mode(WIFI_AP);
     WiFi.setSleep(false);
     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+    // A tablet left the Dial WLAN (health report). Runs in the event task: only the atomic counter.
+    WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t) { wlanDrops++; }, ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
     if (!WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4)) {
       configValid = false;
       feedback = "WLAN konnte nicht gestartet werden.";
@@ -1078,8 +1153,6 @@ void step(uint64_t now) {
   if (now >= health.sampledAt) {
     health.sampledAt = now + 1000;
     health.minBlock = std::min<uint32_t>(health.minBlock, ESP.getMaxAllocHeap());
-    if (health.readerWasHealthy && !reader.healthy) health.readerFaults++;
-    health.readerWasHealthy = reader.healthy;
   }
   // An upload that stopped (tablet gone) must not keep the entrance blocked.
   if (ota.active && !ota.ok && now - ota.lastAt > 30000) {
