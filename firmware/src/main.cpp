@@ -224,6 +224,8 @@ Json state(bool withCards = true) {
                  {"captureUntil", captureUntil},
                  {"feedback", feedback},
                  {"feedbackOk", feedbackOk},
+                 {"feedbackAgo", feedbackAt ? int((nowMs() - feedbackAt) / 1000) : -1},
+                 {"ampelAgo", ampelSeenAt ? int((nowMs() - ampelSeenAt) / 1000) : -1},
                  {"needsReview", needsReview},
                  {"freeHeap", ESP.getFreeHeap()},
                  {"minimumHeap", ESP.getMinFreeHeap()},
@@ -996,6 +998,7 @@ void step(uint64_t now) {
     if (!engine.isReady()) readySince = 0;
     bool lost = ampelLost();
     if (lost && !ampelWarned) note(ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!", false);
+    if (!lost && ampelWarned && ampelSeenAt) note("Ampel wieder verbunden.", true);
     ampelWarned = lost;
     // Reminder while a pause, relief or full group waits for a person: short double beep each interval.
     int due = engine.reminders(now);

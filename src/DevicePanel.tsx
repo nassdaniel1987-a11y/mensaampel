@@ -49,6 +49,8 @@ export function Login({
     </section>
   );
 }
+// Age as short German text: "12 s", "4 min", "2 h".
+const ago = (s: number) => (s < 60 ? `${s} s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`);
 export function DevicePanel({
   state: s,
   send,
@@ -210,7 +212,19 @@ export function DevicePanel({
             Bei externem Betrieb bleibt das interne RFID-Feld aus. Nach dem Einschalten oder Umschalten den Leser etwa
             eine Sekunde freihalten. Nur eine Karte gleichzeitig vorhalten.
           </p>
-          <h3>Letzte Rückmeldung</h3>
+          {d.ampelAgo !== undefined && (
+            <p className={d.ampelAgo >= 0 && d.ampelAgo <= 10 ? '' : 'error-text'}>
+              <strong>Ampel draußen: </strong>
+              {d.ampelAgo < 0
+                ? 'noch nie verbunden'
+                : d.ampelAgo <= 10
+                  ? 'verbunden'
+                  : `getrennt seit ${ago(d.ampelAgo)} (Ampelseite muss im Vordergrund laufen)`}
+            </p>
+          )}
+          <h3>
+            Letzte Rückmeldung{d.feedbackAgo !== undefined && d.feedbackAgo >= 0 && ` (vor ${ago(d.feedbackAgo)})`}
+          </h3>
           <p className={d.feedbackOk ? '' : 'error-text'}>{d.feedback}</p>
         </section>
         <section className="device-section">

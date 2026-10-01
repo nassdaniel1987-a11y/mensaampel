@@ -118,8 +118,14 @@ export function useMensa() {
       if (alive) timer = setTimeout(loop, !publicView && isDevice() ? 1500 : 700);
     };
     void loop();
+    // A tab that becomes visible again asks at once instead of waiting for its throttled background timer.
+    const visible = () => {
+      if (document.visibilityState === 'visible') void read();
+    };
+    document.addEventListener('visibilitychange', visible);
     const clock = setInterval(() => setTick(Date.now()), 250);
     return () => {
+      document.removeEventListener('visibilitychange', visible);
       alive = false;
       abort.abort();
       clearTimeout(timer);

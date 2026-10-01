@@ -57,7 +57,9 @@ CI (`.github/workflows/ci.yml`) prüft Format, Typen, Tests, Kern-Neubau und Fir
 
 ## Stand (01.10.2026)
 
-- Installiert am echten Dial: **0.12.0-preview** (per PC). Externe RFID2 Unit, Einstellung „Extern“, WLAN stabil.
+- Laufender Plan (Plan 14): 0.12.1 Ampel-Verbindungsanzeige → Dial-Entwürfe A „Große Zahl + Symbol“ / B „Dunkel mit Leuchtring“ als Bilder zur Auswahl → 3 Klangsets zum Anhören → gewähltes Dial-Design + modernes Tablet-Design (Ampelseite und Betreuung, mit Screenshot-Freigabe) → 0.13.0.
+
+- Installiert am echten Dial: **0.12.0-preview** (per PC); 0.12.1 soll per Tablet-Update eingespielt werden (erster Test der Update-Funktion). Externe RFID2 Unit, Einstellung „Extern“, WLAN stabil.
 - Am Gerät bestätigt: Installation, Speicher, Gerätetest, Einzel-/Serien-Einlernen (10 von 112 Karten zugeordnet), Update-Funktion sichtbar.
 - **Offen am Gerät:** Verbindungstest 10 min mit nur einem offenen Tab (Aussetzer sollen 0–2 sein; zuletzt 5 bei zwei offenen Tabs), Speicher-Dauertest-Werte, Update per Tablet einmal ausprobieren, Lesbarkeit der neuen Schrift und flüssiger Countdown-Ring, danach Installationsschritt 8: alle Karten am Stück einlernen, Sicherung, Etiketten drucken, Bestand bestätigen, Probebuchung, ein kompletter Mittag als Probelauf.
 - Bekannte Kleinigkeit: Kennwortprüfung beim Anmelden (PBKDF2, ~0,9 s) läuft unter der Sperre.

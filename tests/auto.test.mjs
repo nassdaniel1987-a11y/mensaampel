@@ -658,3 +658,29 @@ test('Gerätetest (PC-Simulation): Scans buchen nicht, Anzeige zeigt Karte und E
     rmSync(dir, { recursive: true, force: true });
   }
 });
+test('PC-Dienst: Ampel getrennt und wieder verbunden wird gemeldet', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mensa-ampel-'));
+  const app = await createApp({ dataDir: dir });
+  const realNow = Date.now;
+  try {
+    app.transact({ type: 'confirm' });
+    await new Promise(done => app.server.listen(0, '127.0.0.1', done));
+    const signal = () => fetch(`http://127.0.0.1:${app.server.address().port}/api/signal`).then(r => r.json());
+    await signal();
+    const start = realNow();
+    Date.now = () => realNow() + 11000;
+    await new Promise(done => setTimeout(done, 700));
+    assert.equal(app.state().feedback.text, 'Ampel draußen getrennt!');
+    await signal();
+    await new Promise(done => setTimeout(done, 700));
+    assert.equal(app.state().feedback.text, 'Ampel wieder verbunden.');
+    assert.ok(!shown(app.state().dial).includes('Ampel draußen'));
+    assert.ok(realNow() - start < 5000);
+  } finally {
+    Date.now = realNow;
+    app.server.closeAllConnections();
+    app.server.close();
+    app.stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

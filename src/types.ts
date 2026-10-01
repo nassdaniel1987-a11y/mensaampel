@@ -23,6 +23,8 @@ export type Device = {
   captureUntil: number;
   feedback: string;
   feedbackOk: boolean;
+  feedbackAgo?: number;
+  ampelAgo?: number;
   needsReview: boolean;
   freeHeap: number;
   minimumHeap: number;

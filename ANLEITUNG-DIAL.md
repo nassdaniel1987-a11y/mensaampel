@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.12.0-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.12.1-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -129,6 +129,8 @@ Auf dem iPad braucht es keine Zusatz-App: Die eingebaute Funktion **„Geführte
 
 **Beenden:** wieder dreimal die Taste drücken, Code eingeben, „Beenden“. Das iPad **am Ladekabel lassen**. Nach einem iPad-Neustart ist der Geführte Zugriff aus und muss neu gestartet werden.
 
+**Wichtig:** Die Ampelseite muss auf ihrem Tablet **im Vordergrund** laufen. Ein Browser fragt in einem Hintergrund-Tab (oder bei ausgeschaltetem Bildschirm) nur noch etwa einmal pro Minute nach – dann meldet das Dial zu Recht „Ampel draußen getrennt!“. Zum Ausprobieren auf einem einzigen Tablet ist das normal; sobald der Ampel-Tab wieder vorne ist, meldet das Dial „Ampel wieder verbunden.“ Unter **Gerät** steht jederzeit live „Ampel draußen: verbunden / getrennt seit …“.
+
 Verwaltet die Schul-IT die iPads zentral (MDM), kann sie das iPad fest im **„Einzel-App-Modus“** auf Safari sperren; dann startet es auch nach einem Neustart von selbst so. Für ein Android-Tablet eignet sich stattdessen eine Kiosk-App wie „Fully Kiosk Browser“.
 
 **Uhr:** Das Dial hat eine eingebaute Uhr (RTC). Sie wird automatisch von jedem angemeldeten Tablet gestellt. Ist sie nach einem langen Stromausfall leer, übernimmt das Dial die Uhrzeit auch von der Ampel-Seite; bis dahin steht am Dial „Uhr nicht gestellt“.
@@ -234,6 +236,7 @@ Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Dat
 
 ## Neu in 0.12
 
+- **0.12.1:** Kommt die Ampel nach „Ampel draußen getrennt!“ zurück, meldet das Dial „Ampel wieder verbunden.“ Unter Gerät steht live, ob die Ampel verbunden ist, und wie alt die letzte Rückmeldung ist. Ein Tab, der wieder in den Vordergrund kommt, fragt sofort beim Dial nach.
 - **Firmware-Update über das Dial-WLAN** mit Android-Tablet oder iPad (Gerät → Firmware-Update), mit Prüfung der Datei, Fortschritt am Dial und automatischem Rückfall auf die alte Version.
 
 ## Neu in 0.11

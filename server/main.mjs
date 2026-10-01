@@ -345,6 +345,7 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
     if (!loadError && !forceWriteFailure) transact({ type: 'tick' });
     const lost = ampelLost();
     if (lost && !ampelWarned) note('Ampel draußen getrennt!', false);
+    if (!lost && ampelWarned && ampelSeenAt) note('Ampel wieder verbunden.', true);
     ampelWarned = lost;
   }, 500);
   timer.unref();
