@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DayCharts } from './Charts';
+import { Coach } from './Insights';
 import type { State, Send, FlowState } from './types';
 const queues = ['Keine Schlange', 'Kurze Schlange', 'Lange Schlange'],
   days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -636,6 +637,7 @@ export function FlowPanel({
             : `noch zu wenig Rückgaben (${f.stayN ?? 0} von 5). Gelernt wird automatisch.`}
         </p>
       </section>
+      <Coach state={s} send={send} disabled={disabled} />
       <section className="flow-section flow-results">
         <div className="section-heading">
           <h2>Tagesbericht</h2>

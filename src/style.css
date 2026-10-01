@@ -1995,3 +1995,52 @@ dialog {
 .series-section h2 {
   margin-top: 0;
 }
+/* Forecast, coach and simulator (0.17). */
+.forecast-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  margin-bottom: 18px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--navy);
+}
+.forecast-card svg {
+  flex: none;
+  color: var(--teal);
+  margin-top: 2px;
+}
+.coach-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.coach-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+.coach-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+.coach-list p {
+  margin: 4px 0 0 !important;
+}
+.coach-list button {
+  flex: none;
+}
+.simulator-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}

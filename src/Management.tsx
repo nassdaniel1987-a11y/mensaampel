@@ -16,6 +16,7 @@ import {
 import { Signal } from './Signal';
 import { Modal } from './Modal';
 import { Backup } from './Backup';
+import { ForecastCard } from './Insights';
 import type { State, Send, Card, RoomId } from './types';
 const name = (r: RoomId) => (r === 'K' ? 'Küche' : 'Mensa');
 export function Management({
@@ -102,6 +103,7 @@ export function Management({
           </button>
         </div>
       )}
+      <ForecastCard state={s} />
       <div className="dashboard">
         <div className="main-column">
           <div className="rooms">

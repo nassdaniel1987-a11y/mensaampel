@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.16.0-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.17.0-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -258,6 +258,18 @@ Alles wird im Dial gespeichert, nur als Zahlen, ohne Namen. **Jedes Tablet**, da
 - **Tagesbericht:** neu „Höchste Belegung“ (meiste Karten gleichzeitig draußen) und „Mensa-Spitze“.
 - **Gesundheit heute** (Gerät): seit dem Einschalten je ein farbiger Punkt für Start (Absturz?), Kartenleser, Speichern, Arbeitsspeicher, Ampel draußen, Antwortzeit und dieses Tablet – mit einem Satz, was zu tun ist. Grün = in Ordnung, Gelb = beobachten, Rot = handeln.
 - **Freundliches Warten** an der Ampel: bei Rot ruhig pulsierende Punkte und abwechselnd „Danke fürs Warten!“, „Gleich bist du dran!“ …; im Countdown „Ihr seid die Nächsten!“. Die Sprachzeile sagt abwechselnd „Bitte warten“ und „Danke fürs Warten“ (Übersetzungen bitte wie die anderen prüfen lassen).
+
+## Prognose, Wochen-Coach und Simulator (ab 0.17)
+
+Das rechnet das **Tablet** aus den Tagesberichten im Dial, das Dial braucht dafür keinen Speicher. Jedes angemeldete Tablet zeigt dasselbe.
+
+- **Heute erwartet** (oben unter Betreuung): aus den letzten bis zu 4 gleichen Wochentagen etwa so viele Essen, so viele Kinder gleichzeitig, Ausgabezeit, ob die Mensa wohl gebraucht wird. Erscheint, sobald es mindestens einen früheren gleichen Wochentag gibt.
+- **Wochen-Coach** (Einlass & Messungen): ab 3 Essenstagen Vorschläge mit Begründung, z. B. „Gruppen auf 5 verkleinern – bei 32 von 104 Gruppen musste entlastet werden“, „Automatische Freigabe einschalten“, „Mensa heute gleich öffnen“, „Karten am Ende einsammeln“. **Nichts ändert sich von selbst**; erst „Übernehmen“ schickt die Einstellung ans Dial. Eine neue Gruppengröße nimmt das Dial nur zwischen zwei Gruppen oder in einer Pause an.
+- **Was wäre, wenn …?** (Einlass & Messungen): zwei Gruppengrößen nebeneinander durchrechnen – Wartezeit an der Tür, an der Ausgabe, Zahl der Gruppen. Es ist eine **Schätzung** mit einem einfachen Modell (die meisten Kinder kommen gleich zu Beginn); zum Vergleichen reicht es, echte Mittage weichen ab.
+
+## Neu in 0.17
+
+- Tagesprognose „Heute erwartet“, Wochen-Coach mit „Übernehmen“, Simulator „Was wäre, wenn …?“. Nur am Tablet, die Firmware ist bis auf die Versionsnummer gleich wie 0.16.
 
 ## Neu in 0.16
 

@@ -204,3 +204,11 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Ampel**: `src/ampel-texts.mjs` `thanks`, `friendlyLines`, `nextSeatText()`; Punkte `.signal-dots` (aus bei `prefers-reduced-motion`).
 - **Speicher** (`tests/native-memory.test.mjs`, nativ 64 bit, ungünstigster Fall: alle Zähler 999, alle Halbstunden gelernt): Status 79,6 KB (0.15: 86,6 KB – `Engine::status` baut den Ablaufteil nicht mehr doppelt, `snapshot(withCards, withFlow)`), Speichern 98,8 KB (+7,7 KB), Buchung 121,7 KB (+10 KB). Der Test bildet jetzt das echte `snapshotText` mit Reservierung nach. Grenze Status auf 100 000 gesenkt.
 - Tests: `tests/learn.test.mjs`.
+
+## Version 0.17.0-preview: Prognose, Coach, Simulator (Plan 16, Teil 2)
+
+- Nur Browser: `src/insights.mjs` (reine Funktionen, Test `tests/insights.test.mjs`), Anzeige `src/Insights.tsx` (`ForecastCard` in Betreuung, `Coach` mit Simulator in Einlass & Messungen). Keine Kern- oder Firmwareänderung außer der Version.
+- `forecast(history, weekday, mensaCapacity)`: letzte 4 Tage desselben Wochentags mit Ausgaben; Mittel von Essen/Spitze/Zeiten, Mensa nötig wenn an mindestens der Hälfte der Tage benutzt; Mensa-Vorschlag wie `Engine::mensaSuggestion`.
+- `coach(flow, rooms)`: Regeln über die letzten 10 Tage (ab 3): Entlastungen ≥ 25 % der Gruppen → `flowSettings batch−1`; keine Entlastung und ≥ 30 % frühere Freigaben bei ≥ 8 Gruppen → `batch+1`; Gruppen ohne Automatik → `autoSettings on`; Mensa an fast allen der letzten 5 Tage → `room M` (gilt nur für den Tag, `startDay` sperrt die Mensa wieder); fehlende Karten an ≥ 3 Tagen → Hinweis ohne Befehl. „Übernehmen“ schickt `action` über `send()` (rid, idempotent).
+- `simulate({children, minutes, perChild, stay, seats, batch})`: sekundengenaues, deterministisches Modell; Ankunft `minutes·(i/n)²` (die meisten am Anfang), Gruppenfreigabe `groupStart + batch·perChild` wie die Automatik, Ausgabe seriell `perChild`, Platz nach `stay` frei. Ausdrücklich als Schätzung beschriftet.
+
