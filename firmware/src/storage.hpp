@@ -9,6 +9,7 @@
 void mark(const char *what, const std::string &detail);
 class BookStorage {
   uint32_t generation = 0;
+  size_t lastSize = 16000; // size of the last saved text (a full stock is about 19 KB)
   static uint32_t crc(const uint8_t *p, size_t n, uint32_t c = 0xffffffff) {
     for (size_t i = 0; i < n; i++) {
       c ^= p[i];
@@ -41,13 +42,14 @@ class BookStorage {
     } catch (...) { return false; }
   }
   // Snapshot as JSON text: the same data as engine.snapshot(), undo and held card cleared.
-  static std::string snapshotText(const mensa::Engine &engine) {
+  static std::string snapshotText(const mensa::Engine &engine, size_t reserve = 0) {
     std::string text;
+    text.reserve(reserve);
     {
       auto j = engine.snapshot(false);
       j["undo"] = nullptr;
       j["held"] = "";
-      text = j.dump();
+      text += j.dump();
     }
     text.pop_back();
     text += ",\"cards\":";
@@ -70,14 +72,44 @@ class BookStorage {
     }
     return true;
   }
-  static void removeLeftovers() {
-    for (const char *p : {"/book.tmp", "/review0.bin", "/review1.bin"})
-      if (LittleFS.exists(p)) LittleFS.remove(p);
+  static bool exists(const char *p) { return LittleFS.exists(p); }
+  static void drop(const char *p) {
+    if (LittleFS.exists(p)) LittleFS.remove(p);
+  }
+  // Moves a file; when the target exists and the file system refuses to replace it, the target is removed first.
+  static bool move(const char *from, const char *to) {
+    if (LittleFS.rename(from, to)) return true;
+    drop(to);
+    return LittleFS.rename(from, to);
+  }
+  // Fresh device without real cards: the store starts over (nothing can be lost).
+  bool fresh(mensa::Engine &engine) {
+    for (const char *p : {"/book0.bin", "/book1.bin", "/book.tmp", "/review0.bin", "/review1.bin", "/reviewold0.bin",
+                          "/reviewold1.bin", "/reconcile.flag"})
+      drop(p);
+    generation = 0;
+    engine.reset();
+    engine.prepareHardware();
+    return save(engine);
+  }
+  // Newest readable of two files (generation decides); false when neither can be read.
+  bool newest(const char *p0, const char *p1, mensa::Engine &engine, bool &ok0, bool &ok1) {
+    mensa::Engine candidate;
+    uint32_t g0 = 0, g1 = 0;
+    ok0 = exists(p0) && read(p0, engine, g0);
+    ok1 = exists(p1) && read(p1, candidate, g1);
+    if (ok1 && (!ok0 || g1 > g0)) engine = std::move(candidate);
+    generation = std::max({generation, g0, g1});
+    return ok0 || ok1;
   }
 
 public:
   bool mounted = false;
   std::string error;
+  // Rules (see tests/native/storage.cpp, power cut at every step):
+  // - The newest valid slot is always the last state reported as saved; a leftover book.tmp is an unconfirmed
+  //   action and is discarded.
+  // - A damaged slot file, or slots missing while review copies exist, needs a person: never a silent fresh start.
   bool load(mensa::Engine &engine) {
     // The data partition is named "littlefs" (partitions.csv); LittleFS.begin() would look for "spiffs" by default.
     mounted = LittleFS.begin(false, "/littlefs", 10, "littlefs");
@@ -85,58 +117,71 @@ public:
       error = "Gerätespeicher nicht lesbar. Keine automatische Formatierung.";
       return false;
     }
-    bool a = LittleFS.exists("/book0.bin"), b = LittleFS.exists("/book1.bin"), pending = LittleFS.exists("/book.tmp");
-    if (!a && !b) {
-      engine.reset();
-      engine.prepareHardware();
-      if (pending) {
-        uint32_t recovered = 0;
-        bool readable = read("/book.tmp", engine, recovered);
-        // Without any real card nothing can be lost: remove the remains of the interrupted first save.
-        if (!readable || !engine.hasRealCards()) {
-          engine.reset();
-          engine.prepareHardware();
-          removeLeftovers();
-          return save(engine);
+    // Interrupted manual reconciliation (marker written first, removed last): a person checks again.
+    if (exists("/reconcile.flag")) {
+      bool any = false;
+      for (const char *p : {"/review0.bin", "/review1.bin", "/book0.bin", "/book1.bin"}) {
+        mensa::Engine candidate;
+        uint32_t g = 0;
+        if (exists(p) && read(p, candidate, g) && (!any || g >= generation)) {
+          engine = std::move(candidate);
+          generation = std::max(generation, g);
+          any = true;
         }
-        generation = recovered;
-        error = "Unterbrochene Speicherung. Bestand manuell abgleichen.";
-        return false;
       }
-      return save(engine);
-    }
-    mensa::Engine candidate;
-    uint32_t ga = 0, gb = 0;
-    bool va = a && read("/book0.bin", engine, ga), vb = b && read("/book1.bin", candidate, gb);
-    if (vb && (!va || gb > ga)) engine = std::move(candidate);
-    generation = std::max(ga, gb);
-    if (pending || (a && !va) || (b && !vb) || (!va && !vb)) {
-      if ((va || vb) && !engine.hasRealCards()) {
-        // Only placeholders so far (fresh device): tidy up instead of asking for a manual reconciliation.
-        removeLeftovers();
-        if (a && !va) LittleFS.remove("/book0.bin");
-        if (b && !vb) LittleFS.remove("/book1.bin");
-        return save(engine);
-      }
-      error = "Bestandsdatei beschädigt oder Speicherung unterbrochen. Angezeigten Bestand manuell abgleichen und "
-              "ausdrücklich übernehmen.";
+      if (any && !engine.hasRealCards()) return fresh(engine);
+      if (!any) engine.reset();
+      error = "Abgleich wurde unterbrochen. Angezeigten Bestand manuell abgleichen und ausdrücklich übernehmen.";
       return false;
     }
-    return true;
+    bool a = exists("/book0.bin"), b = exists("/book1.bin"), va = false, vb = false;
+    if (a || b) {
+      bool any = newest("/book0.bin", "/book1.bin", engine, va, vb);
+      if (any && (a == va) && (b == vb)) {
+        drop("/book.tmp");
+        return true;
+      }
+      // A damaged slot may have been the newer one: always a person decides (no silent fallback to older data).
+      error = "Bestandsdatei beschädigt. Angezeigten Bestand manuell abgleichen und ausdrücklich übernehmen.";
+      if (!any) engine.reset();
+      return false;
+    }
+    // No slot: an interrupted manual reconciliation (review copies) or an interrupted very first save.
+    bool reviews = exists("/review0.bin") || exists("/review1.bin"), r0 = false, r1 = false;
+    if (reviews && !newest("/review0.bin", "/review1.bin", engine, r0, r1)) {
+      engine.reset();
+      error = "Bestandsdateien unlesbar. Technische Prüfung erforderlich; Bestand manuell abgleichen.";
+      return false;
+    }
+    if (reviews && engine.hasRealCards()) {
+      error = "Abgleich wurde unterbrochen. Angezeigten Bestand manuell abgleichen und ausdrücklich übernehmen.";
+      return false;
+    }
+    uint32_t g = 0;
+    if (exists("/book.tmp") && read("/book.tmp", engine, g) && engine.hasRealCards()) {
+      generation = std::max(generation, g);
+      error = "Unterbrochene Speicherung. Bestand manuell abgleichen.";
+      return false;
+    }
+    return fresh(engine);
   }
   bool save(const mensa::Engine &engine) {
     if (!mounted) {
       error = "Gerätespeicher nicht verfügbar.";
       return false;
     }
-    // Memory guard: without a sufficiently large free block the save is refused cleanly instead of failing midway.
-    if (ESP.getMaxAllocHeap() < 24000) {
+    // Memory guard: the text needs one contiguous block of about the last size; refused cleanly instead of failing
+    // midway.
+    size_t need = lastSize + lastSize / 4 + 8192;
+    if (ESP.getMaxAllocHeap() < need) {
       error = "Speicher knapp - bitte gleich nochmal.";
       return false;
     }
+    bool opened = false;
     try {
       mark("Speichern Text", heapTag());
-      std::string text = snapshotText(engine);
+      std::string text = snapshotText(engine, lastSize + 2048);
+      lastSize = text.size();
       Header h{0x4d454e53, 2, generation + 1, uint32_t(text.size()), ~crc((const uint8_t *)text.data(), text.size())};
       const char *target = (h.generation % 2) ? "/book1.bin" : "/book0.bin";
       mark("Speichern schreiben", heapTag());
@@ -145,57 +190,71 @@ public:
         error = "Speichern nicht möglich.";
         return false;
       }
+      opened = true;
       bool ok = f.write((uint8_t *)&h, sizeof(h)) == sizeof(h) &&
                 f.write((const uint8_t *)text.data(), text.size()) == text.size();
       f.flush();
       f.close();
       if (!ok) {
         error = "Speichern unvollständig.";
+        drop("/book.tmp");
         return false;
       }
-      // Validate the written file byte for byte before it replaces the inactive slot.
+      // Validate the written file byte for byte before it replaces the older slot.
       mark("Speichern pruefen", heapTag());
       if (!sameFile("/book.tmp", h, text)) {
         error = "Speicherprüfung fehlgeschlagen.";
+        drop("/book.tmp");
         return false;
       }
       mark("Speichern umbenennen", heapTag());
-      if (LittleFS.exists(target)) LittleFS.remove(target);
-      if (!LittleFS.rename("/book.tmp", target)) {
+      if (!move("/book.tmp", target)) {
         error = "Speicherabschluss fehlgeschlagen.";
+        drop("/book.tmp");
         return false;
       }
       generation = h.generation;
       error.clear();
       return true;
-    } catch (const std::bad_alloc &) {
-      error = "Speicher knapp - bitte gleich nochmal.";
-      return false;
-    } catch (...) {
+    } catch (const std::bad_alloc &) { error = "Speicher knapp - bitte gleich nochmal."; } catch (...) {
       error = "Speicherfehler. Buchung nicht bestätigt.";
-      return false;
     }
+    if (opened) drop("/book.tmp");
+    return false;
   }
+  // Explicitly accepts the reconciled stock. The previous files stay as evidence (review*, the review before that as
+  // reviewold*); an interruption at any point leads back to the manual reconciliation, never to an empty stock.
   bool reconcile(const mensa::Engine &engine) {
     if (!mounted) return false;
-    // Keep evidence before explicitly accepting a reconciled registry.
+    {
+      auto flag = LittleFS.open("/reconcile.flag", "w");
+      if (!flag) {
+        error = "Prüfsicherung fehlgeschlagen.";
+        return false;
+      }
+      flag.write((const uint8_t *)"1", 1);
+      flag.close();
+    }
     for (int i = 0; i < 2; i++) {
-      String path = "/book" + String(i) + ".bin";
-      if (LittleFS.exists(path)) {
-        String backup = "/review" + String(i) + ".bin";
-        if (LittleFS.exists(backup)) {
-          if (engine.hasRealCards()) {
-            error = "Alte Prüfsicherung vorhanden. Technische Speicherprüfung erforderlich.";
-            return false;
-          }
-          LittleFS.remove(backup);
-        }
-        if (!LittleFS.rename(path, backup)) {
-          error = "Prüfsicherung fehlgeschlagen.";
-          return false;
-        }
+      String path = "/book" + String(i) + ".bin", review = "/review" + String(i) + ".bin",
+             old = "/reviewold" + String(i) + ".bin";
+      if (!LittleFS.exists(path)) continue;
+      if (LittleFS.exists(review) && !move(review.c_str(), old.c_str())) {
+        error = "Prüfsicherung fehlgeschlagen.";
+        return false;
+      }
+      if (!move(path.c_str(), review.c_str())) {
+        error = "Prüfsicherung fehlgeschlagen.";
+        return false;
       }
     }
-    return save(engine);
+    drop("/book.tmp");
+    if (!save(engine)) return false;
+    drop("/reconcile.flag");
+    if (exists("/reconcile.flag")) {
+      error = "Abgleich nicht abgeschlossen. Bitte wiederholen.";
+      return false;
+    }
+    return true;
   }
 };

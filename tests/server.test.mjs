@@ -74,3 +74,22 @@ test('HTTP: zentrale Ansichten, Token, Fremdursprung und Unterbrechung', async (
     await new Promise(r => a.server.close(r));
   }
 });
+test('HTTP: wiederholter Befehl mit derselben Kennung läuft nur einmal', async () => {
+  const a = await createApp({ dataDir: dir() });
+  await new Promise(r => a.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${a.server.address().port}`;
+  try {
+    const one = await (await fetch(base + '/api/state')).json();
+    const headers = { 'Content-Type': 'application/json', 'X-Mensa-Token': one.token };
+    const cmd = async body =>
+      (await fetch(base + '/api/command', { method: 'POST', headers, body: JSON.stringify(body) })).json();
+    await cmd({ type: 'confirm' });
+    const first = await cmd({ type: 'newDay', confirmed: true, rid: 'abc' });
+    const again = await cmd({ type: 'newDay', confirmed: true, rid: 'abc' });
+    assert.equal(first.ok, true);
+    assert.equal(again.message, first.message);
+    assert.equal(a.state().day, 2, 'nur ein neuer Tag');
+  } finally {
+    await new Promise(r => a.server.close(r));
+  }
+});

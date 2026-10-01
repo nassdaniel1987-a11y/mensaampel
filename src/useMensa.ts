@@ -58,6 +58,7 @@ export function useMensa() {
         });
         if (r.status === 401) {
           if (alive) {
+            cards.current = null;
             setAuthRequired(true);
             setState(null);
           }
@@ -130,15 +131,27 @@ export function useMensa() {
     locked.current = true;
     epoch.current++;
     setBusy(true);
-    try {
-      const r = await fetch('/api/command', {
+    // The command id makes a retry safe: the Dial answers a known id from memory instead of running it again.
+    const body = JSON.stringify({ ...command, rid: Math.random().toString(36).slice(2) + Date.now().toString(36) });
+    const post = () =>
+      fetch('/api/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Mensa-Token': token.current },
-        body: JSON.stringify(command),
+        body,
         signal: AbortSignal.timeout(7000),
       });
+    try {
+      let r: Response;
+      try {
+        r = await post();
+      } catch {
+        r = await post(); // network hiccup or timeout: once more with the same id
+      }
       const result = await r.json();
-      if (r.status === 401) setAuthRequired(true);
+      if (r.status === 401) {
+        cards.current = null;
+        setAuthRequired(true);
+      }
       if (!r.ok) throw Error(result.message || 'Keine Verbindung.');
       if (result.state) {
         setState({ ...apply(result.state), token: token.current });
@@ -168,6 +181,7 @@ export function useMensa() {
       const result = await r.json();
       if (!r.ok) throw Error(result.message);
       token.current = result.token;
+      cards.current = null;
       sessionStorage.setItem('mensa-device-session', result.token);
       setAuthRequired(false);
       setNotice(null);
@@ -180,6 +194,7 @@ export function useMensa() {
   async function logout() {
     await fetch('/api/logout', { method: 'POST', headers: { 'X-Mensa-Token': token.current } }).catch(() => {});
     token.current = '';
+    cards.current = null;
     sessionStorage.removeItem('mensa-device-session');
     setState(null);
     setAuthRequired(true);
@@ -206,6 +221,9 @@ export function useMensa() {
   }
   // Upload a downloaded backup; the service validates it and requires a fresh stock confirmation.
   async function restore(file: File) {
+    if (locked.current) return false;
+    locked.current = true;
+    epoch.current++;
     setBusy(true);
     try {
       const backup = JSON.parse(await file.text());
@@ -226,6 +244,7 @@ export function useMensa() {
       setNotice({ ok: false, text: 'Datei ist keine gültige Sicherung.' });
       return false;
     } finally {
+      locked.current = false;
       setBusy(false);
     }
   }

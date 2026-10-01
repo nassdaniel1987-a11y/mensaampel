@@ -140,6 +140,11 @@ public:
     hasUndo = false;
     held.clear();
   }
+  // After a restore: the stock must be confirmed by a person, also when the backup was confirmed today.
+  void requireConfirmation() {
+    ready = false;
+    resumeDate = -1;
+  }
   int occupied(int r) const {
     int n = 0;
     for (const auto &c : cards)
@@ -630,8 +635,10 @@ public:
     return (automatic ? "Neuer Essenstag automatisch gestartet." : "Neuer Essenstag nach Bestandsprüfung gestartet.") +
            lost;
   }
-  Json command(const Json &cmd, long long now) {
-    auto r = run(cmd, now);
+  // saved: a copy the caller already made (the Dial keeps only one copy of the engine per action); on an error the
+  // engine is restored from it instead of from its own copy.
+  Json command(const Json &cmd, long long now, const Engine *saved = nullptr) {
+    auto r = run(cmd, now, saved);
     bool need = needsAttention();
     if (need && attentionAt < 0) attentionAt = now;
     if (!need) attentionAt = -1;
@@ -639,8 +646,18 @@ public:
   }
 
 private:
-  Json run(const Json &cmd, long long now) {
-    Engine before = *this;
+  Json run(const Json &cmd, long long now, const Engine *saved) {
+    // Frequent no-op actions (card lifted, idle tick) need no backup copy (less heap churn on the Dial).
+    const std::string type = cmd.is_object() && cmd.contains("type") && cmd["type"].is_string() ? cmd["type"] : "";
+    if (type == "remove") {
+      held.clear();
+      return {{"ok", true}, {"message", "Karte entfernt."}};
+    }
+    if (type == "tick" && now >= 0 && !dayDue(now) && !autoDue(now))
+      return {{"ok", true}, {"changed", false}, {"message", ""}};
+    std::vector<Engine> own;
+    if (!saved) own.push_back(*this);
+    const Engine &before = saved ? *saved : own[0];
     try {
       require(now >= 0, "Ungültige Zeit.");
       auto action = cmd.at("type").get<std::string>();
@@ -656,6 +673,7 @@ private:
         require(held != uid, "Karte liegt noch auf. Erst entfernen.");
         require(held.empty(), "Bitte zuerst die aufliegende Karte entfernen.");
         held = uid;
+        lockUntil = -1;
         if (staffLearning) {
           staffLearning = false;
           bool known = isStaff(uid);
@@ -731,7 +749,14 @@ private:
             flow.returned(uid, now);
           message = c.label + (c.out ? " ausgegeben. Ein Platz reserviert." : " zurückgenommen. Ein Platz frei.");
           booking = true;
-        } catch (const std::exception &e) { return {{"ok", false}, {"message", e.what()}}; }
+        } catch (const std::exception &e) {
+          // Nothing of a rejected scan may stay booked; only the card on the reader is remembered.
+          std::string reason = e.what();
+          *this = before;
+          held = uid;
+          lockUntil = -1;
+          return {{"ok", false}, {"message", reason}};
+        }
       } else if (action == "trialFeedback" && (!ready || paused || flow.relief)) {
         throw std::runtime_error("Rückmeldung nur bei betriebsbereiter Gruppenpause möglich.");
       } else if (flow.command(cmd, now, isPaused(), message)) {
@@ -908,14 +933,17 @@ private:
         int r = roomId(cmd.at("room"));
         require(!uid.empty() && uid.size() <= 80 && !label.empty() && label.size() <= 20 && cards.size() < 256,
                 "Kartenkennung fehlt, ist zu lang oder Kartenbestand voll.");
+        require(!isStaff(uid), "Das ist eine Betreuerkarte.");
         for (const auto &c : cards)
           require(c.uid != uid && c.label != label, "Kennung oder Kartennummer bereits vorhanden.");
-        cards.push_back({uid, label, r, false, false, -1});
+        // lost: a new number without a card yet stays locked until a real card is bound.
+        cards.push_back({uid, label, r, false, cmd.value("lost", false), -1});
         hasUndo = false;
         message = label + " eingelernt. Raumkapazität bleibt unverändert.";
       } else if (action == "bind") {
         auto old = cmd.at("uid").get<std::string>(), uid = cmd.at("newUid").get<std::string>();
         auto &c = card(old);
+        require(!isStaff(uid), "Das ist eine Betreuerkarte.");
         require(!c.out, "Ausgegebene Karte zuerst manuell klären.");
         require(!uid.empty() && uid.size() <= 80 && uid.rfind("sim:", 0) != 0, "Echte Kartenkennung erforderlich.");
         for (const auto &x : cards)
@@ -930,6 +958,8 @@ private:
         auto &c = card(cmd.at("uid").get<std::string>());
         require(c.uid.rfind("sim:", 0) != 0, "Diese Nummer hat noch keine Karte.");
         require(!c.out, "Karte ist ausgegeben. Zuerst zurückbuchen oder korrigieren.");
+        if (flow.measuringUid == c.uid) flow.cancel();
+        if (held == c.uid) held.clear();
         c.uid = "sim:" + c.label;
         c.lost = true;
         c.last = -1;
@@ -942,6 +972,10 @@ private:
         require(it->uid.rfind("sim:", 0) == 0, "Zuerst die Karte von der Nummer lösen.");
         require(!it->out, "Nummer ist belegt.");
         cards.erase(it);
+        if (seriesActive() && seriesLabel == label) {
+          seriesLabel = nextUnbound(seriesRoom, label);
+          if (seriesLabel.empty()) seriesRoom = -1;
+        }
         hasUndo = false;
         message = "Nummer " + label + " gelöscht.";
       } else if (action == "correct") {
@@ -964,6 +998,10 @@ private:
                 "Rückgängig würde die Raumkapazität überschreiten.");
         flow.cancel();
         flow.clearTrial();
+        if (c.out && !undo.out)
+          flow.undoAdmission();
+        else if (!c.out && undo.out)
+          flow.undoReturn();
         c = undo;
         c.last = now;
         hasUndo = false;

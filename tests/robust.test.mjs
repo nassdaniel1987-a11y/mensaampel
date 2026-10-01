@@ -240,3 +240,71 @@ test('Karte lösen und Nummer löschen', async () => {
   assert.equal(e.status(9400).cards.length, 111);
   assert.equal(e.command({ type: 'removeSlot', label: 'K48' }, 9500).ok, false);
 });
+
+test('Abgewiesener Scan bleibt nie gebucht, auch mit Sicherungskopie des Aufrufers', async () => {
+  const e = await createEngine();
+  e.command({ type: 'confirm' }, 100);
+  e.command({ type: 'room', room: 'K', capacity: 48, limit: 1, open: true }, 100);
+  e.command({ type: 'scan', uid: 'sim:K01' }, 200);
+  e.command({ type: 'remove' }, 200);
+  for (const backup of [false, true]) {
+    const r = JSON.parse(
+      JSON.stringify(e.call({ op: 'command', backup, now: 300, command: { type: 'scan', uid: 'sim:K02' } })),
+    );
+    assert.equal(r.ok, false);
+    assert.equal(e.status(300).rooms.K.occupied, 1, 'kein zweiter Platz belegt');
+    assert.equal(e.status(300).held, 'sim:K02', 'aufliegende Karte bleibt gemerkt');
+    e.command({ type: 'remove' }, 300);
+  }
+});
+
+test('Eingespielter Bestand wird nie automatisch bestätigt', async () => {
+  const x = await setup();
+  x.clock(2026, 9, 21, 9, 0);
+  x.cmd({ type: 'confirm' });
+  const saved = x.e.snapshot();
+  x.e.call({ op: 'restore', state: saved });
+  x.reboot();
+  x.e.call({ op: 'requireConfirmation' });
+  x.clock(2026, 9, 21, 9, 1);
+  assert.equal(x.state().ready, false);
+});
+
+test('Betreuerkarte nicht als Kinderkarte; Nummer löschen beim Einlernen springt weiter', async () => {
+  const e = await createEngine();
+  e.call({ op: 'hardware' });
+  e.command({ type: 'staffLearn' }, 100);
+  e.command({ type: 'scan', uid: '04:ST' }, 100);
+  e.command({ type: 'remove' }, 100);
+  assert.equal(e.command({ type: 'bind', uid: 'sim:K01', newUid: '04:ST' }, 200).ok, false);
+  assert.equal(e.command({ type: 'enroll', uid: '04:ST', label: 'K99', room: 'K' }, 200).ok, false);
+  e.command({ type: 'seriesStart', room: 'K' }, 300);
+  assert.equal(e.status(300).series.label, 'K01');
+  assert.equal(e.command({ type: 'removeSlot', label: 'K01' }, 300).ok, true);
+  assert.equal(e.status(300).series.label, 'K02');
+  e.command({ type: 'scan', uid: '04:01' }, 400);
+  assert.equal(e.status(400).cards.find(c => c.label === 'K02').uid, '04:01');
+});
+
+test('Rückgängig stellt Gruppenzähler zurück; Sperr-Countdown verdeckt keine neue Rückmeldung', async () => {
+  const e = await createEngine();
+  e.command({ type: 'confirm' }, 100);
+  e.command({ type: 'flowSettings', yellow: 0, batch: 2 }, 100);
+  e.command({ type: 'pause', paused: false }, 100);
+  e.command({ type: 'scan', uid: 'sim:K01' }, 200);
+  e.command({ type: 'remove' }, 200);
+  e.command({ type: 'scan', uid: 'sim:K02' }, 300);
+  e.command({ type: 'remove' }, 300);
+  assert.equal(e.status(300).flow.waiting, true);
+  assert.equal(e.command({ type: 'undo' }, 400).ok, true);
+  const f = e.status(400).flow;
+  assert.equal(f.waiting, false);
+  assert.equal(f.issued, 1);
+  assert.equal(f.today[2], 1);
+  // K01 is locked; then another child's scan shows its own feedback instead of the countdown.
+  e.command({ type: 'scan', uid: 'sim:K01' }, 500);
+  e.command({ type: 'remove' }, 500);
+  assert.ok(texts(e.call({ op: 'dial', now: 600 })).includes('K01 gesperrt'));
+  e.command({ type: 'scan', uid: 'sim:K03' }, 600);
+  assert.ok(!texts(e.call({ op: 'dial', now: 700, feedback: 'K03 ausgegeben.' })).includes('K01 gesperrt'));
+});

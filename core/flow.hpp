@@ -318,6 +318,26 @@ struct Flow {
     lastScan = now;
     if (started >= 0 && kind == 0 && measuringUid == uid) cancel();
   }
+  // Undo of the last booking: counters and the running group go back with it (the group is open again).
+  void undoAdmission() {
+    if (today[2] > 0) today[2]--;
+    if (batch && issued > 0) {
+      if (waiting) {
+        waiting = false;
+        releaseAt = releaseFrom = releaseWall = -1;
+        releaseSpan = 0;
+        if (today[4] > 0) today[4]--;
+      }
+      if (--issued == 0) {
+        groupAt = -1;
+        groupTarget = 0;
+        groupIsStart = false;
+      }
+    }
+  }
+  void undoReturn() {
+    if (today[3] > 0) today[3]--;
+  }
   J snapshot() const {
     J list = J::array();
     for (auto &s : samples)

@@ -24,8 +24,13 @@ struct Guard {
   Guard(const Guard &) = delete;
   Guard &operator=(const Guard &) = delete;
 };
+// Last command ids with their answers (idempotent retries).
+std::array<std::pair<std::string, std::string>, 6> recentCommands;
+size_t recentNext = 0;
 // Card list revision: the tablet gets the 112 cards only when something changed (?cards=<rev>).
-uint32_t dataRev = 1;
+uint32_t dataRev = 1; // starts at a random value on every boot: an old cached list never matches
+TaskHandle_t loopTask = nullptr, webTaskHandle = nullptr;
+bool webStarted = false;
 // Diagnostics for the tablet: requests served and the longest handler time.
 uint32_t webRequests = 0, webMaxMs = 0;
 // "Black box": what the Dial was doing last; survives a crash reset (RTC memory, not initialised on reboot).
@@ -80,14 +85,40 @@ uint64_t feedbackAt = 0, drawAt = 0;
 uint64_t nowMs() {
   return uint64_t(esp_timer_get_time() / 1000);
 }
-// Web handlers run in the web task: take the state lock and record the handler time for the diagnostics.
+// Answer of the current web request. Handlers build it under the state lock; it is sent after the lock is released,
+// so a tablet that leaves the WLAN mid-answer cannot hold up scans, the display or the Ampel (web task only).
+struct PendingReply {
+  int code = 0;
+  std::string body, disposition;
+} pending;
+void sendPending() {
+  if (!pending.code) return;
+  web.sendHeader("Cache-Control", "no-store");
+  web.sendHeader("X-Content-Type-Options", "nosniff");
+  if (!pending.disposition.empty()) web.sendHeader("Content-Disposition", pending.disposition.c_str());
+  web.setContentLength(pending.body.size());
+  web.send(pending.code, "application/json; charset=utf-8", "");
+  web.sendContent(pending.body.c_str(), pending.body.size());
+  pending = PendingReply{};
+}
+// Web handlers run in the web task: take the state lock and record the handler time for the diagnostics. Nothing a
+// handler throws (e.g. memory briefly short) may crash the device.
 template <typename F> std::function<void()> guarded(F f) {
   return [f] {
-    Guard g;
-    uint64_t t0 = nowMs();
-    webRequests++;
-    f();
-    webMaxMs = std::max<uint32_t>(webMaxMs, uint32_t(nowMs() - t0));
+    {
+      Guard g;
+      uint64_t t0 = nowMs();
+      webRequests++;
+      try {
+        f();
+      } catch (...) {
+        pending = PendingReply{};
+        pending.code = 503;
+        pending.body = "{\"ok\":false,\"message\":\"Speicher knapp - bitte gleich nochmal.\"}";
+      }
+      webMaxMs = std::max<uint32_t>(webMaxMs, uint32_t(nowMs() - t0));
+    }
+    sendPending();
   };
 }
 void note(const std::string &text, bool ok) {
@@ -100,13 +131,15 @@ bool blocked() {
   return !configValid || !config.configured || !storage.error.empty() || needsReview || !reader.healthy ||
          !captureTarget.empty();
 }
-// Sends JSON text without an extra String copy: the Dial has no PSRAM, and the full state is the largest allocation.
-void replyBody(int code, const std::string &body) {
-  web.sendHeader("Cache-Control", "no-store");
-  web.sendHeader("X-Content-Type-Options", "nosniff");
-  web.setContentLength(body.size());
-  web.send(code, "application/json; charset=utf-8", "");
-  web.sendContent(body.c_str(), body.size());
+// The Ampel outside is red while the device is not ready or the device test runs (scans do not book then).
+bool signalBlocked() {
+  return blocked() || testMode;
+}
+// Queues JSON text (sent by guarded() without the lock) without an extra String copy: the Dial has no PSRAM, and the
+// full state is the largest allocation.
+void replyBody(int code, std::string body) {
+  pending.code = code;
+  pending.body = std::move(body);
 }
 void reply(int code, const Json &value) {
   replyBody(code, value.dump());
@@ -146,9 +179,9 @@ Json publicSignal() {
     } catch (...) {}
   }
   auto signal = engine.signal(now);
-  if (blocked()) signal = {{"green", false}, {"reason", "device"}, {"free", 0}};
+  if (signalBlocked()) signal = {{"green", false}, {"reason", "device"}, {"free", 0}};
   return {{"signal", signal},
-          {"storageError", blocked() ? "System nicht bereit." : ""},
+          {"storageError", signalBlocked() ? "System nicht bereit." : ""},
           {"now", now},
           {"clockValid", clockOk}};
 }
@@ -181,13 +214,14 @@ Json state(bool withCards = true) {
                  {"resetReason", resetReason},
                  {"lastCrumb", lastCrumb},
                  {"stackFree", uxTaskGetStackHighWaterMark(nullptr)},
+                 {"loopStackFree", loopTask ? uxTaskGetStackHighWaterMark(loopTask) : 0},
                  {"webRequests", webRequests},
                  {"webMaxMs", webMaxMs},
                  {"clients", WiFi.softAPgetStationNum()},
                  {"uptime", nowMs()}};
   // Also at the top level like PC service and demo: the tablet's device test switch reads it there.
   s["testMode"] = testMode;
-  if (blocked()) s["signal"] = {{"green", false}, {"reason", "device"}, {"free", 0}};
+  if (signalBlocked()) s["signal"] = {{"green", false}, {"reason", "device"}, {"free", 0}};
   return s;
 }
 // The state as text; the JSON tree is freed before the answer is sent.
@@ -247,8 +281,9 @@ Json result(bool ok, const std::string &message) {
 }
 Json transact(const Json &command) {
   mark("Befehl", command.value("type", std::string()));
+  // One backup copy per action: the engine restores itself from it on an error, transact on a failed save.
   auto previous = engine;
-  auto r = engine.command(command, nowMs());
+  auto r = engine.command(command, nowMs(), &previous);
   if (!r.value("ok", false) || !r.value("changed", true)) return r;
   mark("Speichern");
   if (!storage.save(engine)) {
@@ -382,6 +417,10 @@ Json command(const Json &j) {
       slowest = std::max<uint32_t>(slowest, uint32_t(nowMs() - t0));
       minFree = std::min<uint32_t>(minFree, ESP.getFreeHeap());
       minBlock = std::min<uint32_t>(minBlock, ESP.getMaxAllocHeap());
+      // Let scans, the display and the Ampel run between the rounds.
+      xSemaphoreGiveRecursive(stateLock);
+      vTaskDelay(pdMS_TO_TICKS(30));
+      xSemaphoreTakeRecursive(stateLock, portMAX_DELAY);
     }
     return result(true, "Dauertest ok: 20x gespeichert, langsamstes Speichern " + std::to_string(slowest) +
                             " ms, Status max " + std::to_string(statusMax) + " ms, freier Speicher mind. " +
@@ -390,21 +429,15 @@ Json command(const Json &j) {
   }
   if (type == "createSlot") {
     const auto label = j.at("label").get<std::string>();
-    auto previous = engine;
-    auto r = engine.command({{"type", "enroll"}, {"uid", "sim:" + label}, {"label", label}, {"room", j.at("room")}},
-                            nowMs());
+    auto r = transact(
+        {{"type", "enroll"}, {"uid", "sim:" + label}, {"label", label}, {"room", j.at("room")}, {"lost", true}});
     if (!r.value("ok", false)) return r;
-    engine.command({{"type", "correct"}, {"uid", "sim:" + label}, {"out", false}, {"lost", true}}, nowMs());
-    if (!storage.save(engine)) {
-      engine = previous;
-      return result(false, storage.error);
-    }
-    dataRev++;
     return result(true, "Kartennummer angelegt. Nun eine echte Karte zuordnen.");
   }
   if (needsReview) {
     if (type == "correct") {
       auto r = engine.command(j, nowMs());
+      if (r.value("ok", false)) dataRev++;
       if (r.value("ok", false))
         r["message"] = "Korrektur vorgemerkt. Nach vollständiger Prüfung den Bestand ausdrücklich übernehmen.";
       return r;
@@ -471,13 +504,18 @@ void configureWeb() {
   web.on("/api/restore", HTTP_POST, guarded([] {
            if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
            try {
-             if (web.arg("plain").length() > 65536) throw std::runtime_error("Sicherung zu groß.");
-             auto j = Json::parse(web.arg("plain").c_str());
-             if (!j.value("confirmed", false)) return reply(200, result(false, "Einspielen ausdrücklich bestätigen."));
+             // Memory check before the body is parsed: the JSON tree of a full backup is the largest allocation.
              if (ESP.getMaxAllocHeap() < 60000)
                return reply(200, result(false,
                                         "Zu wenig freier Speicher. Dial kurz vom Strom nehmen und die Sicherung direkt "
                                         "danach einspielen."));
+             Json j;
+             {
+               const String body = web.arg("plain");
+               if (body.length() > 65536) throw std::runtime_error("Sicherung zu groß.");
+               j = Json::parse(body.c_str());
+             }
+             if (!j.value("confirmed", false)) return reply(200, result(false, "Einspielen ausdrücklich bestätigen."));
              auto &b = j.at("backup");
              if (b.value("format", std::string()) != "mensa-device-backup-1" &&
                  b.value("format", std::string()) != "mensa-pc-backup-1")
@@ -490,6 +528,7 @@ void configureWeb() {
                return reply(200, result(false, std::string("Sicherung ungültig: ") + e.what()));
              }
              engine.rebootClock(nowMs());
+             engine.requireConfirmation(); // a restored stock is never confirmed automatically
              if (!storage.save(engine)) {
                engine = std::move(previous);
                return reply(200, result(false, storage.error));
@@ -510,7 +549,16 @@ void configureWeb() {
            try {
              if (web.arg("plain").length() > 2048) throw std::runtime_error("Anfrage zu groß.");
              auto j = Json::parse(web.arg("plain").c_str());
+             // A repeated request (the tablet retries after a timeout with the same id) is answered from memory and
+             // never executed twice, e.g. "Neuer Essenstag".
+             const std::string rid = j.value("rid", std::string());
+             for (auto &d : recentCommands)
+               if (!rid.empty() && d.first == rid) return replyWithState(Json::parse(d.second));
              auto r = command(j);
+             if (!rid.empty() && rid.size() <= 40) {
+               recentCommands[recentNext] = {rid, r.dump()};
+               recentNext = (recentNext + 1) % recentCommands.size();
+             }
              M5.Speaker.setVolume(engine.volumeLevel() * 25);
              if (j.value("type", std::string()) != "clockSync")
                note(r.value("message", std::string()), r.value("ok", false));
@@ -519,7 +567,7 @@ void configureWeb() {
          }));
   web.on("/api/backup", HTTP_GET, guarded([] {
            if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-           web.sendHeader("Content-Disposition", "attachment; filename=mensa-bestand.json");
+           pending.disposition = "attachment; filename=mensa-bestand.json";
            std::string body = std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") +
                               Json(config.reader).dump() + ",\"state\":";
            {
@@ -530,7 +578,10 @@ void configureWeb() {
            replyBody(200, body);
          }));
   web.onNotFound([] {
-    if (web.method() != HTTP_GET) return reply(405, result(false, "Methode nicht erlaubt."));
+    if (web.method() != HTTP_GET) {
+      reply(405, result(false, "Methode nicht erlaubt."));
+      return sendPending();
+    }
     String path = web.uri();
     if (path == "/" || path == "/ampel" || path == "/geraet") path = "/index.html";
     for (auto &a : webAssets)
@@ -544,6 +595,7 @@ void configureWeb() {
         return;
       }
     reply(404, result(false, "Nicht gefunden."));
+    sendPending();
   });
   web.begin();
 }
@@ -617,12 +669,13 @@ bool buildScreen(Json &list) {
     if (!crashHint.empty())
       x.hint = crashHint;
     else
-      x.hint = !reader.healthy          ? "Leser pruefen!"
-               : !storage.error.empty() ? "Speicher pruefen!"
-               : !captureTarget.empty() ? "Karte einlernen am Tablet"
-               : ampelLost()            ? (ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!")
-               : noClock                ? "Uhr nicht gestellt"
-                                        : "";
+      x.hint = !webStarted && config.configured ? "Webserver aus - Dial neu starten"
+               : !reader.healthy                ? "Leser pruefen!"
+               : !storage.error.empty()         ? "Speicher pruefen!"
+               : !captureTarget.empty()         ? "Karte einlernen am Tablet"
+               : ampelLost()                    ? (ampelSeenAt ? "Ampel draussen getrennt!" : "Ampel nicht verbunden!")
+               : noClock                        ? "Uhr nicht gestellt"
+                                                : "";
     if (feedbackAt && now - feedbackAt < 3500) {
       x.feedback = feedback;
       x.feedbackOk = feedbackOk;
@@ -715,7 +768,7 @@ void setup() {
       feedback = "WLAN konnte nicht gestartet werden.";
     } else {
       configureWeb();
-      xTaskCreatePinnedToCore(webTask, "web", 20 * 1024, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE);
+      webStarted = true;
     }
   }
   if (crumbMagic == 0x4d454e53) lastCrumb = std::string(crumb, strnlen(crumb, sizeof(crumb)));
@@ -724,23 +777,41 @@ void setup() {
     note("Neustart nach Fehler: " + resetReason, false);
   }
   mark("Start");
+  dataRev = esp_random() | 1;
+  loopTask = xTaskGetCurrentTaskHandle();
+  // The web task starts last, when all shared state is set up.
+  if (webStarted &&
+      xTaskCreatePinnedToCore(webTask, "web", 20 * 1024, nullptr, 1, &webTaskHandle, ARDUINO_RUNNING_CORE) != pdPASS) {
+    webStarted = false;
+    note("Webserver nicht gestartet. Dial neu starten.", false);
+  }
   draw();
 }
-uint64_t healAt = 0;
+uint64_t healAt = 0, secondBeepAt = 0;
 void step(uint64_t now);
 void loop() {
   const auto now = nowMs();
-  M5Dial.update();
-  if (restartAt && now >= restartAt) ESP.restart();
   {
+    // Touch, RTC and card reader share one I2C bus with the web task: only under the lock. A planned restart waits
+    // for the lock too, so it never cuts a save in half.
     Guard g;
-    step(now);
+    M5Dial.update();
+    if (restartAt && now >= restartAt) ESP.restart();
+    try {
+      step(now);
+    } catch (...) { note("Speicher knapp - bitte gleich nochmal.", false); }
   }
-  draw();
+  try {
+    draw();
+  } catch (...) { lastScreen.clear(); }
   delay(2);
 }
 // Everything that reads or changes shared state, once per loop, under the state lock.
 void step(uint64_t now) {
+  if (secondBeepAt && now >= secondBeepAt) {
+    secondBeepAt = 0;
+    M5.Speaker.tone(1400, 120);
+  }
   if (captureUntil && now >= captureUntil) {
     clearCapture();
     note("Einlernen abgelaufen. Einlass bleibt pausiert.", false);
@@ -827,12 +898,11 @@ void step(uint64_t now) {
     int due = engine.reminders(now);
     if (due > remindersBeeped) {
       M5.Speaker.tone(1400, 120);
-      delay(160);
-      M5.Speaker.tone(1400, 120);
+      secondBeepAt = now + 160;
     }
     remindersBeeped = due;
   }
-  if (configValid && config.configured && !needsReview && storage.error.empty() && !blocked() &&
+  if (configValid && config.configured && !needsReview && storage.error.empty() && !blocked() && !testMode &&
       (engine.autoDue(now) || engine.dayDue(now))) {
     auto r = transact({{"type", "tick"}});
     if (r.value("ok", false) && !r.value("message", std::string()).empty()) note(r["message"], true);

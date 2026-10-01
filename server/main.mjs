@@ -20,6 +20,7 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
   const engine = await createEngine();
   mkdirSync(dataDir, { recursive: true });
   const file = resolve(dataDir, 'bestand.json');
+  const recent = new Map();
   let offset = 0,
     offlineUntil = 0,
     storageError = '',
@@ -294,7 +295,17 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
           body += chunk;
           if (body.length > 16000) return reply(413, { message: 'Anfrage zu groß.' });
         }
-        return reply(200, transact(JSON.parse(body)));
+        const command = JSON.parse(body);
+        // Same id again (tablet retry after a timeout): answer from memory, never run it twice.
+        const rid = typeof command?.rid === 'string' ? command.rid : '';
+        const known = rid && recent.get(rid);
+        if (known) return reply(200, { ...known, state: state() });
+        const r = transact(command);
+        if (rid) {
+          recent.set(rid, { ok: r.ok, message: r.message });
+          if (recent.size > 20) recent.delete(recent.keys().next().value);
+        }
+        return reply(200, r);
       } catch (e) {
         return reply(400, { ok: false, message: 'Ungültige Anfrage: ' + e.message });
       }

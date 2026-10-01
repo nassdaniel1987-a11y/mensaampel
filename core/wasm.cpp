@@ -18,6 +18,9 @@ extern "C" const char *mensa_call(const char *input) {
     } else if (op == "rebootClock") {
       engine.rebootClock(q.at("now"));
       result = {{"ok", true}};
+    } else if (op == "requireConfirmation") {
+      engine.requireConfirmation();
+      result = {{"ok", true}};
     } else if (op == "sample") {
       auto e = latch.sample(static_cast<mensa::Sample>(q.at("sample").get<int>()), q.value("uid", std::string()),
                             q.at("now"));
@@ -45,9 +48,14 @@ extern "C" const char *mensa_call(const char *input) {
         for (auto &l : q["lines"])
           x.lines.push_back(l.get<std::string>());
       result = engine.dialScreen(q.at("now").get<long long>(), x);
-    } else if (op == "command")
-      result = engine.command(q.at("command"), q.at("now").get<long long>());
-    else
+    } else if (op == "command") {
+      // backup: like the Dial (one copy made by the caller, restored on an error).
+      if (q.value("backup", false)) {
+        auto saved = engine;
+        result = engine.command(q.at("command"), q.at("now").get<long long>(), &saved);
+      } else
+        result = engine.command(q.at("command"), q.at("now").get<long long>());
+    } else
       throw std::runtime_error("Unbekannte Schnittstellenoperation.");
     output = result.dump();
   } catch (const std::exception &e) { output = mensa::Json({{"ok", false}, {"message", e.what()}}).dump(); }

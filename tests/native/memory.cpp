@@ -18,7 +18,9 @@ void operator delete(void *p) noexcept {
   cur -= *q;
   free(q);
 }
-void operator delete(void *p, size_t) noexcept { operator delete(p); }
+void operator delete(void *p, size_t) noexcept {
+  operator delete(p);
+}
 using mensa::Json;
 static std::string uid(int i) {
   char b[32];
@@ -92,7 +94,10 @@ int main() {
     e.command({{"type", "remove"}}, now);
     std::string t = saveText(e);
   });
-  size_t lookup = measure([&] { volatile int s = e.cardState(uid(5)); (void)s; });
+  size_t lookup = measure([&] {
+    volatile int s = e.cardState(uid(5));
+    (void)s;
+  });
   // Correctness: the lean texts equal the full JSON.
   auto ref = e.snapshot();
   ref["undo"] = nullptr;
