@@ -136,3 +136,38 @@ Festgelegter Prüfvorschlag nach längster passender Gruppenzeit plus Puffer, mi
 **Bedienung:** `dialTurn` öffnet die Mensa-Einstellung erst ab |2| Rasten innerhalb 1,5 s (`turnAcc`, Hinweis „Mensa: weiter drehen“); `dialPress` bis 500 ms nach einer Drehung wird ignoriert. `relief` in Menü, Serie oder Mensa-Einstellung wirkt wie `dialPress`. `DialExtras.holdMs` zeichnet den Halte-Fortschrittsring. Zurücksetzen braucht ein zweites 3-s-Halten; ein kurzer Druck schließt die WLAN-Anzeige. `needsAttention`/`attentionAt` (im Wrapper `command()` gepflegt) und `remind` (Minuten, 0 = aus, Befehl `settings`) ergeben `reminders(now)`; die Firmware piept bei jedem neuen Wert.
 
 **Gerät:** `DeviceConfig.channel` (1/6/11, `deviceSettings.channel`). Ampel-Warnung auch, wenn sich 60 s nach der Bestätigung noch nie eine Ampel gemeldet hat.
+
+## Inbetriebnahme am echten Dial (0.10.1–0.10.5): Erkenntnisse
+
+Diese Punkte wurden am echten M5Stack Dial gefunden und behoben. Nicht rückgängig machen:
+
+- **Kein PSRAM, ~320 KB RAM:** Große JSON-Bäume (nlohmann) zerstückeln den Heap und führten zu Neustarts beim Anmelden und Speichern. Deshalb: Kartenliste als Text (`Engine::cardsText`, `snapshot(false)`), Speichern als JSON-Text (Format v2, CBOR v1 wird noch gelesen) mit Byte-Vergleich statt Zurücklesen in einen Baum, `cardState()` statt `snapshot()` für Einzelabfragen. Spitzen misst `tests/native/memory.cpp` (`tests/native-memory.test.mjs`) mit vollem Bestand.
+- **Interner RFID-Leser des Dial stört das WLAN** (Verbindungsabbrüche). Mit der externen RFID2 Unit (Port A, Einstellung „Extern“) ist das WLAN stabil. Die externe Unit ist im Gehäuse fest verbaut; die Software behält trotzdem beide Lesertypen (keine Software-Festlegung, Wunsch des Nutzers).
+- **LittleFS-Partition heißt `littlefs`** (`partitions.csv`): `LittleFS.begin(false, "/littlefs", 10, "littlefs")`, sonst „Gerätespeicher nicht lesbar“.
+- **Safari öffnet leere Vorab-Verbindungen;** der Arduino-WebServer wartete bis zu 5 s darauf. `MensaWebServer` verwirft leere Verbindungen (>30 ms wenn ein anderer Client wartet, sonst >1,5 s).
+- **Webserver als eigene FreeRTOS-Aufgabe** (`webTask`, Core 1, 20 KB Stack) mit rekursivem Mutex `stateLock`/`Guard`. Alles, was Engine, Konfiguration oder gemeinsame Felder anfasst, läuft unter `Guard` (Web-Handler über `guarded()`, im Loop `step()` und `buildScreen()`, ebenso `M5Dial.update()` wegen des gemeinsamen I²C-Busses und `ESP.restart()`). Antworten werden unter der Sperre gebaut (`replyBody` → `pending`) und **ohne** Sperre gesendet (`sendPending`).
+- **Tablet-Abfrage im Gerätemodus:** alle 1,5 s, Zeitlimit 5 s, ein sofortiger Wiederholversuch, „Verbindung unterbrochen“ erst nach 8 s (Ampelseite bleibt bei 3 s → Rot). Karten nur bei Änderung (`/api/state?cards=<rev>`, `cardsRev`, `src/state-merge.mjs`); `dataRev` startet nach jedem Boot zufällig. Diagnose unter Gerät: letzte Antwortzeit, Aussetzer, `webMaxMs`.
+- **Windows-Installer:** `Start-Process … -PassThru` liefert ohne `$null=$process.Handle` keinen ExitCode (`scripts/installer.ps1`).
+- **Sperrzeit** Standard 3 s mit Live-Countdown am Dial (`lockLabel/lockUntil`); eingelernte Karten sind sofort nutzbar. Bereits eingerichtete Geräte behalten ihren gespeicherten Wert.
+- **Karten lösen/löschen:** `unbind {uid}` (Nummer bleibt, `sim:<Nummer>`, gesperrt), `removeSlot {label}` (nur Nummer ohne Karte, nicht ausgegeben).
+
+## Härtung (nach 0.10.5)
+
+- **Speicher stromausfallsicher** (`firmware/src/storage.hpp`, Regeln im Kopfkommentar von `load`): Der neueste gültige Slot ist immer der zuletzt gemeldete Stand; ein übriges `book.tmp` wird verworfen (kein Abgleich nötig). Ein beschädigter Slot verlangt immer einen Menschen. Der manuelle Abgleich schreibt zuerst `/reconcile.flag`, legt die alten Dateien als `review*` (ältere als `reviewold*`) ab, speichert und löscht die Marke zuletzt – eine Unterbrechung führt immer zurück zum Abgleich, nie zu leerem Bestand, und er ist beliebig oft wiederholbar. Speicher-Wächter nach tatsächlicher Textgröße. **Test:** `tests/native/storage.cpp` mit simuliertem Flash (`tests/native/shim/LittleFS.h`) schneidet den Strom nach jedem einzelnen Schreibschritt (Buchung, Abgleich, Erststart; mit und ohne ersetzendes `rename`).
+- **Kern:** `command(cmd, now, const Engine *saved)` – der Aufrufer (Firmware `transact`) macht die einzige Sicherungskopie; ein abgewiesener Scan wird vollständig zurückgerollt (nur `held` bleibt). `requireConfirmation()` nach Restore. `undo` stellt Gruppenzähler zurück (`Flow::undoAdmission/undoReturn`). Betreuerkarten lassen sich nicht als Kinderkarte binden.
+- **Befehls-Kennung `rid`:** das Tablet schickt jede Aktion mit Zufallskennung und wiederholt nach Netzfehler einmal mit derselben; Dial (`recentCommands`) und PC-Dienst (`recent`) antworten auf eine bekannte Kennung aus dem Gedächtnis, statt erneut auszuführen.
+- Gerätetest schaltet die Ampel rot (`signalBlocked()`); `bad_alloc` in Handlern/Loop führt zu einer Meldung statt Absturz.
+
+## Version 0.11.0-preview: Neues Dial-Aussehen
+
+- **Rasterer:** `core/dial_raster.hpp` zeichnet die Zeichenliste kantengeglättet (Ganzzahl, 4×4 Abtastung an Kanten) in einen statischen 240×48-Streifenpuffer (`strip` in `main.cpp`, `pushImage` als `swap565`). `src/dial-paint.mjs` ist eine **exakte** JS-Kopie; `tests/dial-raster.test.mjs` vergleicht beide per Hash für alle Anleitungsbildschirme. Wer eins ändert, muss das andere identisch ändern.
+- **Schrift:** Inter (OFL, `vendor/fonts/`), Größen 1–4 = 15/20/27/52 px, 4-Bit-Alpha. Erzeugen: `python3 scripts/build-dial-font.py`, danach `npm run format` (clang-format formatiert `core/dial_font.hpp`). Größen 3 und 4 enthalten nur Großbuchstaben/Ziffern. Texte sind UTF-8 mit Umlauten; Umbruch/Kürzung nach Pixelbreite (`dial::wrap`, `fit`, `span`).
+- **Layout** (`Engine::dialBase`): Tastenhinweis oben (y=28), Status (y=58, Größe 3), Hauptzeile (89), Bestand „K · M“ (113), Knopf-Pille (30,131,180,38) – **Tippfläche** in Firmware (`touch.y 131..169`) und `src/DialDevice.tsx` passend –, Info-Pille (30,175,180,36). Farben in `core/dial.hpp` (`green 0x1407`, `yellow 0xFE62`, `red 0xD924`, …).
+- Nach Layout-/Textänderungen: `npm run build:core`, `node scripts/build-dial-guide.mjs`, Frontend bauen, `node scripts/embed-web.mjs`.
+
+## Version 0.12.0-preview: Update über das Dial-WLAN
+
+- `POST /api/update` (Multipart, Upload-Handler `receiveUpdate`) schreibt mit `Update.h` in den freien App-Slot (`partitions.csv`: app0/app1 je 3 MB). Geprüft: angemeldet, erstes Byte `0xE9`, Kennmarke `MENSAAMPEL-FIRMWARE-1:<Version>` (`firmwareMark` in `main.cpp`, Suche über Blockgrenzen in `firmware/src/ota.hpp`; das Suchmuster steht absichtlich mit `#` im Code, damit es sich nicht selbst findet), Image-Prüfsumme (`Update.end`). Upload ohne Zustandssperre; `ota.active` blockiert den Einlass, hängt der Upload 30 s, wird er verworfen.
+- **Rückfall:** NVS-Namensraum `ota` (`pending`, `tries`, `prev`). `otaBootCheck()` am Anfang von `setup()`: nach drei Starts ohne „gesund“ (60 s, Webserver läuft → `otaHealthy`) zurück auf den vorherigen Slot.
+- Tablet: `src/FirmwareUpdate.tsx` (nur Gerätemodus, Reiter Gerät unten), Dateiprüfung `src/firmware-file.mjs`, Upload per XHR mit Fortschritt (`useMensa.updateFirmware`). Release-Asset `Mensaampel-Dial-Update.bin` (= `firmware.bin`).
+- Die erste Installation einer Version mit Update-Funktion braucht den PC; danach geht jedes Update per Tablet.
