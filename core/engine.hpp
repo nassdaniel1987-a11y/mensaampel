@@ -263,7 +263,7 @@ public:
   Json dialScreen(long long now, const DialExtras &x) const {
     using namespace dial;
     auto list = dialBase(now, x);
-    if (x.holdMs >= 400 && x.screen != "reset") {
+    if (x.holdMs >= 400 && x.screen != "reset" && x.screen != "update") {
       bool longHold = x.holdMs >= 3000;
       list.push_back(rect(30, 175, 180, 36, 18, panel));
       if (x.holdMs >= 3000) {
@@ -302,6 +302,15 @@ public:
         list.push_back(text(120, y, 1, white, fit(x.lines[i], 1, span(y, 1))));
       }
       list.push_back(text(120, 202, 1, yellow, "Scans buchen nicht"));
+      return list;
+    }
+    if (x.screen == "update") {
+      list.push_back(fill(dark));
+      ring(list, std::max(0.01, x.progress / 100.0), yellow, panel);
+      list.push_back(text(120, 66, 2, white, "UPDATE"));
+      list.push_back(text(120, 118, 4, yellow, std::to_string(x.progress)));
+      list.push_back(text(120, 156, 1, white, "Prozent übertragen"));
+      list.push_back(text(120, 182, 1, warnText, "Nicht ausschalten"));
       return list;
     }
     if (x.screen == "reset") {

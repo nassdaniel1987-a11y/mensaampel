@@ -248,7 +248,68 @@ export function useMensa() {
       setBusy(false);
     }
   }
+  // Firmware update over the Dial's WLAN: upload with progress, then wait until the Dial answers with the new version.
+  async function updateFirmware(file: File, expected: string, progress: (percent: number) => void) {
+    if (locked.current) return false;
+    locked.current = true;
+    epoch.current++;
+    setBusy(true);
+    try {
+      const result = await new Promise<{ ok: boolean; message: string }>(resolve => {
+        const xhr = new XMLHttpRequest(),
+          form = new FormData();
+        form.append('firmware', file, 'firmware.bin');
+        xhr.open('POST', '/api/update');
+        xhr.setRequestHeader('X-Mensa-Token', token.current);
+        xhr.setRequestHeader('X-Firmware-Size', String(file.size));
+        xhr.timeout = 180000;
+        xhr.upload.onprogress = e => e.lengthComputable && progress(Math.round((e.loaded * 100) / e.total));
+        xhr.onload = () => {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            resolve({ ok: false, message: 'Unerwartete Antwort vom Dial.' });
+          }
+        };
+        xhr.onerror = xhr.ontimeout = () =>
+          resolve({ ok: false, message: 'Übertragung unterbrochen. Altes Programm bleibt.' });
+        xhr.send(form);
+      });
+      if (!result.ok) {
+        setNotice({ ok: false, text: result.message });
+        return false;
+      }
+      setNotice({ ok: true, text: 'Update übertragen. Das Dial startet neu …' });
+      // The Dial restarts 1.5 s after its answer; only then ask for the version (also correct for the same version).
+      await new Promise(r => setTimeout(r, 6000));
+      const until = Date.now() + 120000;
+      while (Date.now() < until) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const i = await (await fetch('/api/info', { cache: 'no-store', signal: AbortSignal.timeout(2500) })).json();
+          if (i.version === expected) {
+            infoRef.current = i;
+            setInfo(i);
+            cards.current = null;
+            setNotice({ ok: true, text: `Update fertig: Version ${i.version}. Bitte neu anmelden.` });
+            return true;
+          }
+        } catch {
+          /* Dial still restarting */
+        }
+      }
+      setNotice({
+        ok: false,
+        text: 'Das Dial meldet sich nicht mit der neuen Version. Tablet mit dem Dial-WLAN verbinden.',
+      });
+      return false;
+    } finally {
+      locked.current = false;
+      setBusy(false);
+    }
+  }
   return {
+    updateFirmware,
     state,
     info,
     authRequired,

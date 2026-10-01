@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Radio, KeyRound, Wifi, Download, RefreshCw } from 'lucide-react';
+import { FirmwareUpdate } from './FirmwareUpdate';
 import type { State, Send, Info } from './types';
 import { Backup } from './Backup';
 import { DeviceTest } from './DeviceTest';
@@ -56,6 +57,7 @@ export function DevicePanel({
   backup,
   restore,
   diag,
+  updateFirmware,
 }: {
   state: State;
   send: Send;
@@ -64,6 +66,7 @@ export function DevicePanel({
   backup: () => Promise<void>;
   restore: (file: File) => Promise<boolean>;
   diag?: { lastMs: number; failures: number };
+  updateFirmware?: (file: File, expected: string, progress: (percent: number) => void) => Promise<boolean>;
 }) {
   const d = s.device!;
   const [selected, setSelected] = useState('sim:K01'),
@@ -342,6 +345,9 @@ export function DevicePanel({
             am echten Gerät prüfen.
           </p>
         </section>
+        {updateFirmware && d.configured && (
+          <FirmwareUpdate version={d.version} disabled={disabled} updateFirmware={updateFirmware} />
+        )}
       </div>
       <DeviceTest state={s} send={send} disabled={disabled} />
     </>

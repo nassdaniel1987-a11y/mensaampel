@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.11.0-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.12.0-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -173,6 +173,7 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Taste halten | Weißer Fortschrittsring, nach 3 s „Loslassen“ | ☐ |
 | Strom während Speichern unterbrechen, nur Testbestand | Kein unbemerkter Neustart mit falschem Bestand | ☐ |
 | Update des Testgeräts | Kartenzuordnungen und Einstellungen bleiben | ☐ |
+| Update per Tablet über das Dial-WLAN (Gerät → Firmware-Update) | Fortschritt am Dial, Neustart mit neuer Version, Karten unverändert; ein Foto wird abgelehnt | ☐ |
 | Mindestens ein kompletter Mittag als Probelauf | WLAN, Scans, Stromversorgung und Speicher stabil | ☐ |
 
 Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern, tatsächliche Speicherreserven mit allen 112 Karten, gleichzeitiger WLAN-/RFID-Betrieb und Stromausfallverhalten. Softwaretests ersetzen diese Prüfung nicht.
@@ -218,6 +219,22 @@ Ausführlich und mit echten Bildschirmbildern in [BEDIENUNG-DIAL.html](BEDIENUNG
 | Anzeige ohne Flackern | Bildwechsel ruhig (Zwischenspeicher aktiv) | ☐ |
 | Uhr nach Stromlosigkeit | Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt | ☐ |
 | Ampel-Tablet ausschalten | nach 10 s „Ampel draussen getrennt!“ am Dial | ☐ |
+
+## Update ohne PC (über das WLAN des Dials)
+
+Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspielen – ohne Kabel, ohne G0-Taste und ohne Internet am Dial. Die erste Installation von 0.12 braucht einmal den PC (siehe oben).
+
+1. **Mit Internet:** Im Release die Datei **„Mensaampel-Dial-Update.bin“** auf das Tablet laden (Android: landet unter „Downloads“; iPad: in Safari laden, liegt dann in der App „Dateien“).
+2. Tablet mit dem **WLAN des Dials** verbinden, `http://192.168.4.1` öffnen und anmelden.
+3. **Gerät → Firmware-Update** → Datei auswählen. Das Tablet prüft sie und zeigt „Version alt → neu“.
+4. **Update starten** und bestätigen. Am Dial läuft ein Ring mit Prozentzahl („UPDATE“), danach startet es neu. Nicht ausschalten. Dauer etwa eine Minute; so lange ist der Einlass unterbrochen und die Ampel rot.
+5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen.
+
+Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.
+
+## Neu in 0.12
+
+- **Firmware-Update über das Dial-WLAN** mit Android-Tablet oder iPad (Gerät → Firmware-Update), mit Prüfung der Datei, Fortschritt am Dial und automatischem Rückfall auf die alte Version.
 
 ## Neu in 0.11
 

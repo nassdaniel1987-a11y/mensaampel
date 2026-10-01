@@ -26,17 +26,20 @@ jobs:
         run: |
           zip -qr -9 Mensaampel_Dial_Vorbereitung.zip Mensaampel_Dial_Vorbereitung && unzip -tq Mensaampel_Dial_Vorbereitung.zip
           zip -qr -9 Mensaampel_Gehaeuse.zip hardware/gehaeuse && unzip -tq Mensaampel_Gehaeuse.zip
+          cp Mensaampel_Dial_Vorbereitung/firmware/firmware.bin Mensaampel-Dial-Update.bin
       - name: Release anlegen oder aktualisieren
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(jq -r .version Mensaampel_Dial_Vorbereitung/firmware/manifest.json)
           tag="v${version}"
-          files="Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html BEDIENUNG-DIAL.pdf DIAL-KURZKARTE.pdf Etiketten-Tool.html Mensaampel_Gehaeuse.zip"
+          files="Mensaampel_Dial_Vorbereitung.zip Mensaampel_Tablet_Demo.html BEDIENUNG-DIAL.pdf DIAL-KURZKARTE.pdf Etiketten-Tool.html Mensaampel_Gehaeuse.zip Mensaampel-Dial-Update.bin"
           cat > notes.md <<NOTES
           ## Mensaampel ${version}
 
           **Dial einrichten:** \`Mensaampel_Dial_Vorbereitung.zip\` herunterladen, auf einem Windows-PC vollständig entpacken und \`ANLEITUNG-DIAL.html\` folgen (G0-Taste halten, USB-Datenkabel, \`Dial-Installieren.cmd\`).
+
+          **Update ohne PC (ab 0.12 installiert):** \`Mensaampel-Dial-Update.bin\` mit Internet auf das Tablet laden, dann Tablet mit dem Dial-WLAN verbinden und unter Gerät → Firmware-Update auswählen. Karten und Bestand bleiben erhalten.
 
           **Bedienung am Dial:** \`BEDIENUNG-DIAL.pdf\` (bebilderte Anleitung, A4) und \`DIAL-KURZKARTE.pdf\` (zwei Karten pro A4-Seite zum Aufkleben neben das Dial), \`Etiketten-Tool.html\` (am PC im Browser öffnen: bunte Etiketten für alle Platzkarten, passend für gängige Etikettenbögen, mit Testseite).
 

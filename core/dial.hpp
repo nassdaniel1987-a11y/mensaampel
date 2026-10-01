@@ -115,5 +115,7 @@ struct DialExtras {
   std::vector<std::string> lines;
   // How long the button has been held so far (ms); the Dial shows a progress ring towards 3 s (and 10 s).
   int holdMs = 0;
+  // Firmware update in progress (screen "update"): percent transferred.
+  int progress = 0;
 };
 } // namespace mensa

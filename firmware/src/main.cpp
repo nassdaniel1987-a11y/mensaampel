@@ -10,6 +10,10 @@
 #include "card_reader.hpp"
 #include "web_assets.hpp"
 #include "version.hpp"
+#include "ota.hpp"
+#include <Update.h>
+#include <Preferences.h>
+#include <esp_ota_ops.h>
 
 using mensa::Json;
 // Loop task stack: 20 KB instead of the default 8 KB (engine copies for rollback, storage, JSON). The web server runs
@@ -127,7 +131,20 @@ void note(const std::string &text, bool ok) {
   feedbackAt = nowMs();
   M5.Speaker.tone(ok ? 1800 : 400, ok ? 90 : 220);
 }
+// Mark and version inside the firmware image: the update check (tablet and Dial) recognises a Mensaampel firmware.
+extern "C" __attribute__((used)) const char firmwareMark[] = "MENSAAMPEL-FIRMWARE-1:" MENSA_VERSION;
+// Firmware update over the WLAN. The upload runs in the web task without the state lock (it touches no shared
+// state); the loop only reads the progress.
+struct OtaUpload {
+  volatile bool active = false;
+  bool ok = false;
+  std::string error, version;
+  volatile size_t written = 0, total = 0;
+  volatile uint64_t lastAt = 0;
+  mensa::ota::MarkScan scan;
+} ota;
 bool blocked() {
+  if (ota.active) return true;
   return !configValid || !config.configured || !storage.error.empty() || needsReview || !reader.healthy ||
          !captureTarget.empty();
 }
@@ -458,9 +475,110 @@ Json command(const Json &j) {
     return transact(j);
   return result(false, "Diese Aktion ist am Gerät nicht verfügbar.");
 }
+// Receives the firmware in blocks. Checked: signed in, ESP image (first byte 0xE9), Mensaampel mark, image checksum
+// (Update.end). Anything wrong: the update is aborted and the running firmware stays active.
+void receiveUpdate() {
+  HTTPUpload &u = web.upload();
+  auto fail = [](const std::string &why) {
+    if (Update.isRunning()) Update.abort();
+    ota.ok = false;
+    if (ota.error.empty()) ota.error = why;
+  };
+  if (u.status == UPLOAD_FILE_START) {
+    ota.ok = false;
+    ota.error.clear();
+    ota.version.clear();
+    ota.written = 0;
+    ota.scan = mensa::ota::MarkScan();
+    {
+      Guard g;
+      if (!authorized()) return fail("Bitte anmelden.");
+      if (needsReview || !configValid) return fail("Zuerst Bestand und Einrichtung in Ordnung bringen.");
+      ota.total = strtoul(web.header("X-Firmware-Size").c_str(), nullptr, 10);
+      ota.active = true;
+      ota.lastAt = nowMs();
+      mark("Update");
+    }
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) return fail("Update konnte nicht starten.");
+  } else if (u.status == UPLOAD_FILE_WRITE) {
+    if (!ota.error.empty() || !Update.isRunning()) return;
+    if (ota.written == 0 && (u.currentSize == 0 || u.buf[0] != 0xE9)) return fail("Keine Dial-Firmware (Dateianfang).");
+    ota.scan.feed(u.buf, u.currentSize);
+    if (Update.write(u.buf, u.currentSize) != u.currentSize) return fail("Schreiben fehlgeschlagen.");
+    ota.written += u.currentSize;
+    ota.lastAt = nowMs();
+  } else if (u.status == UPLOAD_FILE_END) {
+    if (!ota.error.empty() || !Update.isRunning()) return;
+    if (!ota.scan.found) return fail("Keine Mensaampel-Firmware.");
+    // Remember the running firmware for the automatic fall-back before the new one becomes active.
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (!Update.end(true)) return fail(std::string("Prüfung fehlgeschlagen: ") + Update.errorString());
+    Preferences p;
+    if (p.begin("ota", false)) {
+      p.putString("prev", running ? running->label : "");
+      p.putBool("pending", true);
+      p.putInt("tries", 0);
+      p.end();
+    }
+    ota.version = ota.scan.version;
+    ota.ok = true;
+  } else if (u.status == UPLOAD_FILE_ABORTED)
+    fail("Übertragung abgebrochen.");
+}
+// A freshly installed firmware that never runs healthily (three starts) switches back to the previous one.
+bool otaPending = false;
+std::string otaNote;
+void otaBootCheck() {
+  Preferences p;
+  if (!p.begin("ota", false)) return;
+  bool pending = p.getBool("pending", false);
+  int tries = p.getInt("tries", 0);
+  auto action = mensa::ota::onBoot(pending, tries);
+  if (action == mensa::ota::BootAction::Rollback) {
+    String prev = p.getString("prev", "");
+    p.putBool("pending", false);
+    p.putBool("rolledBack", true);
+    p.end();
+    const esp_partition_t *target =
+        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, prev.c_str());
+    if (target && esp_ota_set_boot_partition(target) == ESP_OK) ESP.restart();
+    return;
+  }
+  if (action == mensa::ota::BootAction::Count) {
+    p.putInt("tries", tries + 1);
+    otaPending = true;
+  }
+  if (p.getBool("rolledBack", false)) {
+    p.putBool("rolledBack", false);
+    otaNote = "Update zurückgenommen: neue Version lief nicht.";
+  }
+  p.end();
+}
+// Healthy for 60 s with the web server up: the new firmware stays.
+void otaHealthy(uint64_t now) {
+  if (!otaPending || now < 60000 || !webStarted) return;
+  otaPending = false;
+  Preferences p;
+  if (p.begin("ota", false)) {
+    p.putBool("pending", false);
+    p.end();
+  }
+}
 void configureWeb() {
-  const char *headers[] = {"Origin", "X-Mensa-Token"};
-  web.collectHeaders(headers, 2);
+  const char *headers[] = {"Origin", "X-Mensa-Token", "X-Firmware-Size"};
+  web.collectHeaders(headers, 3);
+  web.on("/api/update", HTTP_POST, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           if (!ota.ok) {
+             ota.active = false;
+             return reply(200, result(false, ota.error.empty() ? "Update abgebrochen." : ota.error));
+           }
+           restartAt = nowMs() + 1500;
+           note("Update fertig. Neustart ...", true);
+           reply(200,
+                 {{"ok", true}, {"message", "Update übertragen. Das Dial startet neu."}, {"version", ota.version}});
+         }),
+         [] { receiveUpdate(); });
   web.on("/api/info", HTTP_GET, guarded([] {
            if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
            reply(200, {{"mode", "device"},
@@ -613,7 +731,10 @@ bool buildScreen(Json &list) {
   // After a crash: for one minute show where it happened (black box), so it can be reported without a PC.
   std::string crashHint =
       resetWasError && now < 60000 ? "Fehler: " + (lastCrumb.empty() ? resetReason : lastCrumb) : "";
-  if (resetConfirmUntil > now)
+  if (ota.active) {
+    x.screen = "update";
+    x.progress = ota.total ? int(std::min<size_t>(100, ota.written * 100 / ota.total)) : 0;
+  } else if (resetConfirmUntil > now)
     x.screen = "reset";
   else if (!configValid)
     x.screen = "broken";
@@ -691,6 +812,8 @@ void webTask(void *) {
 void setup() {
   stateLock = xSemaphoreCreateRecursiveMutex();
   Serial.begin(115200);
+  otaBootCheck();
+  if (Serial) Serial.println(firmwareMark); // also keeps the mark in the image
   switch (esp_reset_reason()) {
   case ESP_RST_POWERON:
     resetReason = "Einschalten";
@@ -777,6 +900,17 @@ void loop() {
 }
 // Everything that reads or changes shared state, once per loop, under the state lock.
 void step(uint64_t now) {
+  otaHealthy(now);
+  // An upload that stopped (tablet gone) must not keep the entrance blocked.
+  if (ota.active && !ota.ok && now - ota.lastAt > 30000) {
+    if (Update.isRunning()) Update.abort();
+    ota.active = false;
+    note("Update abgebrochen. Altes Programm bleibt.", false);
+  }
+  if (!otaNote.empty() && now > 3000) {
+    note(otaNote, false);
+    otaNote.clear();
+  }
   if (secondBeepAt && now >= secondBeepAt) {
     secondBeepAt = 0;
     M5.Speaker.tone(1400, 120);
