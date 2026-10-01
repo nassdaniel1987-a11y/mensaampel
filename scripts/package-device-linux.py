@@ -10,7 +10,7 @@ version=re.search(r'MENSA_VERSION\s+"([^"]+)"',(root/'firmware/src/version.hpp')
 for n in ('firmware.bin','partitions.bin','bootloader.bin','littlefs.bin'):shutil.copy2(build/n,out/'firmware'/n)
 shutil.copy2(Path.home()/'.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin',out/'firmware/boot_app0.bin')
 shutil.copy2(root/'scripts/installer.ps1',out/'scripts/installer.ps1')
-for n in ('Dial-Installieren.cmd','ANLEITUNG-DIAL.md','ENTWICKLUNG.md','DRITTANBIETER.md','EINLASS-UND-MESSUNGEN.md','BEDIENUNG-DIAL.html','BEDIENUNG-DIAL.pdf','DIAL-KURZKARTE.html','DIAL-KURZKARTE.pdf','Etiketten-Tool.html'):shutil.copy2(root/n,out/n)
+for n in ('Dial-Installieren.cmd','ANLEITUNG-DIAL.md','ENTWICKLUNG.md','DRITTANBIETER.md','EINLASS-UND-MESSUNGEN.md','PRUEFUNG-AM-PC.md','BEDIENUNG-DIAL.html','BEDIENUNG-DIAL.pdf','DIAL-KURZKARTE.html','DIAL-KURZKARTE.pdf','Etiketten-Tool.html'):shutil.copy2(root/n,out/n)
 esptool=Path.home()/'.platformio/packages/tool-esptoolpy/esptool.py'
 args=[sys.executable,str(esptool),'--chip','esp32s3','merge_bin','--flash_mode','dio','--flash_freq','80m','--flash_size','8MB','-o',str(out/'firmware/first-install.bin')]
 for off,n in [('0x0','bootloader.bin'),('0x8000','partitions.bin'),('0xe000','boot_app0.bin'),('0x10000','firmware.bin'),('0x610000','littlefs.bin')]:args+=[off,str(out/'firmware'/n)]

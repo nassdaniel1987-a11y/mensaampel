@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.17.0-preview · Stand 01.10.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.17.1-preview · Stand 01.10.2026</strong></p>
 <blockquote>
 <p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
 </blockquote>
@@ -169,7 +169,7 @@
 </tr>
 <tr>
 <td>Gerätetest → „Speicher-Dauertest“</td>
-<td>Meldung ohne Fehler; kleinster größter Block deutlich über 24 KB</td>
+<td>Nach etwa 10 s Ergebnis unter dem Knopf, ohne Fehler; kleinster größter Block deutlich über 24 KB; Ampel bleibt dabei verbunden</td>
 <td>☐</td>
 </tr>
 <tr>
@@ -387,6 +387,13 @@
 <li><strong>Heute erwartet</strong> (oben unter Betreuung): aus den letzten bis zu 4 gleichen Wochentagen etwa so viele Essen, so viele Kinder gleichzeitig, Ausgabezeit, ob die Mensa wohl gebraucht wird. Erscheint, sobald es mindestens einen früheren gleichen Wochentag gibt.</li>
 <li><strong>Wochen-Coach</strong> (Einlass &amp; Messungen): ab 3 Essenstagen Vorschläge mit Begründung, z. B. „Gruppen auf 5 verkleinern – bei 32 von 104 Gruppen musste entlastet werden“, „Automatische Freigabe einschalten“, „Mensa heute gleich öffnen“, „Karten am Ende einsammeln“. <strong>Nichts ändert sich von selbst</strong>; erst „Übernehmen“ schickt die Einstellung ans Dial. Eine neue Gruppengröße nimmt das Dial nur zwischen zwei Gruppen oder in einer Pause an.</li>
 <li><strong>Was wäre, wenn …?</strong> (Einlass &amp; Messungen): zwei Gruppengrößen nebeneinander durchrechnen – Wartezeit an der Tür, an der Ausgabe, Zahl der Gruppen. Es ist eine <strong>Schätzung</strong> mit einem einfachen Modell (die meisten Kinder kommen gleich zu Beginn); zum Vergleichen reicht es, echte Mittage weichen ab.</li>
+</ul>
+<h2>Prüfung über USB (ab 0.17.1)</h2>
+<p>Das Dial per USB-Datenkabel an den PC, die Tablets normal im Dial-WLAN: Ein Prüfskript beobachtet 10 Minuten lang Speicher, Ampel-Verbindung, Leser und Speichern, startet den Speicher-Dauertest und schreibt einen Bericht. Mit Claude Code am PC: „Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“ Einzelheiten in <a href="PRUEFUNG-AM-PC.md">PRUEFUNG-AM-PC.md</a>.</p>
+<h2>Neu in 0.17.1</h2>
+<ul>
+<li><strong>Speicher-Dauertest repariert:</strong> Er lief bisher am Stück in einer einzigen Tablet-Anfrage (knapp 9 Sekunden). Das Tablet brach nach 7 Sekunden mit „Failed to fetch“ ab, und so lange bekam auch die Ampel keine Antwort. Jetzt läuft er im Hintergrund: Der Knopf zeigt „Dauertest läuft …“, nach etwa 10 Sekunden steht das Ergebnis darunter und am Dial. Tablet und Ampel bleiben verbunden. Die hohe „Antwortzeit“ unter Gesundheit stammte von diesem Test; nach einem Neustart des Dials ist sie wieder normal.</li>
+<li><strong>Prüfung über USB</strong> (siehe oben).</li>
 </ul>
 <h2>Neu in 0.17</h2>
 <ul>

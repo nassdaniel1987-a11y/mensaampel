@@ -55,7 +55,10 @@ export function healthRows(device, diag) {
       name: 'Antwortzeit',
       level: rate(device.webMaxMs, 1500, 4000),
       value: `längste ${device.webMaxMs} ms`,
-      todo: device.webMaxMs >= 1500 ? 'Nur ein Browserfenster mit der Betreuung offen lassen.' : 'Alles in Ordnung.',
+      todo:
+        device.webMaxMs >= 1500
+          ? 'Nur ein Browserfenster mit der Betreuung offen lassen. Ein Speicher-Dauertest vor Version 0.17.1 treibt den Wert hoch; Dial neu starten setzt ihn zurück.'
+          : 'Alles in Ordnung.',
     });
   if (diag)
     rows.push({

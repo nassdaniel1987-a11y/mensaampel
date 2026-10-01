@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.17.0-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.17.1-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -160,7 +160,7 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Zwei Karten einlernen | Richtige Nummern, keine Platzbuchung | ☐ |
 | Unter Gerät 10 Karten einzeln einlernen | Kein Speicherfehler | ☐ |
 | Karte von ihrer Nummer lösen und neu einlernen | Nummer bleibt, alte Karte wird abgewiesen | ☐ |
-| Gerätetest → „Speicher-Dauertest“ | Meldung ohne Fehler; kleinster größter Block deutlich über 24 KB | ☐ |
+| Gerätetest → „Speicher-Dauertest“ | Nach etwa 10 s Ergebnis unter dem Knopf, ohne Fehler; kleinster größter Block deutlich über 24 KB; Ampel bleibt dabei verbunden | ☐ |
 | Betreuungsseite 10 Minuten offen lassen, dabei scannen | Unter Gerät „Aussetzer 0“ (vereinzelte Aussetzer ohne Meldung sind harmlos) | ☐ |
 | Ausgabe / Rückgabe | Genau eine Änderung; gesicherter Bestand | ☐ |
 | Karte mindestens 20 Sekunden vorhalten | Keine zweite Buchung | ☐ |
@@ -266,6 +266,15 @@ Das rechnet das **Tablet** aus den Tagesberichten im Dial, das Dial braucht daf�
 - **Heute erwartet** (oben unter Betreuung): aus den letzten bis zu 4 gleichen Wochentagen etwa so viele Essen, so viele Kinder gleichzeitig, Ausgabezeit, ob die Mensa wohl gebraucht wird. Erscheint, sobald es mindestens einen früheren gleichen Wochentag gibt.
 - **Wochen-Coach** (Einlass & Messungen): ab 3 Essenstagen Vorschläge mit Begründung, z. B. „Gruppen auf 5 verkleinern – bei 32 von 104 Gruppen musste entlastet werden“, „Automatische Freigabe einschalten“, „Mensa heute gleich öffnen“, „Karten am Ende einsammeln“. **Nichts ändert sich von selbst**; erst „Übernehmen“ schickt die Einstellung ans Dial. Eine neue Gruppengröße nimmt das Dial nur zwischen zwei Gruppen oder in einer Pause an.
 - **Was wäre, wenn …?** (Einlass & Messungen): zwei Gruppengrößen nebeneinander durchrechnen – Wartezeit an der Tür, an der Ausgabe, Zahl der Gruppen. Es ist eine **Schätzung** mit einem einfachen Modell (die meisten Kinder kommen gleich zu Beginn); zum Vergleichen reicht es, echte Mittage weichen ab.
+
+## Prüfung über USB (ab 0.17.1)
+
+Das Dial per USB-Datenkabel an den PC, die Tablets normal im Dial-WLAN: Ein Prüfskript beobachtet 10 Minuten lang Speicher, Ampel-Verbindung, Leser und Speichern, startet den Speicher-Dauertest und schreibt einen Bericht. Mit Claude Code am PC: „Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“ Einzelheiten in [PRUEFUNG-AM-PC.md](PRUEFUNG-AM-PC.md).
+
+## Neu in 0.17.1
+
+- **Speicher-Dauertest repariert:** Er lief bisher am Stück in einer einzigen Tablet-Anfrage (knapp 9 Sekunden). Das Tablet brach nach 7 Sekunden mit „Failed to fetch“ ab, und so lange bekam auch die Ampel keine Antwort. Jetzt läuft er im Hintergrund: Der Knopf zeigt „Dauertest läuft …“, nach etwa 10 Sekunden steht das Ergebnis darunter und am Dial. Tablet und Ampel bleiben verbunden. Die hohe „Antwortzeit“ unter Gesundheit stammte von diesem Test; nach einem Neustart des Dials ist sie wieder normal.
+- **Prüfung über USB** (siehe oben).
 
 ## Neu in 0.17
 

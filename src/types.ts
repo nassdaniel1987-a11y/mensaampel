@@ -35,6 +35,7 @@ export type Device = {
   webRequests?: number;
   webMaxMs?: number;
   lastCrumb?: string;
+  memoryTest?: { running: boolean; ok: boolean; message: string };
   health?: { crash: boolean; readerFaults: number; saveFailures: number; ampelDrops: number; minBlock: number };
   clients: number;
   uptime: number;

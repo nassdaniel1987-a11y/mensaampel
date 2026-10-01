@@ -15,7 +15,7 @@ for name in ('firmware.bin','partitions.bin','bootloader.bin','littlefs.bin'):
 shutil.copy2(tools/'platformio-home/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin',output/'firmware/boot_app0.bin')
 shutil.copy2(workspace/'work/flash-dist/mensa-flash.exe',output/'tools/mensa-flash.exe')
 shutil.copy2(root/'scripts/installer.ps1',output/'scripts/installer.ps1')
-for name in ('Dial-Installieren.cmd','ANLEITUNG-DIAL.md','ENTWICKLUNG.md','DRITTANBIETER.md','EINLASS-UND-MESSUNGEN.md','Etiketten-Tool.html'):
+for name in ('Dial-Installieren.cmd','ANLEITUNG-DIAL.md','ENTWICKLUNG.md','DRITTANBIETER.md','EINLASS-UND-MESSUNGEN.md','PRUEFUNG-AM-PC.md','Etiketten-Tool.html'):
     shutil.copy2(root/name,output/name)
 args=[str(output/'tools/mensa-flash.exe'),'--chip','esp32s3','merge_bin','--flash_mode','dio','--flash_freq','80m','--flash_size','8MB','-o',str(output/'firmware/first-install.bin')]
 for offset,name in [('0x0','bootloader.bin'),('0x8000','partitions.bin'),('0xe000','boot_app0.bin'),('0x10000','firmware.bin'),('0x610000','littlefs.bin')]:

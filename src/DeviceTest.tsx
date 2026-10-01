@@ -69,11 +69,20 @@ export function DeviceTest({ state: s, send, disabled }: { state: State; send: S
           {s.testMode ? 'Gerätetest beenden' : 'Gerätetest starten'}
         </button>
         {s.device && (
-          <button className="outline" disabled={disabled} onClick={() => send({ type: 'memoryTest' })}>
-            Speicher-Dauertest
+          <button
+            className="outline"
+            disabled={disabled || !!s.device.memoryTest?.running}
+            onClick={() => send({ type: 'memoryTest' })}
+          >
+            {s.device.memoryTest?.running ? 'Dauertest läuft …' : 'Speicher-Dauertest'}
           </button>
         )}
       </div>
+      {s.device?.memoryTest?.message && (
+        <p className={`banner ${s.device.memoryTest.running ? '' : s.device.memoryTest.ok ? 'success' : 'error'}`}>
+          {s.device.memoryTest.message}
+        </p>
+      )}
       <p>
         Im Gerätetest zeigt das Dial Leser, Kartenkennung, Lesungen, Drehring, Taste, Touch, verbundene Tablets,
         Speicher und Uhr. <strong>Scans buchen dabei nicht.</strong>

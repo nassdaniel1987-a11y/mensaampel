@@ -80,6 +80,15 @@ struct Health {
   bool readerWasHealthy = false;
   uint64_t sampledAt = 0;
 } health;
+// Memory endurance test: runs in the loop one round at a time (a long web handler would block the Ampel, as the web
+// server answers one request after the other).
+struct MemoryTest {
+  int left = 0;
+  bool ok = false;
+  uint32_t minFree = 0, minBlock = 0, slowest = 0, statusMax = 0;
+  uint64_t nextAt = 0;
+  std::string message;
+} memoryTest;
 // Since when the stock is confirmed (for the Ampel warning) and how many reminders have beeped.
 uint64_t readySince = 0;
 int remindersBeeped = 0;
@@ -235,40 +244,42 @@ Json state(bool withCards = true) {
   s["storageError"] = storage.error;
   s["recoveryRequired"] = false;
   s["sim"] = {{"offset", 0}, {"offline", false}, {"forceWriteFailure", false}};
-  s["device"] = {{"version", MENSA_VERSION},
-                 {"configured", config.configured},
-                 {"reader", config.reader},
-                 {"readerActive", reader.mode},
-                 {"testMode", testMode},
-                 {"readerHealthy", reader.healthy},
-                 {"readerError", reader.error},
-                 {"ssid", config.ssid},
-                 {"channel", config.channel},
-                 {"captureTarget", captureTarget},
-                 {"capturedUid", capturedUid},
-                 {"captureUntil", captureUntil},
-                 {"feedback", feedback},
-                 {"feedbackOk", feedbackOk},
-                 {"feedbackAgo", feedbackAt ? int((nowMs() - feedbackAt) / 1000) : -1},
-                 {"ampelAgo", ampelSeenAt ? int((nowMs() - ampelSeenAt) / 1000) : -1},
-                 {"needsReview", needsReview},
-                 {"freeHeap", ESP.getFreeHeap()},
-                 {"minimumHeap", ESP.getMinFreeHeap()},
-                 {"maxAllocHeap", ESP.getMaxAllocHeap()},
-                 {"resetReason", resetReason},
-                 {"lastCrumb", lastCrumb},
-                 {"stackFree", uxTaskGetStackHighWaterMark(nullptr)},
-                 {"loopStackFree", loopTask ? uxTaskGetStackHighWaterMark(loopTask) : 0},
-                 {"webRequests", webRequests},
-                 {"webMaxMs", webMaxMs},
-                 {"health",
-                  {{"crash", resetWasError},
-                   {"readerFaults", health.readerFaults},
-                   {"saveFailures", storage.failures},
-                   {"ampelDrops", health.ampelDrops},
-                   {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
-                 {"clients", WiFi.softAPgetStationNum()},
-                 {"uptime", nowMs()}};
+  s["device"] = {
+      {"version", MENSA_VERSION},
+      {"configured", config.configured},
+      {"reader", config.reader},
+      {"readerActive", reader.mode},
+      {"testMode", testMode},
+      {"readerHealthy", reader.healthy},
+      {"readerError", reader.error},
+      {"ssid", config.ssid},
+      {"channel", config.channel},
+      {"captureTarget", captureTarget},
+      {"capturedUid", capturedUid},
+      {"captureUntil", captureUntil},
+      {"feedback", feedback},
+      {"feedbackOk", feedbackOk},
+      {"feedbackAgo", feedbackAt ? int((nowMs() - feedbackAt) / 1000) : -1},
+      {"ampelAgo", ampelSeenAt ? int((nowMs() - ampelSeenAt) / 1000) : -1},
+      {"needsReview", needsReview},
+      {"freeHeap", ESP.getFreeHeap()},
+      {"minimumHeap", ESP.getMinFreeHeap()},
+      {"maxAllocHeap", ESP.getMaxAllocHeap()},
+      {"resetReason", resetReason},
+      {"lastCrumb", lastCrumb},
+      {"stackFree", uxTaskGetStackHighWaterMark(nullptr)},
+      {"loopStackFree", loopTask ? uxTaskGetStackHighWaterMark(loopTask) : 0},
+      {"webRequests", webRequests},
+      {"webMaxMs", webMaxMs},
+      {"memoryTest", {{"running", memoryTest.left > 0}, {"ok", memoryTest.ok}, {"message", memoryTest.message}}},
+      {"health",
+       {{"crash", resetWasError},
+        {"readerFaults", health.readerFaults},
+        {"saveFailures", storage.failures},
+        {"ampelDrops", health.ampelDrops},
+        {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
+      {"clients", WiFi.softAPgetStationNum()},
+      {"uptime", nowMs()}};
   // Also at the top level like PC service and demo: the tablet's device test switch reads it there.
   s["testMode"] = testMode;
   if (signalBlocked()) s["signal"] = {{"green", false}, {"reason", "device"}, {"free", 0}};
@@ -350,6 +361,143 @@ void clearCapture() {
   captureUntil = 0;
   reader.latch.reset();
   engine.command({{"type", "remove"}}, nowMs());
+}
+Json memoryTestStart() {
+  if (needsReview || !storage.error.empty() || !storage.mounted)
+    return result(false, "Zuerst Speicher und Bestand in Ordnung bringen.");
+  if (memoryTest.left > 0) return result(false, "Dauertest läuft bereits.");
+  memoryTest = MemoryTest{};
+  memoryTest.left = 20;
+  memoryTest.minFree = ESP.getFreeHeap();
+  memoryTest.minBlock = ESP.getMaxAllocHeap();
+  memoryTest.message = "Dauertest läuft (20 Runden, etwa 10 Sekunden) …";
+  return result(true, memoryTest.message);
+}
+// One round per call (from the loop, under the lock): status text and one save, at most every 300 ms.
+void memoryTestStep(uint64_t now) {
+  if (memoryTest.left <= 0 || now < memoryTest.nextAt) return;
+  memoryTest.nextAt = now + 300;
+  int round = 21 - memoryTest.left;
+  uint64_t t0 = nowMs();
+  { std::string body = stateBody(); }
+  memoryTest.statusMax = std::max<uint32_t>(memoryTest.statusMax, uint32_t(nowMs() - t0));
+  t0 = nowMs();
+  if (!storage.save(engine)) {
+    memoryTest.left = 0;
+    memoryTest.ok = false;
+    memoryTest.message = "Dauertest: Speichern " + std::to_string(round) + " fehlgeschlagen: " + storage.error;
+    note(memoryTest.message, false);
+    return;
+  }
+  memoryTest.slowest = std::max<uint32_t>(memoryTest.slowest, uint32_t(nowMs() - t0));
+  memoryTest.minFree = std::min<uint32_t>(memoryTest.minFree, ESP.getFreeHeap());
+  memoryTest.minBlock = std::min<uint32_t>(memoryTest.minBlock, ESP.getMaxAllocHeap());
+  if (--memoryTest.left > 0) return;
+  memoryTest.ok = true;
+  memoryTest.message = "Dauertest ok: 20x gespeichert, langsamstes Speichern " + std::to_string(memoryTest.slowest) +
+                       " ms, Status max " + std::to_string(memoryTest.statusMax) + " ms, freier Speicher mind. " +
+                       std::to_string(memoryTest.minFree / 1024) + " KB, größter Block mind. " +
+                       std::to_string(memoryTest.minBlock / 1024) + " KB.";
+  note(memoryTest.message, true);
+}
+// Backup text (download on the tablet; checked over USB).
+std::string backupText() {
+  std::string body =
+      std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") + Json(config.reader).dump() + ",\"state\":";
+  std::string snap = engine.snapshot(false).dump();
+  snap.pop_back();
+  body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + "}}";
+  return body;
+}
+// Check interface on the USB cable (scripts/device-check.py): lines "@mensa <command>", answer "@mensa-reply {json}".
+// Read-only plus the memory test; no bookings, no settings (USB access means physical access anyway).
+std::string serialLine;
+void serialAnswer(const Json &j) {
+  std::string out = "@mensa-reply " + j.dump() + "\n";
+  Serial.write((const uint8_t *)out.data(), out.size());
+}
+Json healthJson() {
+  auto sig = engine.signal(nowMs());
+  return {{"ok", true},
+          {"uptime", nowMs()},
+          {"version", MENSA_VERSION},
+          {"health",
+           {{"crash", resetWasError},
+            {"readerFaults", health.readerFaults},
+            {"saveFailures", storage.failures},
+            {"ampelDrops", health.ampelDrops},
+            {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
+          {"freeHeap", ESP.getFreeHeap()},
+          {"minimumHeap", ESP.getMinFreeHeap()},
+          {"maxAllocHeap", ESP.getMaxAllocHeap()},
+          {"webMaxMs", webMaxMs},
+          {"webRequests", webRequests},
+          {"ampelAgo", ampelSeenAt ? int((nowMs() - ampelSeenAt) / 1000) : -1},
+          {"clients", WiFi.softAPgetStationNum()},
+          {"readerHealthy", reader.healthy},
+          {"storageError", storage.error},
+          {"needsReview", needsReview},
+          {"ready", engine.isReady()},
+          {"reason", signalBlocked() ? "device" : sig.value("reason", std::string())},
+          {"memoryTest", {{"running", memoryTest.left > 0}, {"ok", memoryTest.ok}, {"message", memoryTest.message}}}};
+}
+void serialCommand(const std::string &cmd) {
+  try {
+    if (cmd == "info")
+      serialAnswer({{"ok", true},
+                    {"version", MENSA_VERSION},
+                    {"configured", config.configured},
+                    {"reader", config.reader},
+                    {"uptime", nowMs()},
+                    {"resetReason", resetReason},
+                    {"lastCrumb", lastCrumb}});
+    else if (cmd == "health")
+      serialAnswer(healthJson());
+    else if (cmd == "memorytest")
+      serialAnswer(memoryTestStart());
+    else if (cmd == "bench") {
+      uint32_t slowest = 0, minBlock = ESP.getMaxAllocHeap();
+      for (int i = 0; i < 10; i++) {
+        uint64_t t0 = nowMs();
+        { std::string body = stateBody(); }
+        slowest = std::max<uint32_t>(slowest, uint32_t(nowMs() - t0));
+        minBlock = std::min<uint32_t>(minBlock, ESP.getMaxAllocHeap());
+      }
+      serialAnswer({{"ok", true}, {"statusMaxMs", slowest}, {"minBlock", minBlock}});
+    } else if (cmd == "backupcheck") {
+      // Parsing a full backup is the largest allocation (like /api/restore): only with enough memory.
+      if (ESP.getMaxAllocHeap() < 60000)
+        return serialAnswer(result(false, "Zu wenig freier Speicher für die Sicherungsprüfung."));
+      std::string text = backupText();
+      size_t size = text.size();
+      int cards = 0;
+      bool valid = false;
+      {
+        auto j = Json::parse(text, nullptr, false);
+        text.clear();
+        text.shrink_to_fit();
+        valid = !j.is_discarded() && j.value("format", std::string()) == "mensa-device-backup-1" &&
+                j.contains("state") && j["state"].contains("cards") && j["state"]["cards"].is_array();
+        if (valid) cards = int(j["state"]["cards"].size());
+      }
+      serialAnswer({{"ok", valid}, {"bytes", size}, {"cards", cards}, {"minBlock", ESP.getMaxAllocHeap()}});
+    } else
+      serialAnswer(result(false, "Unbekannt. Befehle: info, health, memorytest, bench, backupcheck"));
+  } catch (...) { serialAnswer(result(false, "Speicher knapp - bitte gleich nochmal.")); }
+}
+void serialPoll() {
+  int n = 0;
+  while (Serial.available() > 0 && n++ < 128) {
+    char c = char(Serial.read());
+    if (c == '\r') continue;
+    if (c != '\n') {
+      if (serialLine.size() < 256) serialLine += c;
+      continue;
+    }
+    std::string line;
+    line.swap(serialLine);
+    if (line.rfind("@mensa ", 0) == 0) serialCommand(line.substr(7));
+  }
 }
 Json command(const Json &j) {
   const auto type = j.at("type").get<std::string>();
@@ -467,30 +615,7 @@ Json command(const Json &j) {
     tuneNext = 0;
     return result(true, std::string("Klang „") + mensa::sound::setNames[set] + "“: Ausgabe, Rückgabe, abgewiesen.");
   }
-  if (type == "memoryTest") {
-    if (needsReview || !storage.error.empty() || !storage.mounted)
-      return result(false, "Zuerst Speicher und Bestand in Ordnung bringen.");
-    uint32_t minFree = ESP.getFreeHeap(), minBlock = ESP.getMaxAllocHeap(), slowest = 0, statusMax = 0;
-    for (int i = 0; i < 20; i++) {
-      uint64_t t0 = nowMs();
-      { std::string body = stateBody(); }
-      statusMax = std::max<uint32_t>(statusMax, uint32_t(nowMs() - t0));
-      t0 = nowMs();
-      if (!storage.save(engine))
-        return result(false, "Dauertest: Speichern " + std::to_string(i + 1) + " fehlgeschlagen: " + storage.error);
-      slowest = std::max<uint32_t>(slowest, uint32_t(nowMs() - t0));
-      minFree = std::min<uint32_t>(minFree, ESP.getFreeHeap());
-      minBlock = std::min<uint32_t>(minBlock, ESP.getMaxAllocHeap());
-      // Let scans, the display and the Ampel run between the rounds.
-      xSemaphoreGiveRecursive(stateLock);
-      vTaskDelay(pdMS_TO_TICKS(30));
-      xSemaphoreTakeRecursive(stateLock, portMAX_DELAY);
-    }
-    return result(true, "Dauertest ok: 20x gespeichert, langsamstes Speichern " + std::to_string(slowest) +
-                            " ms, Status max " + std::to_string(statusMax) + " ms, freier Speicher mind. " +
-                            std::to_string(minFree / 1024) + " KB, größter Block mind. " +
-                            std::to_string(minBlock / 1024) + " KB.");
-  }
+  if (type == "memoryTest") return memoryTestStart();
   if (type == "createSlot") {
     const auto label = j.at("label").get<std::string>();
     auto r = transact(
@@ -734,13 +859,7 @@ void configureWeb() {
   web.on("/api/backup", HTTP_GET, guarded([] {
            if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
            pending.disposition = "attachment; filename=mensa-bestand.json";
-           std::string body = std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") +
-                              Json(config.reader).dump() + ",\"state\":";
-           {
-             std::string snap = engine.snapshot(false).dump();
-             snap.pop_back();
-             body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + "}}";
-           }
+           std::string body = backupText();
            replyBody(200, body);
          }));
   web.onNotFound([] {
@@ -954,6 +1073,8 @@ void loop() {
 // Everything that reads or changes shared state, once per loop, under the state lock.
 void step(uint64_t now) {
   otaHealthy(now);
+  serialPoll();
+  memoryTestStep(now);
   if (now >= health.sampledAt) {
     health.sampledAt = now + 1000;
     health.minBlock = std::min<uint32_t>(health.minBlock, ESP.getMaxAllocHeap());

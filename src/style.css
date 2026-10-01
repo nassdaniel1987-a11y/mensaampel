@@ -2044,3 +2044,9 @@ dialog {
   gap: 12px;
   margin: 14px 0;
 }
+/* Positive result (e.g. memory endurance test ok). */
+.banner.success {
+  background: var(--accent-soft);
+  border-color: #99d5c9;
+  color: var(--navy);
+}
