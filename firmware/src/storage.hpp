@@ -165,7 +165,14 @@ public:
     }
     return fresh(engine);
   }
+  // Failed saves since power-on (health report on the tablet).
+  uint32_t failures = 0;
   bool save(const mensa::Engine &engine) {
+    bool ok = write(engine);
+    if (!ok && failures < 100000) failures++;
+    return ok;
+  }
+  bool write(const mensa::Engine &engine) {
     if (!mounted) {
       error = "Gerätespeicher nicht verfügbar.";
       return false;

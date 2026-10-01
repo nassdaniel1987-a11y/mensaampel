@@ -7,6 +7,8 @@ export type Card = {
   lost: boolean;
   last: number;
   remainingMs: number;
+  missed?: number;
+  quick?: number;
 };
 export type Room = { capacity: number; limit: number; open: boolean; occupied: number; free: number };
 export type Device = {
@@ -33,6 +35,7 @@ export type Device = {
   webRequests?: number;
   webMaxMs?: number;
   lastCrumb?: string;
+  health?: { crash: boolean; readerFaults: number; saveFailures: number; ampelDrops: number; minBlock: number };
   clients: number;
   uptime: number;
 };
@@ -65,6 +68,10 @@ export type State = {
     kitchenFree?: number;
     mensaFree?: number;
     mensaOpen?: boolean;
+    nextFreeIn?: number;
+    stayMinutes?: number;
+    mensaHint?: number;
+    mensaBasis?: number;
   };
   outCards?: string[];
   cardsMissing?: boolean;
@@ -123,6 +130,8 @@ export type DayReport = [
   number,
   number,
   number,
+  number,
+  number,
 ];
 export type FlowState = {
   startSize: number;
@@ -133,6 +142,8 @@ export type FlowState = {
   startLearned: number;
   sizeGlobal: number;
   groupIsStart: boolean;
+  stayAvg?: number;
+  stayN?: number;
   today: DayReport;
   history: DayReport[];
   autoOn: boolean;

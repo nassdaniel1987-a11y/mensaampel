@@ -80,6 +80,28 @@ export function Management({
           {s.recoveryRequired && <button onClick={() => setModal('recover')}>Grundbestand wiederherstellen</button>}
         </div>
       )}
+      {(s.signal.mensaHint ?? -1) > 0 && (
+        <div className="banner" role="status">
+          <div>
+            <strong>Küche voll – Mensa öffnen?</strong>
+            <p>
+              Vorschlag: {s.signal.mensaHint} Plätze
+              {s.signal.mensaBasis
+                ? ` – so viele wurden an den letzten ${s.signal.mensaBasis === 1 ? 'gleichen Wochentag' : `${s.signal.mensaBasis} gleichen Wochentagen`} höchstens gebraucht (aufgerundet).`
+                : ' – noch ohne Erfahrungswerte, daher ein Startwert.'}{' '}
+              Am Dial geht es auch: Ring drehen, Taste.
+            </p>
+          </div>
+          <button
+            disabled={blocked}
+            onClick={() =>
+              send({ type: 'room', room: 'M', capacity: s.rooms.M.capacity, limit: s.signal.mensaHint, open: true })
+            }
+          >
+            <Unlock size={18} /> Mensa mit {s.signal.mensaHint} Plätzen öffnen
+          </button>
+        </div>
+      )}
       <div className="dashboard">
         <div className="main-column">
           <div className="rooms">
@@ -195,6 +217,7 @@ export function Management({
               </div>
             </div>
           )}
+          <Hints state={s} send={send} blocked={blocked} />
           <section className="cards-section series-section">
             <h2>Karten am Stück einlernen</h2>
             {s.series?.active ? (
@@ -696,5 +719,35 @@ export function Management({
         </Modal>
       )}
     </>
+  );
+}
+// Noticeable cards: often not returned, or often back within a minute (double scan?). Only counters per number.
+function Hints({ state: s, send, blocked }: { state: State; send: Send; blocked: boolean }) {
+  const list = s.cards
+    .filter(c => (c.missed ?? 0) >= 2 || (c.quick ?? 0) >= 3)
+    .sort((a, b) => a.label.localeCompare(b.label));
+  if (!list.length) return null;
+  return (
+    <section className="cards-section hints-section">
+      <h2>Hinweise</h2>
+      <p className="hint">
+        Auffällige Kartennummern. Nach dem Klären (z. B. Gespräch, Karte getauscht) „Erledigt“ tippen.
+      </p>
+      <ul className="hint-list">
+        {list.map(c => (
+          <li key={c.label}>
+            <span>
+              <strong>{c.label}</strong>
+              {(c.missed ?? 0) >= 2 && ` fehlte schon ${c.missed}× am Tagesende`}
+              {(c.missed ?? 0) >= 2 && (c.quick ?? 0) >= 3 && ' ·'}
+              {(c.quick ?? 0) >= 3 && ` oft sofort zurück (${c.quick}×) – Doppelscan?`}
+            </span>
+            <button className="outline" disabled={blocked} onClick={() => send({ type: 'cardFlags', label: c.label })}>
+              <Check size={16} /> Erledigt
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

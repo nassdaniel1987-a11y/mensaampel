@@ -28,17 +28,23 @@ static std::string uid(int i) {
            (i * 57) & 255, (i * 91) & 255);
   return b;
 }
-// Same text building as firmware/src/storage.hpp and main.cpp.
+// Same text building as firmware/src/storage.hpp (snapshotText, reserved with the last saved size) and main.cpp.
+static size_t lastSize = 16000;
 static std::string saveText(const mensa::Engine &e) {
   std::string t;
+  t.reserve(lastSize + 2048);
   {
     auto j = e.snapshot(false);
     j["undo"] = nullptr;
     j["held"] = "";
-    t = j.dump();
+    t += j.dump();
   }
   t.pop_back();
-  return t + ",\"cards\":" + e.cardsText(0, false) + "}";
+  t += ",\"cards\":";
+  t += e.cardsText(0, false);
+  t += "}";
+  lastSize = t.size();
+  return t;
 }
 static std::string stateText(const mensa::Engine &e, long long now, bool cards) {
   std::string b = e.status(now, false).dump();
@@ -77,6 +83,23 @@ int main() {
     e.command({{"type", "scan"}, {"uid", uid(i)}}, now);
     e.command({{"type", "remove"}}, now);
   }
+  // Worst case for the hints and learned stays (0.16): every card with counters, every half hour learned.
+  {
+    auto j = e.snapshot();
+    for (auto &c : j["cards"]) {
+      c["missed"] = 999;
+      c["quick"] = 999;
+    }
+    j["flow"]["stay"] = Json::array();
+    for (int i = 0; i < 7 * 8; i++) {
+      j["flow"]["stay"].push_back(1500);
+      j["flow"]["stay"].push_back(9999);
+    }
+    j["flow"]["stayAvg"] = 1500;
+    j["flow"]["stayN"] = 9999;
+    e.restore(j, true);
+  }
+  saveText(e); // the Dial knows the size of its last save
   auto measure = [&](auto fn) {
     size_t base = cur;
     peak = cur;

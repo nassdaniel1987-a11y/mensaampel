@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Hand, WifiOff, Maximize, Bell, BellOff } from 'lucide-react';
 import type { State } from './types';
-import { ampelLanguages, ampelTexts } from './ampel-texts.mjs';
+import { ampelLanguages, ampelTexts, friendlyLines, nextSeatText } from './ampel-texts.mjs';
 // Two-tone chime when the entrance opens again; browsers only allow it after one tap on "Ton an".
 let chimeAudio: AudioContext | null = null;
 function chime() {
@@ -110,7 +110,12 @@ export function Signal({
       : reason === 'offline' || reason === 'storage' || reason === 'confirm' || reason === 'device'
         ? 'closed'
         : 'wait',
-    language = ampelLanguages[Math.floor(now.getTime() / 4000) % ampelLanguages.length];
+    turn = Math.floor(now.getTime() / 4000),
+    language = ampelLanguages[turn % ampelLanguages.length],
+    // While waiting, every second round of languages says thank you instead of "please wait".
+    languageKey = mood === 'wait' && Math.floor(turn / ampelLanguages.length) % 2 ? 'thanks' : mood,
+    nextSeat = reason === 'full' && sig ? nextSeatText(sig.nextFreeIn ?? -1) : '',
+    friendly = friendlyLines[Math.floor(now.getTime() / 6000) % friendlyLines.length];
   useEffect(() => {
     if (was.current === false && admitting && sound) chime();
     was.current = admitting;
@@ -163,12 +168,30 @@ export function Signal({
       )}
       <h2>{time && full ? "Gleich geht's weiter" : title}</h2>
       {full && count && <p className="signal-count">{count}</p>}
+      {full && nextSeat && <p className="signal-count">{nextSeat}</p>}
       {time && full && <p className="signal-time">{time}</p>}
-      <p>{time && !full ? `Gleich geht's weiter · ${time}` : time ? 'Bitte kurz warten.' : text}</p>
+      {full && mood === 'wait' && (
+        <p className="signal-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </p>
+      )}
+      <p>
+        {time && !full
+          ? `Gleich geht's weiter · ${time}`
+          : time
+            ? 'Ihr seid die Nächsten!'
+            : full && mood === 'wait'
+              ? friendly
+              : nextSeat
+                ? `${text} ${nextSeat}${nextSeat.endsWith('.') ? '' : '.'}`
+                : text}
+      </p>
       {full && (
         <>
           <p className="signal-language" dir={language.dir} lang={language.code.toLowerCase()}>
-            <span>{language.code}</span> {ampelTexts[mood][language.code]}
+            <span>{language.code}</span> {ampelTexts[languageKey][language.code]}
           </p>
           <p className="signal-note">
             {admitting ? 'Deinen Platz bekommst du mit einer Platzkarte.' : 'Bitte den Eingang freihalten.'}

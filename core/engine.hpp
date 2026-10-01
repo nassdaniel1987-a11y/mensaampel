@@ -18,6 +18,10 @@ class Engine {
     int room = 0;
     bool out = false, lost = false;
     long long last = -1;
+    // Hints for the staff (stored): days the card was not returned, returns within a minute (double scan?).
+    int missed = 0, quick = 0;
+    // Transient: issue time on the monotonic clock for the learned stay (-1 unknown, e.g. after a reboot).
+    long long outAt = -1;
   };
   struct Room {
     int capacity = 0, limit = 0;
@@ -72,9 +76,13 @@ class Engine {
     return r == "K" ? 0 : 1;
   }
   static const char *roomName(int r) { return r == 0 ? "K" : "M"; }
+  static constexpr int flagMax = 999;
   static Json asJson(const Card &c) {
-    return {{"uid", c.uid}, {"label", c.label}, {"room", roomName(c.room)},
-            {"out", c.out}, {"lost", c.lost},   {"last", c.last}};
+    Json j = {{"uid", c.uid}, {"label", c.label}, {"room", roomName(c.room)},
+              {"out", c.out}, {"lost", c.lost},   {"last", c.last}};
+    if (c.missed) j["missed"] = c.missed;
+    if (c.quick) j["quick"] = c.quick;
+    return j;
   }
   static Card fromJson(const Json &j) {
     Card c;
@@ -89,6 +97,8 @@ class Engine {
     c.lost = j["lost"];
     c.last = j["last"];
     require(c.last >= -1, "Ungültige Kartenzeit.");
+    c.missed = j.contains("missed") ? number(j, "missed", 0, flagMax) : 0;
+    c.quick = j.contains("quick") ? number(j, "quick", 0, flagMax) : 0;
     return c;
   }
   Card &card(const std::string &uid) {
@@ -117,7 +127,7 @@ public:
     for (int r = 0; r < 2; r++)
       for (int i = 1; i <= rooms[r].capacity; i++) {
         auto label = std::string(roomName(r)) + (i < 10 ? "0" : "") + std::to_string(i);
-        cards.push_back({"sim:" + label, label, r, false, false, -1});
+        cards.push_back({"sim:" + label, label, r, false, false, -1, 0, 0, -1});
       }
   }
   void prepareHardware() {
@@ -137,8 +147,10 @@ public:
     resumeDate = ready ? readyDate : -1;
     flow.restart();
     if (outCards() > 0) flow.lastScan = now;
-    for (auto &c : cards)
+    for (auto &c : cards) {
       if (c.last >= 0) c.last = now;
+      c.outAt = -1;
+    }
     ready = false;
     attentionAt = -1;
     hasUndo = false;
@@ -271,6 +283,39 @@ public:
     return flow.autoOn && flow.waiting && ready && !paused && !flow.relief && !(flow.started >= 0 && flow.kind == 1);
   }
   bool autoDue(long long now) const { return autoPending() && (flow.releaseAt < 0 || now >= flow.releaseAt); }
+  // Seconds until the next card is probably back (learned stay minus the time already out), -1 without enough
+  // returns or without cards out with a known issue time. Only a hint for the waiting children.
+  int nextFreeIn(long long now) const {
+    int best = -1;
+    for (const auto &c : cards)
+      if (c.out && c.outAt >= 0 && now >= c.outAt) {
+        int expected = flow.expectedStay(c.outAt);
+        if (expected < 0) return -1;
+        int left = std::max(0, expected - int((now - c.outAt) / 1000));
+        if (best < 0 || left < best) best = left;
+      }
+    return best;
+  }
+  // Mensa assistant: kitchen (almost) full while the Mensa is closed.
+  bool mensaAssist() const {
+    return ready && !isPaused() && !seriesActive() && rooms[0].open && available(0) <= 1 && !rooms[1].open &&
+           rooms[1].capacity > 0;
+  }
+  // Suggested Mensa seats: most seats used on the last four days of the same weekday (all days without a clock),
+  // rounded up to five, at least 10; 20 without data; at most the capacity.
+  // days: how many earlier days the suggestion is based on (0 = default value).
+  int mensaSuggestion(int *days = nullptr) const {
+    int found = 0, most = -1;
+    bool any = flow.today[1] < 0;
+    for (auto it = flow.history.rbegin(); it != flow.history.rend() && found < 4; ++it)
+      if ((*it)[14] >= 0 && (any || (*it)[1] == flow.today[1])) {
+        found++;
+        most = std::max(most, (*it)[14]);
+      }
+    if (days) *days = found;
+    int v = found ? std::max(10, (most + 4) / 5 * 5) : 20;
+    return std::clamp(v, std::min(occupied(1), rooms[1].capacity), rooms[1].capacity);
+  }
   // Dial screen plus, while the button is held, a progress ring (3 s: confirm/WLAN, 10 s: access reset).
   Json dialScreen(long long now, const DialExtras &x) const {
     using namespace dial;
@@ -514,6 +559,7 @@ public:
                          : !ready                         ? "Bestand ok? 3 s halten"
                          : turnHint(now)                  ? "Mensa: weiter drehen"
                          : measuringGroup && flow.waiting ? "Tablet: Alle haben Essen"
+                         : mensaAssist()                  ? "Mensa öffnen? Drehen"
                          : cardsMissing(now)
                              ? std::to_string(outCards()) + (outCards() == 1 ? " Karte fehlt" : " Karten fehlen")
                          : remindNow ? flow.relief ? "Noch Entlastung? Taste"
@@ -531,8 +577,9 @@ public:
       pillButton(fg == white ? white : dark, fg == white ? buttonText : yellow, "ENTLASTEN");
     return list;
   }
-  // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory).
-  Json snapshot(bool withCards = true) const {
+  // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory); withFlow =
+  // false leaves out the flow part (status() adds its own, so both trees never exist at the same time).
+  Json snapshot(bool withCards = true, bool withFlow = true) const {
     Json v = {{"schema", 1},
               {"ready", ready},
               {"paused", paused},
@@ -556,7 +603,7 @@ public:
       v.erase("cards");
     for (const auto &e : events)
       v["events"].push_back({{"at", e.at}, {"message", e.message}});
-    v["flow"] = flow.snapshot();
+    if (withFlow) v["flow"] = flow.snapshot();
     v["staff"] = staff;
     if (hasUndo) v["undo"] = {{"uid", undo.uid}, {"before", asJson(undo)}};
     return v;
@@ -625,7 +672,7 @@ public:
                          : isYellow()                       ? "low"
                                                             : "free";
     // groupLeft: children still admitted in the running group (-1 without groups or while the group is full).
-    int groupLeft = flow.batch && !flow.waiting && now >= 0 ? groupRemaining(now) : -1;
+    int groupLeft = flow.batch && !flow.waiting && now >= 0 ? groupRemaining(now) : -1, basis = 0;
     return {{"green", isGreen()},
             {"reason", reason},
             {"free", available(0) + available(1)},
@@ -633,19 +680,25 @@ public:
             {"mensaFree", available(1)},
             {"mensaOpen", rooms[1].open},
             {"groupLeft", groupLeft},
-            {"releaseIn", now >= 0 && autoPending() ? flow.releaseIn(now) : -1}};
+            {"releaseIn", now >= 0 && autoPending() ? flow.releaseIn(now) : -1},
+            {"nextFreeIn", now >= 0 ? nextFreeIn(now) : -1},
+            {"stayMinutes", flow.stayN >= 5 ? (flow.stayAvg + 30) / 60 : -1},
+            {"mensaHint", mensaAssist() ? mensaSuggestion(&basis) : -1},
+            {"mensaBasis", basis}};
   }
   // Card list as JSON text without building a JSON tree (about 1 KB of RAM instead of ~80 KB on the Dial); same
   // fields as in status(): with remainingMs.
   std::string cardsText(long long now, bool withRemaining = true) const {
     std::string out = "[";
-    out.reserve(cards.size() * 96 + 2);
+    out.reserve(cards.size() * 128 + 2); // with hint counters a card needs up to about 120 characters
     for (size_t i = 0; i < cards.size(); i++) {
       const auto &c = cards[i];
       if (i) out += ',';
       out += "{\"uid\":" + Json(c.uid).dump() + ",\"label\":" + Json(c.label).dump() + ",\"room\":\"" +
              roomName(c.room) + "\",\"out\":" + (c.out ? "true" : "false") +
              ",\"lost\":" + (c.lost ? "true" : "false") + ",\"last\":" + std::to_string(c.last);
+      if (c.missed) out += ",\"missed\":" + std::to_string(c.missed);
+      if (c.quick) out += ",\"quick\":" + std::to_string(c.quick);
       if (withRemaining)
         out += ",\"remainingMs\":" + std::to_string(c.last < 0 ? 0 : std::max(0LL, cooldown * 1000LL - (now - c.last)));
       out += '}';
@@ -653,7 +706,7 @@ public:
     return out + "]";
   }
   Json status(long long now, bool withCards = true) const {
-    auto v = snapshot(withCards);
+    auto v = snapshot(withCards, false);
     for (int r = 0; r < 2; r++) {
       v["rooms"][roomName(r)]["occupied"] = occupied(r);
       v["rooms"][roomName(r)]["free"] = available(r);
@@ -724,9 +777,13 @@ public:
     flow.dayDate = flow.currentDate(now);
     if (!automatic) flow.clockValid = false;
     for (auto &c : cards) {
-      if (c.out) c.lost = true;
+      if (c.out) {
+        c.lost = true;
+        c.missed = std::min(c.missed + 1, flagMax);
+      }
       c.out = false;
       c.last = -1;
+      c.outAt = -1;
     }
     rooms[0].open = true;
     rooms[1].open = false;
@@ -853,8 +910,20 @@ private:
           if (c.out) {
             if (flow.armed && !flow.clockReady(now)) flow.cancel();
             flow.admission(uid, now);
-          } else
+            c.outAt = now;
+            flow.stayUndo[0] = -1;
+            flow.today[13] = std::max(flow.today[13], outCards());
+            if (c.room == 1) flow.today[14] = std::max(flow.today[14], occupied(1));
+          } else {
             flow.returned(uid, now);
+            if (c.outAt >= 0 && now >= c.outAt) {
+              long long seconds = (now - c.outAt) / 1000;
+              flow.learnStay(c.outAt, int(std::min(seconds, 86400LL)));
+              if (seconds < 60) c.quick = std::min(c.quick + 1, flagMax);
+            } else
+              flow.stayUndo[0] = -1;
+            c.outAt = -1;
+          }
           message = c.label + (c.out ? " ausgegeben. Ein Platz reserviert." : " zurückgenommen. Ein Platz frei.");
           booking = true;
         } catch (const std::exception &e) {
@@ -907,7 +976,7 @@ private:
         else if (item == "resume")
           return command({{"type", "pause"}, {"paused", false}}, now);
         else if (item == "mensa") {
-          mensaEdit = rooms[1].open ? rooms[1].limit : std::max(occupied(1), 0);
+          mensaEdit = rooms[1].open ? rooms[1].limit : mensaAssist() ? mensaSuggestion() : std::max(occupied(1), 0);
           mensaEditUntil = now + 15000;
           return {{"ok", true}, {"changed", false}, {"message", "Ring drehen, Taste."}};
         } else if (item == "volume") {
@@ -989,8 +1058,10 @@ private:
           steps = turnAcc;
           turnAcc = 0;
         }
+        // Mensa assistant: the first turn opens the setting with the suggestion.
+        bool suggest = !editingMensa(now) && mensaAssist();
         int base = editingMensa(now) ? mensaEdit : rooms[1].open ? rooms[1].limit : 0;
-        mensaEdit = std::clamp(base + steps, occupied(1), rooms[1].capacity);
+        mensaEdit = std::clamp(suggest ? mensaSuggestion() : base + steps, occupied(1), rooms[1].capacity);
         mensaEditUntil = now + 15000;
         mensaTurnAt = now;
         return {{"ok", true}, {"changed", false}, {"message", ""}};
@@ -1126,6 +1197,7 @@ private:
         c.out = out;
         c.lost = cmd["lost"];
         c.last = now;
+        c.outAt = -1;
         hasUndo = false;
         message = c.label + " manuell korrigiert.";
       } else if (action == "undo") {
@@ -1155,13 +1227,13 @@ private:
         // Test data away before real use; cards, stock and settings always stay.
         require(cmd.value("confirmed", false), "Löschen ausdrücklich bestätigen.");
         bool h = cmd.value("history", false), e = cmd.value("events", false), m = cmd.value("measurements", false),
-             l = cmd.value("learned", false);
-        require(h || e || m || l, "Bitte auswählen, was gelöscht werden soll.");
+             l = cmd.value("learned", false), f = cmd.value("flags", false);
+        require(h || e || m || l || f, "Bitte auswählen, was gelöscht werden soll.");
         std::string done;
         auto add = [&](const char *what) { done += (done.empty() ? "" : ", ") + std::string(what); };
         if (h) {
           flow.history.clear();
-          flow.today = Flow::Day{1, flow.clockReady(now) ? flow.weekday : -1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1};
+          flow.today = Flow::newDay(1, flow.clockReady(now) ? flow.weekday : -1);
           day = 1;
           add("Tagesberichte");
         }
@@ -1180,8 +1252,22 @@ private:
           flow.forgetLearned();
           add("Gelerntes");
         }
+        if (f) {
+          for (auto &c : cards)
+            c.missed = c.quick = 0;
+          add("Hinweise");
+        }
         hasUndo = false;
         message = "Testdaten gelöscht: " + done + ". Karten, Bestand und Einstellungen sind unverändert.";
+      } else if (action == "cardFlags") {
+        // Staff checked a hint (card often missing / often back at once): counters of that number back to zero.
+        auto label = cmd.at("label").get<std::string>();
+        auto it = std::find_if(cards.begin(), cards.end(), [&](const Card &c) { return c.label == label; });
+        require(it != cards.end(), "Nummer nicht gefunden.");
+        it->missed = 0;
+        it->quick = 0;
+        hasUndo = false;
+        message = label + ": Hinweis erledigt.";
       } else if (action == "newDay") {
         require(cmd.value("confirmed", false), "Neuen Essenstag ausdrücklich bestätigen.");
         require(day < 1000000, "Maximale Essenstage erreicht.");

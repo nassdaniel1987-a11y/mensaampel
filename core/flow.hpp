@@ -44,12 +44,25 @@ struct Flow {
   int date = -1, dayDate = -1;
   long long secondAt = -1, releaseWall = -1, releaseSpan = 0;
   // Daily report: day, weekday, issued, returned, groups, automatic releases, earlier, too full, reliefs, first/last
-  // issue minute, missing cards, learned tenths per child.
-  using Day = std::array<int, 13>;
-  Day today{1, -1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1};
+  // issue minute, missing cards, learned tenths per child, most cards out at once, most Mensa seats in use (-1: not
+  // recorded, reports before 0.16).
+  using Day = std::array<int, 15>;
+  static Day newDay(int day, int weekday) { return {day, weekday, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, 0, 0}; }
+  Day today = newDay(1, -1);
   std::vector<Day> history;
+  // Learned time a child keeps its card (seconds), per weekday and half hour from 11:00 to 14:59 (earlier/later
+  // issues count to the first/last half hour) and over all. Only a hint for the waiting time; the release logic does
+  // not use it. stayUndo keeps the values before the last learned return so that "undo" can take it back.
+  static constexpr int staySlots = 8, stayShort = 180, stayLong = 5400;
+  std::array<std::array<std::array<int, 2>, staySlots>, 7> stay{};
+  int stayAvg = 0, stayN = 0;
+  std::array<int, 6> stayUndo{-1, 0, 0, 0, 0, 0}; // weekday, slot, average, count, global average, global count
   // Learned release times and group sizes back to the start values.
   void forgetLearned() {
+    stay = {};
+    stayAvg = 0;
+    stayN = 0;
+    stayUndo[0] = -1;
     autoGlobal = 0;
     autoGlobalN = 0;
     autoSlots.clear();
@@ -181,7 +194,39 @@ struct Flow {
     today[12] = perChild(-1);
     if (history.size() == 60) history.erase(history.begin());
     history.push_back(today);
-    today = {nextDay, nextWeekday, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1};
+    today = newDay(nextDay, nextWeekday);
+  }
+  // Half hour (0..7 from 11:00) of a moment on the monotonic clock, -1 without a valid clock.
+  int staySlot(long long at) const {
+    return at >= 0 && clockReady(at) ? std::clamp((currentMinute(at) % 1440 - 660) / 30, 0, staySlots - 1) : -1;
+  }
+  static int average(int old, int n, int obs) {
+    return n < 10 ? int((1LL * old * n + obs) / (n + 1)) : int(std::lround(old * 0.9 + obs * 0.1));
+  }
+  // A card came back after `seconds`; very short (double scan) or very long (forgotten) stays are not learned.
+  void learnStay(long long issuedAt, int seconds) {
+    stayUndo[0] = -1;
+    if (seconds < stayShort || seconds > stayLong) return;
+    int s = staySlot(issuedAt), wd = weekday;
+    stayUndo = {s >= 0 ? wd : -1, std::max(s, 0), 0, 0, stayAvg, stayN};
+    if (s >= 0) {
+      auto &x = stay[wd][s];
+      stayUndo[2] = x[0];
+      stayUndo[3] = x[1];
+      x[0] = average(x[0], x[1], seconds);
+      x[1] = std::min(x[1] + 1, 9999);
+    }
+    stayAvg = average(stayAvg, stayN, seconds);
+    stayN = std::min(stayN + 1, 9999);
+    if (s < 0) stayUndo[0] = -2; // only the global value changed
+  }
+  // Expected stay for a card issued at `issuedAt`: matching half hour with at least five returns, otherwise all; -1
+  // with fewer than five returns overall.
+  int expectedStay(long long issuedAt) const {
+    if (stayN < 5) return -1;
+    int s = staySlot(issuedAt);
+    if (s >= 0 && stay[weekday][s][1] >= 5) return stay[weekday][s][0];
+    return stayAvg;
   }
   int slotOf(long long at) const { return at >= 0 && clockReady(at) ? currentMinute(at) / 30 : -1; }
   // Learned seconds per child: matching half hour with at least three observations, otherwise all observations,
@@ -347,8 +392,16 @@ struct Flow {
   }
   void undoReturn() {
     if (today[3] > 0) today[3]--;
+    if (stayUndo[0] != -1) {
+      if (stayUndo[0] >= 0) stay[stayUndo[0]][stayUndo[1]] = {stayUndo[2], stayUndo[3]};
+      stayAvg = stayUndo[4];
+      stayN = stayUndo[5];
+      stayUndo[0] = -1;
+    }
   }
-  J snapshot() const {
+  // withStay = false leaves out the learned stay table (only stored and backed up; the tablet does not need it, and the
+  // status is built often on the Dial).
+  J snapshot(bool withStay = true) const {
     J list = J::array();
     for (auto &s : samples)
       list.push_back({s.kind, s.queue, s.weekday, s.minute, s.size, s.seconds});
@@ -361,66 +414,80 @@ struct Flow {
     J days = J::array();
     for (auto &d : history)
       days.push_back(d);
-    return {{"startSize", startSize},
-            {"sizeMin", sizeMin},
-            {"sizeMax", sizeMax},
-            {"idleMinutes", idleMinutes},
-            {"dayStart", dayStart},
-            {"startLearned", startLearned},
-            {"sizeGlobal", sizeGlobal},
-            {"groupTarget", groupTarget},
-            {"dayWeekday", dayWeekday},
-            {"groupIsStart", groupIsStart},
-            {"lastGroupStart", lastGroupStart},
-            {"lastEntry", lastEntry},
-            {"lastScan", lastScan},
-            {"releaseFrom", releaseFrom},
-            {"date", date},
-            {"dayDate", dayDate},
-            {"secondAt", secondAt},
-            {"releaseWall", releaseWall},
-            {"releaseSpan", releaseSpan},
-            {"today", today},
-            {"history", days},
-            {"autoOn", autoOn},
-            {"autoStart", autoStart},
-            {"autoGlobal", autoGlobal},
-            {"autoGlobalN", autoGlobalN},
-            {"autoSlots", slots},
-            {"releaseAt", releaseAt},
-            {"autoReleased", autoReleased},
-            {"autoComplaint", autoComplaint},
-            {"autoFaster", autoFaster},
-            {"autoSlower", autoSlower},
-            {"trialBuffer", trialBuffer},
-            {"trialDelay", trialDelay},
-            {"trialCount", trialCount},
-            {"trialLevel", trialLevel},
-            {"trialReviewed", trialReviewed},
-            {"lastAdmission", lastAdmission},
-            {"reviews", feedback},
-            {"relief", relief},
-            {"reliefAt", reliefAt},
-            {"groupQueue", groupQueue},
-            {"yellow", yellow},
-            {"batch", batch},
-            {"issued", issued},
-            {"waiting", waiting},
-            {"queue", queue},
-            {"weekday", weekday},
-            {"minute", minute},
-            {"clockValid", clockValid},
-            {"clockAt", clockAt},
-            {"armed", armed},
-            {"kind", kind},
-            {"started", started},
-            {"groupAt", groupAt},
-            {"measuringUid", measuringUid},
-            {"measureSize", measureSize},
-            {"measureMinute", measureMinute},
-            {"measureWeekday", measureWeekday},
-            {"measureQueue", measureQueue},
-            {"samples", list}};
+    // Learned stays as one flat list (average, count per weekday and half hour): much smaller as a JSON tree than
+    // nested lists, and empty while nothing was learned.
+    J stays = J::array();
+    if (withStay && stayN)
+      for (auto &w : stay)
+        for (auto &x : w) {
+          stays.push_back(x[0]);
+          stays.push_back(x[1]);
+        }
+    J v = {{"stay", stays},
+           {"stayAvg", stayAvg},
+           {"stayN", stayN},
+           {"startSize", startSize},
+           {"sizeMin", sizeMin},
+           {"sizeMax", sizeMax},
+           {"idleMinutes", idleMinutes},
+           {"dayStart", dayStart},
+           {"startLearned", startLearned},
+           {"sizeGlobal", sizeGlobal},
+           {"groupTarget", groupTarget},
+           {"dayWeekday", dayWeekday},
+           {"groupIsStart", groupIsStart},
+           {"lastGroupStart", lastGroupStart},
+           {"lastEntry", lastEntry},
+           {"lastScan", lastScan},
+           {"releaseFrom", releaseFrom},
+           {"date", date},
+           {"dayDate", dayDate},
+           {"secondAt", secondAt},
+           {"releaseWall", releaseWall},
+           {"releaseSpan", releaseSpan},
+           {"today", today},
+           {"history", days},
+           {"autoOn", autoOn},
+           {"autoStart", autoStart},
+           {"autoGlobal", autoGlobal},
+           {"autoGlobalN", autoGlobalN},
+           {"autoSlots", slots},
+           {"releaseAt", releaseAt},
+           {"autoReleased", autoReleased},
+           {"autoComplaint", autoComplaint},
+           {"autoFaster", autoFaster},
+           {"autoSlower", autoSlower},
+           {"trialBuffer", trialBuffer},
+           {"trialDelay", trialDelay},
+           {"trialCount", trialCount},
+           {"trialLevel", trialLevel},
+           {"trialReviewed", trialReviewed},
+           {"lastAdmission", lastAdmission},
+           {"reviews", feedback},
+           {"relief", relief},
+           {"reliefAt", reliefAt},
+           {"groupQueue", groupQueue},
+           {"yellow", yellow},
+           {"batch", batch},
+           {"issued", issued},
+           {"waiting", waiting},
+           {"queue", queue},
+           {"weekday", weekday},
+           {"minute", minute},
+           {"clockValid", clockValid},
+           {"clockAt", clockAt},
+           {"armed", armed},
+           {"kind", kind},
+           {"started", started},
+           {"groupAt", groupAt},
+           {"measuringUid", measuringUid},
+           {"measureSize", measureSize},
+           {"measureMinute", measureMinute},
+           {"measureWeekday", measureWeekday},
+           {"measureQueue", measureQueue},
+           {"samples", list}};
+    if (!withStay) v.erase("stay");
+    return v;
   }
   void restore(const J &v) {
     Flow n;
@@ -569,9 +636,9 @@ struct Flow {
         check(n.secondAt < 86400 && n.releaseSpan >= 0, "Ungültige Uhrzeit.");
       }
       auto day = [&](const J &d) {
-        check(d.is_array() && (d.size() == 12 || d.size() == 13), "Ungültiger Tagesbericht.");
+        check(d.is_array() && (d.size() == 12 || d.size() == 13 || d.size() == 15), "Ungültiger Tagesbericht.");
         Day r;
-        r[12] = -1;
+        r[12] = r[13] = r[14] = -1;
         for (size_t i = 0; i < d.size(); i++) {
           check(d[i].is_number_integer(), "Ungültiger Tagesbericht.");
           auto x = d[i].get<long long>();
@@ -585,10 +652,22 @@ struct Flow {
       for (auto &d : v["history"])
         n.history.push_back(day(d));
     }
+    if (v.contains("stay")) {
+      n.stayN = integer(v, "stayN", 0, 9999);
+      n.stayAvg = n.stayN ? integer(v, "stayAvg", stayShort, stayLong) : integer(v, "stayAvg", 0, 0);
+      auto &list = v.at("stay");
+      check(list.is_array() && (list.empty() || list.size() == 7 * staySlots * 2), "Ungültige Verweildauern.");
+      for (size_t i = 0; i < list.size(); i += 2) {
+        J r = {{"a", list[i]}, {"n", list[i + 1]}};
+        int count = integer(r, "n", 0, 9999);
+        n.stay[i / 2 / staySlots][i / 2 % staySlots] = {
+            count ? integer(r, "a", stayShort, stayLong) : integer(r, "a", 0, 0), count};
+      }
+    }
     *this = std::move(n);
   }
   J status(long long now) const {
-    auto v = snapshot();
+    auto v = snapshot(false);
     v["clockValid"] = clockReady(now);
     v["currentMinute"] = currentMinute(now) % 1440;
     v["elapsedSeconds"] = started < 0 ? 0 : std::max(0LL, (now - started) / 1000);
@@ -705,6 +784,7 @@ struct Flow {
       clockAt = now;
       clockValid = true;
       setCalendar(c, now);
+      if (today[1] < 0) today[1] = weekday; // first clock of the day: the report gets its weekday
       groupAt = -1;
       clearTrial();
       queue = integer(c, "queue", 0, 2);
@@ -717,6 +797,7 @@ struct Flow {
       clockAt = now;
       clockValid = true;
       setCalendar(c, now);
+      if (today[1] < 0) today[1] = weekday;
       message = "Uhrzeit abgeglichen.";
     } else if (type == "queueState") {
       check(started < 0 && !armed, "Schlangensituation der laufenden Messung bleibt unverändert.");

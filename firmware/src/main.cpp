@@ -74,6 +74,12 @@ uint64_t sessionUntil = 0, loginAfter = 0, captureUntil = 0, restartAt = 0, show
          resetConfirmUntil = 0, clockCheckAt = 0, ampelSeenAt = 0;
 unsigned loginFailures = 0;
 bool ampelWarned = false;
+// Health since power-on (one lunch), only in RAM: reader faults, Ampel disconnects, smallest largest free block.
+struct Health {
+  uint32_t readerFaults = 0, ampelDrops = 0, minBlock = UINT32_MAX;
+  bool readerWasHealthy = false;
+  uint64_t sampledAt = 0;
+} health;
 // Since when the stock is confirmed (for the Ampel warning) and how many reminders have beeped.
 uint64_t readySince = 0;
 int remindersBeeped = 0;
@@ -255,6 +261,12 @@ Json state(bool withCards = true) {
                  {"loopStackFree", loopTask ? uxTaskGetStackHighWaterMark(loopTask) : 0},
                  {"webRequests", webRequests},
                  {"webMaxMs", webMaxMs},
+                 {"health",
+                  {{"crash", resetWasError},
+                   {"readerFaults", health.readerFaults},
+                   {"saveFailures", storage.failures},
+                   {"ampelDrops", health.ampelDrops},
+                   {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
                  {"clients", WiFi.softAPgetStationNum()},
                  {"uptime", nowMs()}};
   // Also at the top level like PC service and demo: the tablet's device test switch reads it there.
@@ -942,6 +954,12 @@ void loop() {
 // Everything that reads or changes shared state, once per loop, under the state lock.
 void step(uint64_t now) {
   otaHealthy(now);
+  if (now >= health.sampledAt) {
+    health.sampledAt = now + 1000;
+    health.minBlock = std::min<uint32_t>(health.minBlock, ESP.getMaxAllocHeap());
+    if (health.readerWasHealthy && !reader.healthy) health.readerFaults++;
+    health.readerWasHealthy = reader.healthy;
+  }
   // An upload that stopped (tablet gone) must not keep the entrance blocked.
   if (ota.active && !ota.ok && now - ota.lastAt > 30000) {
     if (Update.isRunning()) Update.abort();
@@ -1043,6 +1061,7 @@ void step(uint64_t now) {
     if (!engine.isReady()) readySince = 0;
     bool lost = ampelLost();
     if (lost && !ampelWarned) note(ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!", false);
+    if (lost && !ampelWarned && ampelSeenAt) health.ampelDrops++;
     if (!lost && ampelWarned && ampelSeenAt) note("Ampel wieder verbunden.", true);
     ampelWarned = lost;
     // Reminder while a pause, relief or full group waits for a person: short double beep each interval.

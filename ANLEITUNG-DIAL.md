@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.15.0-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.16.0-preview · Stand 01.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -176,6 +176,8 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Strom während Speichern unterbrechen, nur Testbestand | Kein unbemerkter Neustart mit falschem Bestand | ☐ |
 | Update des Testgeräts | Kartenzuordnungen und Einstellungen bleiben | ☐ |
 | Update per Tablet über das Dial-WLAN (Gerät → Firmware-Update) | Fortschritt am Dial, Neustart mit neuer Version, Karten unverändert; ein Foto wird abgelehnt | ☐ |
+| Küche auf wenige Plätze stellen, bis „Mensa öffnen? Drehen“ erscheint; Ring drehen | Mensa-Einstellung öffnet mit Vorschlag, Taste übernimmt | ☐ |
+| Gerät → „Gesundheit heute“ nach einem Mittag | Alle Punkte grün oder erklärbar; Werte notieren | ☐ |
 | Mindestens ein kompletter Mittag als Probelauf | WLAN, Scans, Stromversorgung und Speicher stabil | ☐ |
 
 Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern, tatsächliche Speicherreserven mit allen 112 Karten, gleichzeitiger WLAN-/RFID-Betrieb und Stromausfallverhalten. Softwaretests ersetzen diese Prüfung nicht.
@@ -232,7 +234,7 @@ So ist es gedacht – das Dial muss nicht dauerhaft laufen.
 
 ## Testdaten löschen
 
-Nach dem Ausprobieren, vor dem echten Betrieb: **Einlass & Messungen → ganz unten „Testdaten löschen“**. Einzeln wählbar: Tagesberichte (Statistik; der Essenstag beginnt wieder bei 1), letzte Vorgänge, Gruppenmessungen, Gelerntes. Karten-Zuordnungen, Bestand und Einstellungen bleiben immer erhalten. Vorher eine Sicherung herunterladen.
+Nach dem Ausprobieren, vor dem echten Betrieb: **Einlass & Messungen → ganz unten „Testdaten löschen“**. Einzeln wählbar: Tagesberichte (Statistik; der Essenstag beginnt wieder bei 1), letzte Vorgänge, Gruppenmessungen, Gelerntes (auch die Verweildauer), Hinweise zu Karten. Karten-Zuordnungen, Bestand und Einstellungen bleiben immer erhalten. Vorher eine Sicherung herunterladen.
 
 ## Update ohne PC (über das WLAN des Dials)
 
@@ -245,6 +247,23 @@ Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspie
 5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen.
 
 Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.
+
+## Lernen, Hinweise und Gesundheit (ab 0.16)
+
+Alles wird im Dial gespeichert, nur als Zahlen, ohne Namen. **Jedes Tablet**, das sich anmeldet, sieht dieselben Werte; ein Tablet-Wechsel verliert nichts.
+
+- **Verweildauer:** Das Dial lernt bei jeder Rückgabe, wie lange ein Kind seine Karte behält (je Wochentag und halber Stunde von 11 bis 15 Uhr). Ignoriert werden Rückgaben unter 3 Minuten (Doppelscan) und über 90 Minuten (vergessen). Ab 5 Rückgaben zeigt die **Ampel bei vollem Haus** „Nächster Platz frei in ca. 4 Min.“. Das ist eine **Schätzung**; die automatische Gruppenfreigabe ändert sich dadurch nicht. Nach einem Neustart des Dials gibt es die Schätzung erst wieder für neu ausgegebene Karten.
+- **Mensa-Assistent:** Ist die Küche voll (höchstens 1 Platz frei) und die Mensa geschlossen, steht am Dial „Mensa öffnen? Drehen“. Ring drehen öffnet die Mensa-Einstellung **schon mit einem Vorschlag**, die Taste übernimmt. Der Vorschlag ist die höchste Mensa-Belegung der letzten (bis zu 4) gleichen Wochentage, auf 5 aufgerundet, mindestens 10; ohne Erfahrung 20. Am Tablet erscheint dazu ein Hinweis mit Knopf „Mensa mit … Plätzen öffnen“.
+- **Hinweise zu Karten** (Betreuung): Nummern, die schon **2-mal am Tagesende fehlten**, und Nummern, die **3-mal innerhalb einer Minute zurückkamen** (Doppelscan? Karte geteilt?). Nach dem Klären „Erledigt“ tippen; der Zähler dieser Nummer beginnt neu.
+- **Tagesbericht:** neu „Höchste Belegung“ (meiste Karten gleichzeitig draußen) und „Mensa-Spitze“.
+- **Gesundheit heute** (Gerät): seit dem Einschalten je ein farbiger Punkt für Start (Absturz?), Kartenleser, Speichern, Arbeitsspeicher, Ampel draußen, Antwortzeit und dieses Tablet – mit einem Satz, was zu tun ist. Grün = in Ordnung, Gelb = beobachten, Rot = handeln.
+- **Freundliches Warten** an der Ampel: bei Rot ruhig pulsierende Punkte und abwechselnd „Danke fürs Warten!“, „Gleich bist du dran!“ …; im Countdown „Ihr seid die Nächsten!“. Die Sprachzeile sagt abwechselnd „Bitte warten“ und „Danke fürs Warten“ (Übersetzungen bitte wie die anderen prüfen lassen).
+
+## Neu in 0.16
+
+- Verweildauer lernen und Wartezeit an der Ampel, Mensa-Assistent am Dial und Tablet, Hinweise zu Karten, Tagesbericht mit Spitzenwerten, „Gesundheit heute“, freundliches Warten. Einzelheiten im Abschnitt oben.
+- Tablet: Die Schrift enthält jetzt auch die türkischen Buchstaben (ğ, ş, ı); die Kästen „Karten am Stück einlernen“ und „Hinweise“ haben wieder Innenabstand.
+- Im Dial wird beim Abfragen durch das Tablet weniger Arbeitsspeicher gebraucht als in 0.15 (Status ohne doppelten Ablaufteil).
 
 ## Neu in 0.15
 

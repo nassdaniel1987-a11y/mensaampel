@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
-// Peak heap of the Dial's hot paths with a full stock (112 real cards, 60 report days, 80 events).
+// Peak heap of the Dial's hot paths with a full stock (112 real cards, 60 report days, 80 events, all hint counters
+// and learned stays filled).
 // Measured on 64-bit, where pointers and strings are larger than on the ESP32: the budgets are upper limits with margin.
 const compiler = spawnSync('g++', ['--version']);
 test('Speicherbedarf mit vollem Bestand bleibt im Rahmen', { skip: compiler.error ? 'g++ fehlt' : false }, () => {
@@ -19,7 +20,7 @@ test('Speicherbedarf mit vollem Bestand bleibt im Rahmen', { skip: compiler.erro
   assert.ok(m.stateSame, 'Statustext entspricht status()');
   assert.ok(m.days >= 60 && m.events >= 80);
   assert.ok(m.save < 110000, `Speichern ${m.save}`);
-  assert.ok(m.stateLean < 115000, `Status ${m.stateLean}`);
+  assert.ok(m.stateLean < 100000, `Status ${m.stateLean}`);
   assert.ok(m.booking < 135000, `Scan ${m.booking}`);
   assert.ok(m.lookup < 1024, `Kartenprüfung ${m.lookup}`);
   assert.ok(m.leanBytes < m.stateBytes / 2, 'Status ohne Karten ist deutlich kleiner');

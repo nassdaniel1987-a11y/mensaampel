@@ -26,7 +26,7 @@ export function FlowPanel({
   const clock = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`,
     reportCsv = () => {
       const rows = [
-        'Essenstag;Wochentag;Ausgaben;Rueckgaben;Gruppen;AutomatischFrei;FrueherFrei;ZuVoll;Entlastungen;ErsteAusgabe;LetzteAusgabe;NichtZurueck;SekundenProKind',
+        'Essenstag;Wochentag;Ausgaben;Rueckgaben;Gruppen;AutomatischFrei;FrueherFrei;ZuVoll;Entlastungen;ErsteAusgabe;LetzteAusgabe;NichtZurueck;SekundenProKind;HoechsteBelegung;MensaSpitze',
         ...[...f.history, f.today].map(d =>
           [
             d[0],
@@ -42,6 +42,8 @@ export function FlowPanel({
             d[10] >= 0 ? clock(d[10]) : '',
             d[11] >= 0 ? d[11] : '',
             d[12] > 0 ? (d[12] / 10).toFixed(1).replace('.', ',') : '',
+            (d[13] ?? -1) >= 0 ? d[13] : '',
+            (d[14] ?? -1) >= 0 ? d[14] : '',
           ].join(';'),
         ),
       ];
@@ -627,6 +629,12 @@ export function FlowPanel({
           Gespeichert werden nur Zahlen je Wochentag und halber Stunde, keine Kartenkennungen. Ein Zeitfenster wird ab
           drei Beobachtungen bevorzugt.
         </p>
+        <p className="hint">
+          Verweildauer (wie lange ein Kind seine Karte behält):{' '}
+          {(f.stayN ?? 0) >= 5
+            ? `ca. ${Math.round((f.stayAvg ?? 0) / 60)} Minuten, aus ${f.stayN} Rückgaben gelernt. Daraus zeigt die Ampel bei vollem Haus, wann vermutlich der nächste Platz frei wird.`
+            : `noch zu wenig Rückgaben (${f.stayN ?? 0} von 5). Gelernt wird automatisch.`}
+        </p>
       </section>
       <section className="flow-section flow-results">
         <div className="section-heading">
@@ -650,6 +658,8 @@ export function FlowPanel({
                 <th>Entlastungen</th>
                 <th>Erste – letzte Ausgabe</th>
                 <th>Nicht zurück</th>
+                <th>Höchste Belegung</th>
+                <th>Mensa-Spitze</th>
               </tr>
             </thead>
             <tbody>
@@ -668,6 +678,8 @@ export function FlowPanel({
                   <td>{d[8]}</td>
                   <td>{d[9] >= 0 ? `${clock(d[9])} – ${clock(d[10])}` : '—'}</td>
                   <td>{d[11] >= 0 ? d[11] : '—'}</td>
+                  <td>{(d[13] ?? -1) >= 0 ? d[13] : '—'}</td>
+                  <td>{(d[14] ?? -1) >= 0 ? d[14] : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -704,6 +716,7 @@ function ClearData({ send, disabled }: { send: Send; disabled: boolean }) {
             events: d.get('events') === 'on',
             measurements: d.get('measurements') === 'on',
             learned: d.get('learned') === 'on',
+            flags: d.get('flags') === 'on',
           });
           if (ok) {
             e.currentTarget?.reset();
@@ -721,7 +734,10 @@ function ClearData({ send, disabled }: { send: Send; disabled: boolean }) {
           <input type="checkbox" name="measurements" /> Gruppenmessungen und Bewertungen
         </label>
         <label className="checkbox">
-          <input type="checkbox" name="learned" /> Gelerntes (Zeiten pro Kind und Gruppengrößen)
+          <input type="checkbox" name="learned" /> Gelerntes (Zeiten pro Kind, Gruppengrößen, Verweildauer)
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" name="flags" /> Hinweise zu Karten (fehlte am Tagesende, oft sofort zurück)
         </label>
         <label className="checkbox">
           <input type="checkbox" checked={sure} onChange={e => setSure(e.currentTarget.checked)} /> Ich weiß, dass das

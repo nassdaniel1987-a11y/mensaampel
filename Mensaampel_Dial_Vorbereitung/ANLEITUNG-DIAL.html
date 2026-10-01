@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.15.0-preview · Stand 01.10.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.16.0-preview · Stand 01.10.2026</strong></p>
 <blockquote>
 <p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
 </blockquote>
@@ -248,6 +248,16 @@
 <td>☐</td>
 </tr>
 <tr>
+<td>Küche auf wenige Plätze stellen, bis „Mensa öffnen? Drehen“ erscheint; Ring drehen</td>
+<td>Mensa-Einstellung öffnet mit Vorschlag, Taste übernimmt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Gerät → „Gesundheit heute“ nach einem Mittag</td>
+<td>Alle Punkte grün oder erklärbar; Werte notieren</td>
+<td>☐</td>
+</tr>
+<tr>
 <td>Mindestens ein kompletter Mittag als Probelauf</td>
 <td>WLAN, Scans, Stromversorgung und Speicher stabil</td>
 <td>☐</td>
@@ -350,7 +360,7 @@
 <li><strong>Bestand bestätigen:</strong> nach jedem Einschalten wie gewohnt (Taste 3 s halten).</li>
 </ul>
 <h2>Testdaten löschen</h2>
-<p>Nach dem Ausprobieren, vor dem echten Betrieb: <strong>Einlass &amp; Messungen → ganz unten „Testdaten löschen“</strong>. Einzeln wählbar: Tagesberichte (Statistik; der Essenstag beginnt wieder bei 1), letzte Vorgänge, Gruppenmessungen, Gelerntes. Karten-Zuordnungen, Bestand und Einstellungen bleiben immer erhalten. Vorher eine Sicherung herunterladen.</p>
+<p>Nach dem Ausprobieren, vor dem echten Betrieb: <strong>Einlass &amp; Messungen → ganz unten „Testdaten löschen“</strong>. Einzeln wählbar: Tagesberichte (Statistik; der Essenstag beginnt wieder bei 1), letzte Vorgänge, Gruppenmessungen, Gelerntes (auch die Verweildauer), Hinweise zu Karten. Karten-Zuordnungen, Bestand und Einstellungen bleiben immer erhalten. Vorher eine Sicherung herunterladen.</p>
 <h2>Update ohne PC (über das WLAN des Dials)</h2>
 <p>Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspielen – ohne Kabel, ohne G0-Taste und ohne Internet am Dial. Die erste Installation von 0.12 braucht einmal den PC (siehe oben).</p>
 <ol>
@@ -361,6 +371,22 @@
 <li>Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen.</li>
 </ol>
 <p>Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.</p>
+<h2>Lernen, Hinweise und Gesundheit (ab 0.16)</h2>
+<p>Alles wird im Dial gespeichert, nur als Zahlen, ohne Namen. <strong>Jedes Tablet</strong>, das sich anmeldet, sieht dieselben Werte; ein Tablet-Wechsel verliert nichts.</p>
+<ul>
+<li><strong>Verweildauer:</strong> Das Dial lernt bei jeder Rückgabe, wie lange ein Kind seine Karte behält (je Wochentag und halber Stunde von 11 bis 15 Uhr). Ignoriert werden Rückgaben unter 3 Minuten (Doppelscan) und über 90 Minuten (vergessen). Ab 5 Rückgaben zeigt die <strong>Ampel bei vollem Haus</strong> „Nächster Platz frei in ca. 4 Min.“. Das ist eine <strong>Schätzung</strong>; die automatische Gruppenfreigabe ändert sich dadurch nicht. Nach einem Neustart des Dials gibt es die Schätzung erst wieder für neu ausgegebene Karten.</li>
+<li><strong>Mensa-Assistent:</strong> Ist die Küche voll (höchstens 1 Platz frei) und die Mensa geschlossen, steht am Dial „Mensa öffnen? Drehen“. Ring drehen öffnet die Mensa-Einstellung <strong>schon mit einem Vorschlag</strong>, die Taste übernimmt. Der Vorschlag ist die höchste Mensa-Belegung der letzten (bis zu 4) gleichen Wochentage, auf 5 aufgerundet, mindestens 10; ohne Erfahrung 20. Am Tablet erscheint dazu ein Hinweis mit Knopf „Mensa mit … Plätzen öffnen“.</li>
+<li><strong>Hinweise zu Karten</strong> (Betreuung): Nummern, die schon <strong>2-mal am Tagesende fehlten</strong>, und Nummern, die <strong>3-mal innerhalb einer Minute zurückkamen</strong> (Doppelscan? Karte geteilt?). Nach dem Klären „Erledigt“ tippen; der Zähler dieser Nummer beginnt neu.</li>
+<li><strong>Tagesbericht:</strong> neu „Höchste Belegung“ (meiste Karten gleichzeitig draußen) und „Mensa-Spitze“.</li>
+<li><strong>Gesundheit heute</strong> (Gerät): seit dem Einschalten je ein farbiger Punkt für Start (Absturz?), Kartenleser, Speichern, Arbeitsspeicher, Ampel draußen, Antwortzeit und dieses Tablet – mit einem Satz, was zu tun ist. Grün = in Ordnung, Gelb = beobachten, Rot = handeln.</li>
+<li><strong>Freundliches Warten</strong> an der Ampel: bei Rot ruhig pulsierende Punkte und abwechselnd „Danke fürs Warten!“, „Gleich bist du dran!“ …; im Countdown „Ihr seid die Nächsten!“. Die Sprachzeile sagt abwechselnd „Bitte warten“ und „Danke fürs Warten“ (Übersetzungen bitte wie die anderen prüfen lassen).</li>
+</ul>
+<h2>Neu in 0.16</h2>
+<ul>
+<li>Verweildauer lernen und Wartezeit an der Ampel, Mensa-Assistent am Dial und Tablet, Hinweise zu Karten, Tagesbericht mit Spitzenwerten, „Gesundheit heute“, freundliches Warten. Einzelheiten im Abschnitt oben.</li>
+<li>Tablet: Die Schrift enthält jetzt auch die türkischen Buchstaben (ğ, ş, ı); die Kästen „Karten am Stück einlernen“ und „Hinweise“ haben wieder Innenabstand.</li>
+<li>Im Dial wird beim Abfragen durch das Tablet weniger Arbeitsspeicher gebraucht als in 0.15 (Status ohne doppelten Ablaufteil).</li>
+</ul>
 <h2>Neu in 0.15</h2>
 <ul>
 <li><strong>Ampelseite mit mehr Infos:</strong> Uhrzeit, „Küche · 46 frei“, „Mensa offen · 20 frei / geschlossen“, bei Grün „Noch 4 Kinder in dieser Gruppe“ bzw. „12 Plätze frei“, dazu eine kurze Zeile abwechselnd auf Englisch, Türkisch, Arabisch und Ukrainisch. <strong>Bitte die Übersetzungen einmal von Muttersprachlern prüfen lassen</strong> (Liste in <code>src/ampel-texts.mjs</code>).</li>

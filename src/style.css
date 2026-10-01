@@ -1895,3 +1895,103 @@ dialog {
   background: rgba(255, 255, 255, 0.22);
   vertical-align: middle;
 }
+/* Friendly waiting (0.16): three softly pulsing dots while the entrance is closed. */
+.signal-dots {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin: 14px 0 4px;
+}
+.signal-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: signal-dot 1.8s ease-in-out infinite;
+}
+.signal-dots span:nth-child(2) {
+  animation-delay: 0.3s;
+}
+.signal-dots span:nth-child(3) {
+  animation-delay: 0.6s;
+}
+@keyframes signal-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signal-dots span {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+/* Hints (0.16): noticeable card numbers. */
+.hint-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.hint-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+/* Health card (0.16). */
+.health-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.health-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.health-list small {
+  display: block;
+  color: var(--muted);
+}
+.health-dot {
+  flex: none;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+.level-1 > .health-dot {
+  background: #f59e0b;
+}
+.level-2 > .health-dot {
+  background: #dc2626;
+}
+.health-head {
+  font-weight: 700;
+}
+/* Sections without their own heading bar get inner spacing like the room cards. */
+.series-section,
+.hints-section {
+  padding: 20px 24px;
+  margin-bottom: 18px;
+}
+.hints-section h2,
+.series-section h2 {
+  margin-top: 0;
+}

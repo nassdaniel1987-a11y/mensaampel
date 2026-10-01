@@ -4,6 +4,7 @@ import { FirmwareUpdate } from './FirmwareUpdate';
 import type { State, Send, Info } from './types';
 import { Backup } from './Backup';
 import { DeviceTest } from './DeviceTest';
+import { healthRows, healthLevel } from './health.mjs';
 export function Login({
   info,
   busy,
@@ -303,6 +304,7 @@ export function DevicePanel({
             </form>
           </details>
         </section>
+        <Health device={d} diag={diag} />
         <section className="device-section">
           <h2>Sicherung und Prüfung</h2>
           <p>Die Sicherung enthält Karten und Belegungen, aber keine WLAN- oder Betreuungskennwörter.</p>
@@ -365,5 +367,31 @@ export function DevicePanel({
       </div>
       <DeviceTest state={s} send={send} disabled={disabled} />
     </>
+  );
+}
+const levelText = ['In Ordnung', 'Beobachten', 'Handeln'];
+// Health since the Dial was switched on (usually one lunch): one dot per area and what to do.
+function Health({ device, diag }: { device: NonNullable<State['device']>; diag?: { failures: number } }) {
+  const rows = healthRows(device, diag);
+  if (!rows.length) return null;
+  const worst = healthLevel(rows);
+  return (
+    <section className="device-section health-section">
+      <h2>Gesundheit heute</h2>
+      <p className={`health-head level-${worst}`}>
+        <span className="health-dot" /> {levelText[worst]} · seit dem Einschalten
+      </p>
+      <ul className="health-list">
+        {rows.map(r => (
+          <li key={r.name} className={`level-${r.level}`}>
+            <span className="health-dot" aria-label={levelText[r.level]} />
+            <span>
+              <strong>{r.name}</strong> · {r.value}
+              <small>{r.todo}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
