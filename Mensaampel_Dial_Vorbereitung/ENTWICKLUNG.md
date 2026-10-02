@@ -235,3 +235,7 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 
 - Am Gerät gemeldet: Die Anmeldung auf einem zweiten Tablet warf das erste raus (nur eine Sitzung `session`/`sessionUntil`). Jetzt `firmware/src/sessions.hpp` (`mensa::Sessions`, 4 Plätze à 8 h): `add` nimmt einen freien/abgelaufenen Platz, sonst den am längsten unbenutzten; `check` vergleicht zeitkonstant mit allen Plätzen und setzt `usedAt`; `remove` beim Abmelden nur das eigene Token; `keepOnly` nach neuem Betreuungskennwort. Test `tests/native-sessions.test.mjs`. Der PC-Dienst hatte das Problem nicht (gemeinsames Token).
 
+## Version 0.17.5-preview: Japanisch und Chinesisch in der Sprachzeile
+
+- `src/ampel-texts.mjs`: `JA` (einfache höfliche Form) und `ZH` (vereinfacht, `lang: 'zh-Hans'`) für `open`, `wait`, `thanks`, `closed`. Schrift aus dem System (Inter enthält kein CJK): `.signal-language` nennt `Hiragino Sans`, `PingFang SC`, `Noto Sans JP/SC` als Ausweich. Von Muttersprachlern prüfen lassen.
+

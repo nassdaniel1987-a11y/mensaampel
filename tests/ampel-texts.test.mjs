@@ -8,6 +8,11 @@ test('Ampel: jeder Zustand hat in jeder Sprache einen Text', () => {
     for (const l of ampelLanguages) assert.ok(texts[l.code]?.trim(), `${state} ${l.code}`);
   }
   assert.equal(ampelLanguages.find(l => l.code === 'AR').dir, 'rtl');
+  for (const code of ['JA', 'ZH'])
+    assert.ok(
+      ampelLanguages.some(l => l.code === code),
+      code,
+    );
 });
 
 test('Ampel: freundliches Warten und Hinweis auf den nächsten Platz', () => {

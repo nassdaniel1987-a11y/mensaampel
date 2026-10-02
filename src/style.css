@@ -1884,7 +1884,9 @@ dialog {
   font-size: clamp(20px, 2.6vw, 32px) !important;
   font-weight: 700;
   opacity: 0.9;
-  font-family: 'Inter', system-ui, 'Noto Sans', 'Noto Sans Arabic', 'Segoe UI', sans-serif;
+  font-family:
+    'Inter', system-ui, 'Noto Sans', 'Noto Sans Arabic', 'Hiragino Sans', 'PingFang SC', 'Noto Sans JP', 'Noto Sans SC',
+    'Segoe UI', sans-serif;
 }
 .signal-language span {
   display: inline-block;

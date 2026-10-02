@@ -190,7 +190,7 @@ export function Signal({
       </p>
       {full && (
         <>
-          <p className="signal-language" dir={language.dir} lang={language.code.toLowerCase()}>
+          <p className="signal-language" dir={language.dir} lang={language.lang ?? language.code.toLowerCase()}>
             <span>{language.code}</span> {ampelTexts[languageKey][language.code]}
           </p>
           <p className="signal-note">
