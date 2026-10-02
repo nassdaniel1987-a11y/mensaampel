@@ -33,7 +33,7 @@ test('Gesundheit: WLAN-Trennungen, abgebrochene Antworten, unklar gelesene Karte
   const h = { ...good.health, wlanDrops: 3, sendAborts: 0, sendMaxMs: 120, unclearReads: 2 };
   const rows = healthRows({ ...good, health: h }, undefined);
   assert.equal(rows.find(r => r.name === 'WLAN-Trennungen').level, 1);
-  assert.match(rows.find(r => r.name === 'WLAN-Trennungen').todo, /Ohne Internet/);
+  assert.match(rows.find(r => r.name === 'WLAN-Trennungen').todo, /Intelligentes WLAN/);
   assert.equal(rows.find(r => r.name === 'Antworten abgebrochen').level, 0);
   const reader = rows.find(r => r.name === 'Kartenleser');
   assert.equal(reader.level, 0, 'unklar gelesen ist keine Störung');
@@ -42,5 +42,16 @@ test('Gesundheit: WLAN-Trennungen, abgebrochene Antworten, unklar gelesene Karte
     healthRows(good, undefined).find(r => r.name === 'WLAN-Trennungen'),
     undefined,
     'ältere Firmware',
+  );
+});
+
+test('Gesundheit: Signalstärke der Tablets', () => {
+  const rows = healthRows({ ...good, health: { ...good.health, rssiMin: -78, stations: [{ mac: 'AA', rssi: -60 }] } });
+  const r = rows.find(x => x.name === 'Signalstärke');
+  assert.equal(r.level, 1);
+  assert.match(r.value, /-78 dBm.*-60/);
+  assert.equal(
+    healthRows(good).find(x => x.name === 'Signalstärke'),
+    undefined,
   );
 });

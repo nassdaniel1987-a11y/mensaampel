@@ -46,6 +46,9 @@ export type Device = {
     wlanDrops?: number;
     sendAborts?: number;
     sendMaxMs?: number;
+    probeAnswers?: number;
+    rssiMin?: number;
+    stations?: { mac: string; rssi: number }[];
   };
   clients: number;
   uptime: number;

@@ -61,9 +61,21 @@ export function healthRows(device, diag) {
       value: `${h.wlanDrops}× hat ein Tablet das Dial-WLAN verlassen`,
       todo:
         h.wlanDrops >= 2
-          ? 'Tablet im Dial-WLAN halten: „Ohne Internet verbunden bleiben“, mobile Daten und Netzwechsel aus, Bildschirm nie aus (Anleitung „Ampel-Tablet: WLAN stabil halten“).'
+          ? 'Tablet im Dial-WLAN halten: Samsung „Intelligentes WLAN“ und WLAN-Energiesparmodus aus, MAC-Adresstyp „Telefon-MAC“; iPad „Private WLAN-Adresse“ aus (Anleitung „Ampel-Tablet: WLAN stabil halten“). Hilft das nicht: WLAN-Kanal wechseln.'
           : 'Alles in Ordnung.',
     });
+  if (h.stations?.length || h.rssiMin) {
+    const values = [...(h.stations ?? []).map(x => x.rssi), ...(h.rssiMin ? [h.rssiMin] : [])],
+      weakest = Math.min(...values);
+    rows.push({
+      name: 'Signalstärke',
+      level: weakest >= -70 ? 0 : weakest >= -80 ? 1 : 2,
+      value:
+        `schwächster Wert ${weakest} dBm` +
+        (h.stations?.length ? `, jetzt ${h.stations.map(x => x.rssi).join(' / ')} dBm` : ''),
+      todo: weakest >= -70 ? 'Alles in Ordnung.' : 'Tablet näher ans Dial stellen; kein Metall dazwischen.',
+    });
+  }
   if (h.sendAborts !== undefined)
     rows.push({
       name: 'Antworten abgebrochen',

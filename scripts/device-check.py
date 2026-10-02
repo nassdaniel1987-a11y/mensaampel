@@ -18,7 +18,7 @@ import sys
 import time
 
 MIN_VERSION = (0, 17, 1)
-LIMITS = {'block_kb': 32, 'ampel_s': 3, 'bench_ms': 1500, 'web_ms': 1500}
+LIMITS = {'block_kb': 32, 'ampel_s': 3, 'bench_ms': 1500, 'web_ms': 1500, 'rssi_ok': -70, 'rssi_weak': -80}
 
 
 REPLY = '@mensa-reply '
@@ -62,7 +62,14 @@ def pauses(samples):
         ha, hb = a.get('health') or {}, b.get('health') or {}
         rows = p['samples'] + [b]
         if hb.get('wlanDrops', 0) > ha.get('wlanDrops', 0) or any(r.get('clients', 1) == 0 for r in rows):
-            cause = 'Tablet war kurz aus dem Dial-WLAN'
+            rssi = [st.get('rssi', 0) for r in [a] + rows for st in (r.get('health') or {}).get('stations') or []]
+            weakest = min(rssi) if rssi else None
+            if weakest is not None and weakest < LIMITS['rssi_weak']:
+                cause = f'Tablet war kurz aus dem Dial-WLAN – Signal schwach ({weakest} dBm)'
+            elif weakest is not None:
+                cause = f'Tablet hat sich abgemeldet, obwohl das Signal gut war ({weakest} dBm) – Einstellung am Tablet'
+            else:
+                cause = 'Tablet war kurz aus dem Dial-WLAN'
         elif hb.get('sendAborts', 0) > ha.get('sendAborts', 0) or hb.get('sendMaxMs', 0) > max(1500, ha.get('sendMaxMs', 0)):
             cause = 'Dial hat eine Antwort nicht losbekommen'
         else:
@@ -178,6 +185,17 @@ def evaluate(record):
     add('Längste Antwort ans Tablet', 'ok' if web <= LIMITS['web_ms'] else 'warnung', f'{web} ms',
         f"≤ {LIMITS['web_ms']} ms", 'Nur ein Browserfenster mit der Betreuung offen lassen.'
         if web > LIMITS['web_ms'] else '')
+    rssi = [st.get('rssi', 0) for s in samples for st in (s.get('health') or {}).get('stations') or []]
+    rssi += [(s.get('health') or {}).get('rssiMin', 0) for s in samples if (s.get('health') or {}).get('rssiMin')]
+    if rssi:
+        weakest = min(rssi)
+        level = 'ok' if weakest >= LIMITS['rssi_ok'] else 'warnung' if weakest >= LIMITS['rssi_weak'] else 'fehler'
+        add('Signalstärke der Tablets', level, f'schwächster Wert {weakest} dBm', f"≥ {LIMITS['rssi_ok']} dBm",
+            '' if level == 'ok' else 'Tablet näher ans Dial stellen; Metall/Gehäuse zwischen beiden vermeiden.')
+    probes = h1.get('probeAnswers')
+    if probes is not None:
+        add('Internetprüfung der Tablets beantwortet', 'hinweis', f'{probes}×', '–',
+            'Das Dial beantwortet die „Habe ich Internet?“-Prüfung, damit Tablets im WLAN bleiben.')
     missed = record.get('usb_missed', 0)
     if missed:
         add('USB-Antworten', 'warnung', f'{missed} ohne Antwort', '0',
@@ -209,6 +227,16 @@ def report_md(record, checks):
     if found:
         lines += ['', '## Pausen der Ampel', '', '| Uhrzeit | Dauer | Vermutliche Ursache |', '|---|---|---|']
         lines += [f"| {p['at']} | {p['seconds']} s | {p['cause']} |" for p in found]
+    events = []
+    for s in record.get('samples') or []:
+        for e in s.get('wlanEvents') or []:
+            key = (e.get('at'), e.get('joined'), e.get('mac'))
+            if key not in events:
+                events.append(key)
+    if events:
+        lines += ['', '## WLAN-Ereignisse (Sekunden seit Start des Dials)', '', '| Zeit | Ereignis | Gerät |',
+                  '|---|---|---|']
+        lines += [f"| {at} s | {'verbunden' if joined else 'getrennt'} | …{mac} |" for at, joined, mac in sorted(events)]
     log = record.get('log') or []
     lines += ['', '## Weitere USB-Meldungen des Dials', '']
     lines += [f'- {t} {text}' for t, text in log[-50:]] or ['- keine']
@@ -379,6 +407,23 @@ def selftest():
     soft['samples'] = [good(0), good(1, health={'readerFaults': 0, 'unclearReads': 2, 'minBlock': 52000})]
     status = {c['name']: c['status'] for c in evaluate(soft)}
     assert status['Kartenleser'] == 'ok' and status['Karten unklar gelesen'] == 'hinweis', status
+    # Signal strength and WLAN events.
+    sig = dict(record)
+    st = lambda rssi: {'crash': False, 'readerFaults': 0, 'saveFailures': 0, 'minBlock': 52000, 'probeAnswers': 4,
+                       'stations': [{'mac': 'AA:BB:CC', 'rssi': rssi}]}
+    sig['samples'] = [dict(good(0), health=st(-55), wlanEvents=[{'at': 10, 'joined': True, 'mac': 'AA:BB:CC'}]),
+                      dict(good(1), health=st(-83), wlanEvents=[{'at': 10, 'joined': True, 'mac': 'AA:BB:CC'},
+                                                               {'at': 70, 'joined': False, 'mac': 'AA:BB:CC'}])]
+    checks = evaluate(sig)
+    status = {c['name']: c['status'] for c in checks}
+    assert status['Signalstärke der Tablets'] == 'fehler', status
+    assert status['Internetprüfung der Tablets beantwortet'] == 'hinweis'
+    text = report_md(sig, checks)
+    assert '## WLAN-Ereignisse' in text and '| 70 s | getrennt | …AA:BB:CC |' in text
+    drop = [dict(good(0), ampelAgo=0, t=1000, health=dict(st(-50), wlanDrops=0)),
+            dict(good(1), ampelAgo=6, t=1002, health=dict(st(-50), wlanDrops=1)),
+            dict(good(2), ampelAgo=0, t=1004, health=dict(st(-50), wlanDrops=1))]
+    assert 'Signal gut war' in pauses(drop)[0]['cause']
     print('Selbsttest ok')
 
 

@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.17.2-preview · Stand 01.10.2026**
+**Vorbereitete Geräteversion 0.17.3-preview · Stand 02.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -275,18 +275,33 @@ Das Dial per USB-Datenkabel an den PC, die Tablets normal im Dial-WLAN: Ein Prü
 
 Das Dial-WLAN hat absichtlich kein Internet. Viele Tablets verlassen so ein Netz deshalb immer wieder kurz oder hören im Energiesparmodus auf zu fragen – dann wird die Ampel für einige Sekunden rot. Einmal einstellen:
 
-**Android** (Bezeichnungen je nach Hersteller etwas anders):
+Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets selbst; damit bleiben die meisten Tablets ohne weitere Einstellung im Dial-WLAN. Zusätzlich:
+
+**Samsung Galaxy Tab:**
+- Einstellungen → Verbindungen → WLAN → ⋮ (oben rechts) → **Intelligentes WLAN**: **„Zu mobilen Daten wechseln“ aus**, **„WLAN-Energiesparmodus“ aus**.
+- Beim Dial-Netz auf das Zahnrad → „Automatisch erneut verbinden“ **an**, **MAC-Adresstyp: „Telefon-MAC“** (nicht „Zufällige MAC“).
+- Einstellungen → Akku → Hintergrundnutzungslimits: den Browser unter **„Nie im Standby“** eintragen.
+
+**Android allgemein** (Bezeichnungen je nach Hersteller etwas anders):
 - Einstellungen → WLAN → beim Dial-Netz auf das Zahnrad: **„Automatisch verbinden“ an**; wenn gefragt „Kein Internet – verbunden bleiben?“: **„Ja, nicht mehr fragen“**.
 - **Mobile Daten aus** (bzw. keine SIM) und **„Intelligenter Netzwechsel“ / „Adaptives WLAN“ / „Zu mobilen Daten wechseln“ aus**.
 - Anzeige → **Bildschirm-Timeout auf das Maximum** bzw. „Nie“ (oft unter Entwickleroptionen „Aktiv lassen“ beim Laden) und **Ladekabel dran**.
 - Akku → Browser (Chrome) **nicht optimieren / „Uneingeschränkt“**.
 
 **iPad:**
-- Einstellungen → WLAN → (i) beim Dial-Netz: **„Automatisch verbinden“ an**, „Datenarmer Modus“ aus.
+- Einstellungen → WLAN → (i) beim Dial-Netz: **„Automatisch verbinden“ an**, „Datenarmer Modus“ aus, **„Private WLAN-Adresse“ aus**.
 - Einstellungen → Mobilfunk (falls vorhanden): **„WLAN-Assistent“ aus**.
 - Anzeige & Helligkeit → **Automatische Sperre: Nie**, Ladekabel dran. Am besten „Geführter Zugriff“ (siehe „iPad als Ampel einrichten“).
 
+**Hilft das nicht:** WLAN-Kanal des Dials wechseln (Gerät → Einstellungen → WLAN-Kanal 1, 6 oder 11; einen anderen als das Heim- oder Schul-WLAN nehmen) und die Prüfung über USB wiederholen. Der Bericht zeigt jetzt jede Trennung mit Uhrzeit und die Signalstärke: schwaches Signal → Tablet näher ans Dial; gutes Signal → Einstellung am Tablet.
+
 **Immer:** Auf dem Ampel-Tablet nur **einen** Tab mit `/ampel` offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).
+
+## Neu in 0.17.3
+
+- **Tablets bleiben im Dial-WLAN:** Das Dial beantwortet jetzt die „Habe ich Internet?“-Prüfung von Android, iPad und Windows. Bisher blieb sie unbeantwortet, und das Testtablet hat sich dadurch etwa jede Minute für 10–15 Sekunden abgemeldet (die Ampel wurde dann rot). Das Dial-WLAN hat weiterhin kein Internet.
+- **Gesundheit heute / Prüfung über USB:** neu die Signalstärke der Tablets und eine Liste, wann welches Gerät sich verbunden oder getrennt hat.
+- Anleitung „Ampel-Tablet: WLAN stabil halten“ mit den Samsung- und iPad-Einstellungen.
 
 ## Neu in 0.17.2
 

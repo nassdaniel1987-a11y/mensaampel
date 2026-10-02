@@ -11,6 +11,9 @@
 #include "web_assets.hpp"
 #include "version.hpp"
 #include "ota.hpp"
+#include "probes.hpp"
+#include <DNSServer.h>
+#include <esp_wifi.h>
 #include <Update.h>
 #include <Preferences.h>
 #include <esp_ota_ops.h>
@@ -114,7 +117,56 @@ struct PendingReply {
 // Sending with a hard limit: the library's WiFiClient::write waits up to 10 x 1 s per call when a tablet left the WLAN
 // mid-answer, and the web server answers nobody else meanwhile (the Ampel turns red). Here an answer is given up when
 // nothing moves for 1.5 s. Web task only; counters for the health report.
-std::atomic<uint32_t> sendMaxMs{0}, sendAborts{0}, wlanDrops{0};
+std::atomic<uint32_t> sendMaxMs{0}, sendAborts{0}, wlanDrops{0}, probeAnswers{0};
+// Names of all hosts point to the Dial, so tablets can run their internet check against it (probes.hpp).
+DNSServer dns;
+// Last WLAN joins/leaves (seconds since start, joined?, end of the MAC); written by the WiFi event task.
+struct WlanEvent {
+  uint32_t at;
+  bool joined;
+  uint8_t mac[3];
+};
+WlanEvent wlanLog[12];
+uint32_t wlanLogCount = 0;
+portMUX_TYPE wlanLock = portMUX_INITIALIZER_UNLOCKED;
+void wlanEvent(bool joined, const uint8_t *mac) {
+  portENTER_CRITICAL(&wlanLock);
+  auto &e = wlanLog[wlanLogCount++ % 12];
+  e.at = uint32_t(nowMs() / 1000);
+  e.joined = joined;
+  memcpy(e.mac, mac + 3, 3);
+  portEXIT_CRITICAL(&wlanLock);
+  if (!joined) wlanDrops++;
+}
+std::string macTail(const uint8_t *m) {
+  char b[9];
+  snprintf(b, sizeof b, "%02X:%02X:%02X", m[0], m[1], m[2]);
+  return b;
+}
+Json wlanEvents() {
+  WlanEvent copy[12];
+  uint32_t n;
+  portENTER_CRITICAL(&wlanLock);
+  memcpy(copy, wlanLog, sizeof copy);
+  n = wlanLogCount;
+  portEXIT_CRITICAL(&wlanLock);
+  Json list = Json::array();
+  for (uint32_t i = n > 12 ? n - 12 : 0; i < n; i++) {
+    auto &e = copy[i % 12];
+    list.push_back({{"at", e.at}, {"joined", e.joined}, {"mac", macTail(e.mac)}});
+  }
+  return list;
+}
+// Connected tablets with their signal strength (dBm); the weakest value since power-on is kept in rssiMin.
+int rssiMin = 0;
+Json stations() {
+  Json list = Json::array();
+  wifi_sta_list_t sta{};
+  if (esp_wifi_ap_get_sta_list(&sta) != ESP_OK) return list;
+  for (int i = 0; i < sta.num; i++)
+    list.push_back({{"mac", macTail(sta.sta[i].mac + 3)}, {"rssi", sta.sta[i].rssi}});
+  return list;
+}
 bool writeBounded(int fd, const char *data, size_t length) {
   uint64_t progressAt = nowMs();
   while (length > 0) {
@@ -342,6 +394,9 @@ Json state(bool withCards = true) {
         {"wlanDrops", wlanDrops.load()},
         {"sendAborts", sendAborts.load()},
         {"sendMaxMs", sendMaxMs.load()},
+        {"probeAnswers", probeAnswers.load()},
+        {"rssiMin", rssiMin},
+        {"stations", stations()},
         {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
       {"clients", WiFi.softAPgetStationNum()},
       {"uptime", nowMs()}};
@@ -499,6 +554,9 @@ Json healthJson() {
             {"wlanDrops", wlanDrops.load()},
             {"sendAborts", sendAborts.load()},
             {"sendMaxMs", sendMaxMs.load()},
+            {"probeAnswers", probeAnswers.load()},
+            {"rssiMin", rssiMin},
+            {"stations", stations()},
             {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
           {"freeHeap", ESP.getFreeHeap()},
           {"minimumHeap", ESP.getMinFreeHeap()},
@@ -512,7 +570,8 @@ Json healthJson() {
           {"needsReview", needsReview},
           {"ready", engine.isReady()},
           {"reason", signalBlocked() ? "device" : sig.value("reason", std::string())},
-          {"memoryTest", {{"running", memoryTest.left > 0}, {"ok", memoryTest.ok}, {"message", memoryTest.message}}}};
+          {"memoryTest", {{"running", memoryTest.left > 0}, {"ok", memoryTest.ok}, {"message", memoryTest.message}}},
+          {"wlanEvents", wlanEvents()}};
 }
 void serialCommand(const std::string &cmd) {
   serialCmd = cmd;
@@ -942,6 +1001,13 @@ void configureWeb() {
       return sendPending();
     }
     String path = web.uri();
+    // Internet check of a tablet (any host name points to the Dial): answer like a network with internet.
+    auto probe = mensa::probe::answer(path.c_str());
+    if (probe.code) {
+      probeAnswers++;
+      sendBounded(probe.code, probe.type, probe.body, strlen(probe.body), "Cache-Control: no-store\r\n");
+      return;
+    }
     if (path == "/" || path == "/ampel" || path == "/geraet") path = "/index.html";
     for (auto &a : webAssets)
       if (path == a.path) {
@@ -1045,6 +1111,7 @@ void draw() {
 }
 void webTask(void *) {
   for (;;) {
+    dns.processNextRequest();
     web.handleClient();
     vTaskDelay(1);
   }
@@ -1095,13 +1162,19 @@ void setup() {
     WiFi.mode(WIFI_AP);
     WiFi.setSleep(false);
     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-    // A tablet left the Dial WLAN (health report). Runs in the event task: only the atomic counter.
-    WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t) { wlanDrops++; }, ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
+    // Tablets joining/leaving the Dial WLAN (health report). Runs in the event task: only the small locked log.
+    WiFi.onEvent(
+        [](arduino_event_id_t, arduino_event_info_t info) { wlanEvent(false, info.wifi_ap_stadisconnected.mac); },
+        ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
+    WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t info) { wlanEvent(true, info.wifi_ap_staconnected.mac); },
+                 ARDUINO_EVENT_WIFI_AP_STACONNECTED);
     if (!WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4)) {
       configValid = false;
       feedback = "WLAN konnte nicht gestartet werden.";
     } else {
       configureWeb();
+      dns.setTTL(60);
+      dns.start(53, "*", IPAddress(192, 168, 4, 1));
       webStarted = true;
     }
   }
@@ -1153,6 +1226,10 @@ void step(uint64_t now) {
   if (now >= health.sampledAt) {
     health.sampledAt = now + 1000;
     health.minBlock = std::min<uint32_t>(health.minBlock, ESP.getMaxAllocHeap());
+    wifi_sta_list_t sta{};
+    if (esp_wifi_ap_get_sta_list(&sta) == ESP_OK)
+      for (int i = 0; i < sta.num; i++)
+        if (sta.sta[i].rssi < 0 && (rssiMin == 0 || sta.sta[i].rssi < rssiMin)) rssiMin = sta.sta[i].rssi;
   }
   // An upload that stopped (tablet gone) must not keep the entrance blocked.
   if (ota.active && !ota.ok && now - ota.lastAt > 30000) {

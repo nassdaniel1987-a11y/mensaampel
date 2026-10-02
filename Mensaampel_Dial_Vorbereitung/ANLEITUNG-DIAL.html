@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.17.2-preview · Stand 01.10.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.17.3-preview · Stand 02.10.2026</strong></p>
 <blockquote>
 <p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
 </blockquote>
@@ -392,16 +392,28 @@
 <p>Das Dial per USB-Datenkabel an den PC, die Tablets normal im Dial-WLAN: Ein Prüfskript beobachtet 10 Minuten lang Speicher, Ampel-Verbindung, Leser und Speichern, startet den Speicher-Dauertest und schreibt einen Bericht. Mit Claude Code am PC: „Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“ Einzelheiten in <a href="PRUEFUNG-AM-PC.md">PRUEFUNG-AM-PC.md</a>.</p>
 <h2>Ampel-Tablet: WLAN stabil halten</h2>
 <p>Das Dial-WLAN hat absichtlich kein Internet. Viele Tablets verlassen so ein Netz deshalb immer wieder kurz oder hören im Energiesparmodus auf zu fragen – dann wird die Ampel für einige Sekunden rot. Einmal einstellen:</p>
-<p><strong>Android</strong> (Bezeichnungen je nach Hersteller etwas anders):
+<p>Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets selbst; damit bleiben die meisten Tablets ohne weitere Einstellung im Dial-WLAN. Zusätzlich:</p>
+<p><strong>Samsung Galaxy Tab:</strong>
+- Einstellungen → Verbindungen → WLAN → ⋮ (oben rechts) → <strong>Intelligentes WLAN</strong>: <strong>„Zu mobilen Daten wechseln“ aus</strong>, <strong>„WLAN-Energiesparmodus“ aus</strong>.
+- Beim Dial-Netz auf das Zahnrad → „Automatisch erneut verbinden“ <strong>an</strong>, <strong>MAC-Adresstyp: „Telefon-MAC“</strong> (nicht „Zufällige MAC“).
+- Einstellungen → Akku → Hintergrundnutzungslimits: den Browser unter <strong>„Nie im Standby“</strong> eintragen.</p>
+<p><strong>Android allgemein</strong> (Bezeichnungen je nach Hersteller etwas anders):
 - Einstellungen → WLAN → beim Dial-Netz auf das Zahnrad: <strong>„Automatisch verbinden“ an</strong>; wenn gefragt „Kein Internet – verbunden bleiben?“: <strong>„Ja, nicht mehr fragen“</strong>.
 - <strong>Mobile Daten aus</strong> (bzw. keine SIM) und <strong>„Intelligenter Netzwechsel“ / „Adaptives WLAN“ / „Zu mobilen Daten wechseln“ aus</strong>.
 - Anzeige → <strong>Bildschirm-Timeout auf das Maximum</strong> bzw. „Nie“ (oft unter Entwickleroptionen „Aktiv lassen“ beim Laden) und <strong>Ladekabel dran</strong>.
 - Akku → Browser (Chrome) <strong>nicht optimieren / „Uneingeschränkt“</strong>.</p>
 <p><strong>iPad:</strong>
-- Einstellungen → WLAN → (i) beim Dial-Netz: <strong>„Automatisch verbinden“ an</strong>, „Datenarmer Modus“ aus.
+- Einstellungen → WLAN → (i) beim Dial-Netz: <strong>„Automatisch verbinden“ an</strong>, „Datenarmer Modus“ aus, <strong>„Private WLAN-Adresse“ aus</strong>.
 - Einstellungen → Mobilfunk (falls vorhanden): <strong>„WLAN-Assistent“ aus</strong>.
 - Anzeige &amp; Helligkeit → <strong>Automatische Sperre: Nie</strong>, Ladekabel dran. Am besten „Geführter Zugriff“ (siehe „iPad als Ampel einrichten“).</p>
+<p><strong>Hilft das nicht:</strong> WLAN-Kanal des Dials wechseln (Gerät → Einstellungen → WLAN-Kanal 1, 6 oder 11; einen anderen als das Heim- oder Schul-WLAN nehmen) und die Prüfung über USB wiederholen. Der Bericht zeigt jetzt jede Trennung mit Uhrzeit und die Signalstärke: schwaches Signal → Tablet näher ans Dial; gutes Signal → Einstellung am Tablet.</p>
 <p><strong>Immer:</strong> Auf dem Ampel-Tablet nur <strong>einen</strong> Tab mit <code>/ampel</code> offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).</p>
+<h2>Neu in 0.17.3</h2>
+<ul>
+<li><strong>Tablets bleiben im Dial-WLAN:</strong> Das Dial beantwortet jetzt die „Habe ich Internet?“-Prüfung von Android, iPad und Windows. Bisher blieb sie unbeantwortet, und das Testtablet hat sich dadurch etwa jede Minute für 10–15 Sekunden abgemeldet (die Ampel wurde dann rot). Das Dial-WLAN hat weiterhin kein Internet.</li>
+<li><strong>Gesundheit heute / Prüfung über USB:</strong> neu die Signalstärke der Tablets und eine Liste, wann welches Gerät sich verbunden oder getrennt hat.</li>
+<li>Anleitung „Ampel-Tablet: WLAN stabil halten“ mit den Samsung- und iPad-Einstellungen.</li>
+</ul>
 <h2>Neu in 0.17.2</h2>
 <ul>
 <li><strong>Ampel bleibt bedient, wenn ein Tablet mitten in einer Antwort verschwindet:</strong> Bisher konnte das Dial dann bis zu 10 Sekunden niemandem antworten. Jetzt gibt es nach 1,5 Sekunden auf und bedient die anderen weiter.</li>
