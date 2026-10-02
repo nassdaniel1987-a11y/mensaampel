@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.17.3-preview · Stand 02.10.2026**
+**Vorbereitete Geräteversion 0.17.4-preview · Stand 02.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -296,6 +296,10 @@ Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets
 **Hilft das nicht:** WLAN-Kanal des Dials wechseln (Gerät → Einstellungen → WLAN-Kanal 1, 6 oder 11; einen anderen als das Heim- oder Schul-WLAN nehmen) und die Prüfung über USB wiederholen. Der Bericht zeigt jetzt jede Trennung mit Uhrzeit und die Signalstärke: schwaches Signal → Tablet näher ans Dial; gutes Signal → Einstellung am Tablet.
 
 **Immer:** Auf dem Ampel-Tablet nur **einen** Tab mit `/ampel` offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).
+
+## Neu in 0.17.4
+
+- **Mehrere Tablets gleichzeitig angemeldet:** Bisher hat die Anmeldung auf einem zweiten Tablet das erste abgemeldet. Jetzt bleiben bis zu 4 Tablets gleichzeitig angemeldet. Meldet sich ein fünftes an, wird das am längsten nicht benutzte abgemeldet. „Abmelden“ betrifft nur das eigene Tablet; nach einem neuen Betreuungskennwort müssen sich die anderen Tablets neu anmelden. Die Ampelseite braucht keine Anmeldung und zählt nicht mit.
 
 ## Neu in 0.17.3
 

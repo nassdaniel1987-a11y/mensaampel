@@ -12,6 +12,7 @@
 #include "version.hpp"
 #include "ota.hpp"
 #include "probes.hpp"
+#include "sessions.hpp"
 #include <DNSServer.h>
 #include <esp_wifi.h>
 #include <Update.h>
@@ -74,9 +75,10 @@ public:
 };
 MensaWebServer web(80);
 bool configValid = false, needsReview = false;
-std::string session, loginNonce, captureTarget, capturedUid, feedback = "Bereit zur Einrichtung.";
-uint64_t sessionUntil = 0, loginAfter = 0, captureUntil = 0, restartAt = 0, showCredentialsUntil = 0,
-         resetConfirmUntil = 0, clockCheckAt = 0, ampelSeenAt = 0;
+mensa::Sessions sessions;
+std::string loginNonce, captureTarget, capturedUid, feedback = "Bereit zur Einrichtung.";
+uint64_t loginAfter = 0, captureUntil = 0, restartAt = 0, showCredentialsUntil = 0, resetConfirmUntil = 0,
+         clockCheckAt = 0, ampelSeenAt = 0;
 unsigned loginFailures = 0;
 bool ampelWarned = false;
 // Health since power-on (one lunch), only in RAM: reader faults, Ampel disconnects, smallest largest free block.
@@ -315,8 +317,7 @@ bool localOrigin() {
   return origin.isEmpty() || origin == String("http://") + host;
 }
 bool authorized() {
-  return localOrigin() && !session.empty() && nowMs() < sessionUntil &&
-         constantEqual(web.header("X-Mensa-Token").c_str(), session);
+  return localOrigin() && sessions.check(web.header("X-Mensa-Token").c_str(), nowMs());
 }
 bool rtcTime(m5::rtc_datetime_t &t);
 void setRtc(const Json &d);
@@ -661,6 +662,8 @@ Json command(const Json &j) {
     bool wifiChanged =
         next.ssid != config.ssid || next.wifiPassword != config.wifiPassword || next.channel != config.channel;
     config = next;
+    // New password: other tablets must sign in again; this one stays.
+    if (!password.empty()) sessions.keepOnly(web.header("X-Mensa-Token").c_str());
     if (wifiChanged) {
       engine.command({{"type", "restart"}}, nowMs());
       restartAt = nowMs() + 2500;
@@ -909,10 +912,10 @@ void configureWeb() {
                }
                return reply(401, result(false, "Kennwort oder Einrichtungscode stimmt nicht."));
              }
-             session = randomKey(40);
-             sessionUntil = nowMs() + 8 * 60 * 60 * 1000ULL;
+             std::string token = randomKey(40);
+             sessions.add(token, nowMs());
              loginFailures = 0;
-             reply(200, {{"ok", true}, {"token", session}});
+             reply(200, {{"ok", true}, {"token", token}});
            } catch (...) { reply(400, result(false, "Ungültige Anmeldung.")); }
          }));
   web.on("/api/state", HTTP_GET, guarded([] {
@@ -965,7 +968,7 @@ void configureWeb() {
          }));
   web.on("/api/logout", HTTP_POST, guarded([] {
            if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-           session.clear();
+           sessions.remove(web.header("X-Mensa-Token").c_str());
            reply(200, result(true, "Abgemeldet."));
          }));
   web.on("/api/command", HTTP_POST, guarded([] {
