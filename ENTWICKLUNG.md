@@ -239,3 +239,9 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 
 - `src/ampel-texts.mjs`: `JA` (einfache höfliche Form) und `ZH` (vereinfacht, `lang: 'zh-Hans'`) für `open`, `wait`, `thanks`, `closed`. Schrift aus dem System (Inter enthält kein CJK): `.signal-language` nennt `Hiragino Sans`, `PingFang SC`, `Noto Sans JP/SC` als Ausweich. Von Muttersprachlern prüfen lassen.
 
+## Version 0.17.6-preview: flüssigere Animationen
+
+- Am Gerät gemeldet: Animationen ruckeln. Ursachen: `draw()` höchstens alle 250 ms (4 Bilder/s) und jedes Bild komplett teuer gerechnet.
+- **`core/dial_raster.hpp`, ergebnisgleich** (Nachweis: Paritätstest gegen `src/dial-paint.mjs` und `tests/native-raster-bench.test.mjs` gegen die Referenzkopie `tests/native/raster_ref.hpp`): Farbverlauf über eine statische Tabelle `[257][16]` je Farbpaar (statt Kanalrechnung je Pixel) und 32-bit statt 64-bit-Division; Kantenglättung mit exakten Abkürzungen über das Kästchen der 16 Unterpunkte (`box()`, `circleCoverage()`; Ring: radial außerhalb → 0, Vollring/Teilbogen ≤ 180° mit allen Ecken im Keil → 16). Am PC etwa doppelt so schnell; auf dem Dial mehr (64-bit-Division ist dort Software).
+- **Bildtakt:** `Engine::animating()` (Countdown läuft oder Taste gehalten) plus Update/frische Rückmeldung → `draw()` alle 40 ms, sonst 250 ms; gemalt wird nur bei Änderung. Messwerte `drawMs`/`drawMaxMs` (atomar, Loop schreibt ohne Sperre) in `device.health` und USB; Prüfskript-Zeile „Bild zeichnen“ (≤ 40 ms ok). Liegt der Wert am Gerät über 40 ms, wäre der nächste Schritt Teilneuzeichnen.
+

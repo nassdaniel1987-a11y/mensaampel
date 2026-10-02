@@ -47,6 +47,8 @@ export type Device = {
     sendAborts?: number;
     sendMaxMs?: number;
     probeAnswers?: number;
+    drawMs?: number;
+    drawMaxMs?: number;
     rssiMin?: number;
     stations?: { mac: string; rssi: number }[];
   };

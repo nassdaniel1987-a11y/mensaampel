@@ -316,6 +316,11 @@ public:
     int v = found ? std::max(10, (most + 4) / 5 * 5) : 20;
     return std::clamp(v, std::min(occupied(1), rooms[1].capacity), rooms[1].capacity);
   }
+  // Something on the Dial moves (countdown ring, hold ring): the firmware then paints more often for smooth motion.
+  bool animating(long long now, const DialExtras &x) const {
+    return x.holdMs > 0 ||
+           (flow.waiting && flow.autoOn && flow.releaseIn(now) >= 0 && !flow.relief && !paused && ready && !x.blocked);
+  }
   // Dial screen plus, while the button is held, a progress ring (3 s: confirm/WLAN, 10 s: access reset).
   Json dialScreen(long long now, const DialExtras &x) const {
     using namespace dial;

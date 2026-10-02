@@ -76,6 +76,14 @@ export function healthRows(device, diag) {
       todo: weakest >= -70 ? 'Alles in Ordnung.' : 'Tablet näher ans Dial stellen; kein Metall dazwischen.',
     });
   }
+  if (h.drawMaxMs !== undefined)
+    rows.push({
+      name: 'Bild zeichnen',
+      level: h.drawMaxMs <= 40 ? 0 : h.drawMaxMs <= 80 ? 1 : 2,
+      value: `zuletzt ${h.drawMs ?? 0} ms, längstes ${h.drawMaxMs} ms`,
+      todo:
+        h.drawMaxMs <= 40 ? 'Alles in Ordnung.' : 'Animationen können leicht ruckeln – Wert an den Entwickler melden.',
+    });
   if (h.sendAborts !== undefined)
     rows.push({
       name: 'Antworten abgebrochen',

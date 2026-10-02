@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.17.5-preview · Stand 02.10.2026**
+**Vorbereitete Geräteversion 0.17.6-preview · Stand 02.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -296,6 +296,11 @@ Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets
 **Hilft das nicht:** WLAN-Kanal des Dials wechseln (Gerät → Einstellungen → WLAN-Kanal 1, 6 oder 11; einen anderen als das Heim- oder Schul-WLAN nehmen) und die Prüfung über USB wiederholen. Der Bericht zeigt jetzt jede Trennung mit Uhrzeit und die Signalstärke: schwaches Signal → Tablet näher ans Dial; gutes Signal → Einstellung am Tablet.
 
 **Immer:** Auf dem Ampel-Tablet nur **einen** Tab mit `/ampel` offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).
+
+## Neu in 0.17.6
+
+- **Flüssigere Animationen am Dial:** Während sich etwas bewegt (Countdown-Ring, Ring beim Halten der Taste, Rückmeldung nach dem Scan), zeichnet das Dial jetzt bis zu 25 Bilder pro Sekunde statt 4. Das Zeichnen selbst ist deutlich schneller geworden; das Bild sieht genau gleich aus. Im Ruhezustand bleibt es sparsam.
+- **Gesundheit heute / Prüfung über USB:** neuer Messwert „Bild zeichnen“ (wie lange ein Bild dauert; gut bis 40 ms).
 
 ## Neu in 0.17.5
 

@@ -55,18 +55,35 @@ inline void fill(Target &t, uint16_t c) {
       t.set(x, y, c);
 }
 // Background gradient: kind 0 vertical (c1 top, c2 bottom), kind 1 radial (c1 centre, c2 at the edge).
+// The colour only depends on the weight (0..256) and the dither threshold: one table per colour pair (static, 8 KB,
+// reused for all strips of a frame) instead of the channel arithmetic per pixel. Same pixels as gradientColor().
 inline void gradient(Target &t, uint16_t c1, uint16_t c2, int kind) {
-  for (int y = t.y0; y < t.y0 + t.h; y++)
+  static uint16_t table[257][16];
+  static uint32_t key = 0;
+  static bool ready = false;
+  uint32_t k = uint32_t(c1) << 16 | c2;
+  if (!ready || key != k) {
+    for (int w = 0; w <= 256; w++)
+      for (int p = 0; p < 16; p++) // p = dither position (y & 3) * 4 + (x & 3)
+        table[w][p] = gradientColor(c1, c2, w, p & 3, p >> 2);
+    key = k;
+    ready = true;
+  }
+  for (int y = t.y0; y < t.y0 + t.h; y++) {
+    const int row = (y & 3) * 4;
+    const int dy = 2 * y - 239, dy2 = dy * dy, vertical = (y * 256 + 119) / 239;
     for (int x = 0; x < t.w; x++) {
       int w;
       if (kind == 1) {
-        long long dx = 2 * x - 239, dy = 2 * y - 239, d2 = dx * dx + dy * dy;
-        w = int(d2 * 256 / (239LL * 239 * 2));
+        // 32-bit is enough (at most 2 * 239^2 * 256 < 2^31) and much faster on the Dial than 64-bit division.
+        const int dx = 2 * x - 239;
+        w = (dx * dx + dy2) * 256 / (239 * 239 * 2);
         if (w > 256) w = 256;
       } else
-        w = (y * 256 + 119) / 239;
-      t.set(x, y, gradientColor(c1, c2, w, x, y));
+        w = vertical;
+      t.set(x, y, table[w][row + (x & 3)]);
     }
+  }
 }
 // Sample (i,j) of pixel (x,y) in 1/8 pixel units: 8x+2i+1.
 template <typename In> int coverage(int x, int y, In inside) {
@@ -78,6 +95,31 @@ template <typename In> int coverage(int x, int y, In inside) {
 }
 inline bool inCircle(long long sx, long long sy, long long cx, long long cy, long long r) {
   return (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy) <= r * r;
+}
+// The 16 samples of pixel (x, y) lie in the box [8x+1, 8x+7] x [8y+1, 8y+7]. Nearest and farthest squared distance of
+// that box to a point: when the whole box is inside (or outside) a circle, every sample is, and the 16 single tests
+// can be skipped with exactly the same result.
+struct Box {
+  long long near2, far2;
+};
+inline Box box(int x, int y, long long cx, long long cy) {
+  auto axis = [](long long lo, long long c, long long &nearD, long long &farD) {
+    long long hi = lo + 6;
+    nearD = c < lo ? lo - c : c > hi ? c - hi : 0;
+    long long a = lo - c < 0 ? c - lo : lo - c, b = hi - c < 0 ? c - hi : hi - c;
+    farD = a > b ? a : b;
+  };
+  long long nx, fx, ny, fy;
+  axis(8LL * x + 1, cx, nx, fx);
+  axis(8LL * y + 1, cy, ny, fy);
+  return {nx * nx + ny * ny, fx * fx + fy * fy};
+}
+// Coverage of a filled circle (centre and radius in 1/8 pixel).
+inline int circleCoverage(int x, int y, long long cx, long long cy, long long r) {
+  Box b = box(x, y, cx, cy);
+  if (b.far2 <= r * r) return 16;
+  if (b.near2 > r * r) return 0;
+  return coverage(x, y, [&](long long sx, long long sy) { return inCircle(sx, sy, cx, cy, r); });
 }
 // Rounded rectangle; corners are quarter circles of radius r (a pill when r = h/2).
 inline void rect(Target &t, int x, int y, int w, int h, int r, uint16_t c) {
@@ -91,18 +133,14 @@ inline void rect(Target &t, int x, int y, int w, int h, int r, uint16_t c) {
         continue;
       }
       long long cx = 8LL * (left ? x + r : x + w - r), cy = 8LL * (top ? y + r : y + h - r);
-      blend(t, xx, yy, c,
-            coverage(xx, yy, [&](long long sx, long long sy) { return inCircle(sx, sy, cx, cy, 8LL * r); }));
+      blend(t, xx, yy, c, circleCoverage(xx, yy, cx, cy, 8LL * r));
     }
 }
 // Filled circle around the pixel corner (cx, cy).
 inline void circle(Target &t, int cx, int cy, int r, uint16_t c) {
   for (int y = rowFrom(t, cy - r - 1); y < rowTo(t, cy + r + 1); y++)
     for (int x = cx - r - 1; x <= cx + r; x++)
-      if (x >= 0 && x < t.w)
-        blend(t, x, y, c, coverage(x, y, [&](long long sx, long long sy) {
-                return inCircle(sx, sy, 8LL * cx, 8LL * cy, 8LL * r);
-              }));
+      if (x >= 0 && x < t.w) blend(t, x, y, c, circleCoverage(x, y, 8LL * cx, 8LL * cy, 8LL * r));
 }
 inline long long floorDiv(long long a, long long b) {
   return a >= 0 ? a / b : -((-a + b - 1) / b);
@@ -134,13 +172,30 @@ inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint1
     long long k0 = d1x * py - d1y * px, k1 = px * d0y - py * d0x;
     return !(k0 > 0 && k1 > 0);
   };
+  // Exact shortcuts: the round ends stay within radius R1 + 2 (rounded centres), so a box beyond that is empty; a box
+  // fully between the radii is full for a whole ring, and for a part of at most 180 degrees (a convex wedge) when all
+  // four corners are inside the wedge.
+  long long outer = (R1 + 2) * (R1 + 2), innerFree = R0 > 2 ? (R0 - 2) * (R0 - 2) : -1;
+  auto wedge = [&](long long px, long long py) { return d0x * py - d0y * px >= 0 && px * d1y - py * d1x >= 0; };
+  auto fast = [&](int x, int y) {
+    Box b = box(x, y, ox, oy);
+    if (b.near2 > outer || b.far2 < innerFree) return 0;
+    if (b.near2 >= R0 * R0 && b.far2 <= R1 * R1) {
+      if (full) return 16;
+      if (span <= 180) {
+        long long lx = 8LL * x + 1 - ox, hx = lx + 6, ly = 8LL * y + 1 - oy, hy = ly + 6;
+        if (wedge(lx, ly) && wedge(hx, ly) && wedge(lx, hy) && wedge(hx, hy)) return 16;
+      }
+    }
+    return coverage(x, y, inside);
+  };
   long long lo = (r0 - 2) > 0 ? (r0 - 2) * (r0 - 2) : 0, hi = (r1 + 2) * (r1 + 2);
   for (int y = rowFrom(t, cy - r1 - 2); y < rowTo(t, cy + r1 + 2); y++)
     for (int x = cx - r1 - 2; x < cx + r1 + 2; x++) {
       if (x < 0 || x >= t.w) continue;
       long long dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
       if (d < lo || d > hi) continue;
-      blend(t, x, y, c, coverage(x, y, inside) * alpha / 16);
+      blend(t, x, y, c, fast(x, y) * alpha / 16);
     }
 }
 // Line from (x0,y0) to (x1,y1), width w pixels, round ends (pixel corner coordinates like circles).

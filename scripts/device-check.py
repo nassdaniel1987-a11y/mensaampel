@@ -192,6 +192,11 @@ def evaluate(record):
         level = 'ok' if weakest >= LIMITS['rssi_ok'] else 'warnung' if weakest >= LIMITS['rssi_weak'] else 'fehler'
         add('Signalstärke der Tablets', level, f'schwächster Wert {weakest} dBm', f"≥ {LIMITS['rssi_ok']} dBm",
             '' if level == 'ok' else 'Tablet näher ans Dial stellen; Metall/Gehäuse zwischen beiden vermeiden.')
+    draw = max(((s.get('health') or {}).get('drawMaxMs', 0) for s in samples), default=0)
+    if any('drawMaxMs' in (s.get('health') or {}) for s in samples):
+        level = 'ok' if draw <= 40 else 'warnung' if draw <= 80 else 'fehler'
+        add('Bild zeichnen (längstes)', level, f'{draw} ms', '≤ 40 ms',
+            '' if level == 'ok' else 'Animationen ruckeln noch etwas – Wert an den Entwickler melden.')
     probes = h1.get('probeAnswers')
     if probes is not None:
         add('Internetprüfung der Tablets beantwortet', 'hinweis', f'{probes}×', '–',
@@ -424,6 +429,10 @@ def selftest():
             dict(good(1), ampelAgo=6, t=1002, health=dict(st(-50), wlanDrops=1)),
             dict(good(2), ampelAgo=0, t=1004, health=dict(st(-50), wlanDrops=1))]
     assert 'Signal gut war' in pauses(drop)[0]['cause']
+    slow = dict(record)
+    slow['samples'] = [dict(good(0), health={'minBlock': 52000, 'drawMaxMs': 30}),
+                       dict(good(1), health={'minBlock': 52000, 'drawMaxMs': 95})]
+    assert {c['name']: c['status'] for c in evaluate(slow)}['Bild zeichnen (längstes)'] == 'fehler'
     print('Selbsttest ok')
 
 

@@ -120,6 +120,10 @@ struct PendingReply {
 // mid-answer, and the web server answers nobody else meanwhile (the Ampel turns red). Here an answer is given up when
 // nothing moves for 1.5 s. Web task only; counters for the health report.
 std::atomic<uint32_t> sendMaxMs{0}, sendAborts{0}, wlanDrops{0}, probeAnswers{0};
+// Smooth motion: while something moves the picture is rebuilt every 40 ms (about 25 per second), otherwise every 250
+// ms; it is only painted when it changed. drawMs/drawMaxMs: time to paint one picture (health report).
+bool drawFast = false;
+std::atomic<uint32_t> drawMs{0}, drawMaxMs{0}; // written by the loop outside the lock, read by the web task
 // Names of all hosts point to the Dial, so tablets can run their internet check against it (probes.hpp).
 DNSServer dns;
 // Last WLAN joins/leaves (seconds since start, joined?, end of the MAC); written by the WiFi event task.
@@ -396,6 +400,8 @@ Json state(bool withCards = true) {
         {"sendAborts", sendAborts.load()},
         {"sendMaxMs", sendMaxMs.load()},
         {"probeAnswers", probeAnswers.load()},
+        {"drawMs", drawMs.load()},
+        {"drawMaxMs", drawMaxMs.load()},
         {"rssiMin", rssiMin},
         {"stations", stations()},
         {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
@@ -556,6 +562,8 @@ Json healthJson() {
             {"sendAborts", sendAborts.load()},
             {"sendMaxMs", sendMaxMs.load()},
             {"probeAnswers", probeAnswers.load()},
+            {"drawMs", drawMs.load()},
+            {"drawMaxMs", drawMaxMs.load()},
             {"rssiMin", rssiMin},
             {"stations", stations()},
             {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
@@ -1092,6 +1100,7 @@ bool buildScreen(Json &list) {
   if (M5.BtnA.isPressed() && configValid)
     x.holdMs = int(std::min<uint32_t>(M5.BtnA.getUpdateMsec() - M5.BtnA.lastChange(), 20000));
   list = engine.dialScreen(now, x);
+  drawFast = engine.animating(now, x) || ota.active || (feedbackAt && now - feedbackAt < 600);
   auto dump = list.dump();
   if (dump == lastScreen) return false;
   lastScreen = dump;
@@ -1100,10 +1109,11 @@ bool buildScreen(Json &list) {
 // Painting (SPI) runs without the lock, so the web task can answer meanwhile.
 void draw() {
   uint64_t now = nowMs();
-  if (now - drawAt < 250) return;
+  if (now - drawAt < (drawFast ? 40 : 250)) return;
   drawAt = now;
   Json list;
   if (!buildScreen(list)) return;
+  uint64_t t0 = nowMs();
   M5.Display.startWrite();
   for (int y = 0; y < 240; y += stripH) {
     mensa::raster::Target t{strip, 240, y, stripH, true};
@@ -1111,6 +1121,8 @@ void draw() {
     M5.Display.pushImage(0, y, 240, stripH, (const lgfx::swap565_t *)strip);
   }
   M5.Display.endWrite();
+  drawMs = uint32_t(nowMs() - t0);
+  if (drawMs > drawMaxMs) drawMaxMs = drawMs.load();
 }
 void webTask(void *) {
   for (;;) {

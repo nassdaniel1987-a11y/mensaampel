@@ -55,3 +55,11 @@ test('Gesundheit: Signalstärke der Tablets', () => {
     undefined,
   );
 });
+
+test('Gesundheit: Zeit zum Zeichnen eines Dial-Bildes', () => {
+  const r = healthRows({ ...good, health: { ...good.health, drawMs: 20, drawMaxMs: 55 } }).find(
+    x => x.name === 'Bild zeichnen',
+  );
+  assert.equal(r.level, 1);
+  assert.match(r.value, /20 ms.*55 ms/);
+});
