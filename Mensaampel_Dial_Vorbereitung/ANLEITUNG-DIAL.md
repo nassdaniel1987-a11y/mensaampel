@@ -1,6 +1,6 @@
 # Mensaampel auf dem M5Stack Dial
 
-**Vorbereitete Geräteversion 0.17.6-preview · Stand 02.10.2026**
+**Vorbereitete Geräteversion 0.17.7-preview · Stand 02.10.2026**
 
 > **Bedienung im Alltag:** siehe die bebilderte [Bedienungsanleitung](BEDIENUNG-DIAL.html) (auch als PDF) und die [Kurzkarte zum Aufkleben](DIAL-KURZKARTE.html). Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases
 
@@ -244,7 +244,7 @@ Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspie
 2. Tablet mit dem **WLAN des Dials** verbinden, `http://192.168.4.1` öffnen und anmelden.
 3. **Gerät → Firmware-Update** → Datei auswählen. Das Tablet prüft sie und zeigt „Version alt → neu“.
 4. **Update starten** und bestätigen. Am Dial läuft ein Ring mit Prozentzahl („UPDATE“), danach startet es neu. Nicht ausschalten. Dauer etwa eine Minute; so lange ist der Einlass unterbrochen und die Ampel rot.
-5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen.
+5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen. Ab 0.17.7 laden die übrigen Tablets (auch die Ampel) die neue Oberfläche von selbst; bei älteren Versionen die Ampelseite einmal neu laden.
 
 Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.
 
@@ -296,6 +296,10 @@ Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets
 **Hilft das nicht:** WLAN-Kanal des Dials wechseln (Gerät → Einstellungen → WLAN-Kanal 1, 6 oder 11; einen anderen als das Heim- oder Schul-WLAN nehmen) und die Prüfung über USB wiederholen. Der Bericht zeigt jetzt jede Trennung mit Uhrzeit und die Signalstärke: schwaches Signal → Tablet näher ans Dial; gutes Signal → Einstellung am Tablet.
 
 **Immer:** Auf dem Ampel-Tablet nur **einen** Tab mit `/ampel` offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).
+
+## Neu in 0.17.7
+
+- **Tablets holen sich nach einem Update die neue Oberfläche von selbst:** Bisher lief die Ampelseite nach einem Dial-Update mit dem alten Stand weiter, bis jemand sie neu geladen hat (z. B. fehlten deshalb zunächst Japanisch und Chinesisch). Jetzt merkt jedes Tablet die neue Version und lädt die Seite einmal neu; die Anmeldung bleibt. **Einmalig** beim Wechsel auf 0.17.7 die Ampelseite noch von Hand neu laden.
 
 ## Neu in 0.17.6
 

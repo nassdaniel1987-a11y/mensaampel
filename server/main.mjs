@@ -265,7 +265,13 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       if (Date.now() < offlineUntil) return reply(503, { message: 'Simulierte Verbindungsunterbrechung.' });
       ampelSeenAt = Date.now();
       const s = state();
-      return reply(200, { signal: s.signal, storageError: s.storageError, now: s.now, clockValid: s.flow.clockValid });
+      return reply(200, {
+        signal: s.signal,
+        storageError: s.storageError,
+        now: s.now,
+        clockValid: s.flow.clockValid,
+        version: VERSION,
+      });
     }
     if (url.pathname === '/api/state') {
       if (Date.now() < offlineUntil) return reply(503, { message: 'Simulierte Verbindungsunterbrechung.' });

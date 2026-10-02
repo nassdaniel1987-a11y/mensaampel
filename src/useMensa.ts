@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { State, Command, Info } from './types';
 import { mergeCards } from './state-merge.mjs';
+import { needsReload } from './version-check.mjs';
+import { VERSION } from './version.mjs';
 export function useMensa() {
   const [state, setState] = useState<State | null>(null),
     [info, setInfo] = useState<Info | null>(null),
@@ -69,6 +71,23 @@ export function useMensa() {
           return;
         }
         const s = await r.json();
+        // The Dial was updated while this page stayed open: load the new page once (sign-in stays in sessionStorage).
+        const serverVersion = s.version ?? s.device?.version;
+        let reloadedFor: string | null = null;
+        try {
+          reloadedFor = sessionStorage.getItem('mensa-reloaded-for');
+        } catch {
+          /* no storage: reload is still limited by the version check */
+        }
+        if (alive && !locked.current && needsReload(serverVersion, VERSION, reloadedFor)) {
+          try {
+            sessionStorage.setItem('mensa-reloaded-for', serverVersion);
+          } catch {
+            /* see above */
+          }
+          location.reload();
+          return;
+        }
         if (alive && generation === epoch.current && !locked.current) {
           if (s.token) token.current = s.token;
           if (publicView) needClock.current = s.clockValid === false;

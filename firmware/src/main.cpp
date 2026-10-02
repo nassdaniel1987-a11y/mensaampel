@@ -352,7 +352,8 @@ Json publicSignal() {
   return {{"signal", signal},
           {"storageError", signalBlocked() ? "System nicht bereit." : ""},
           {"now", now},
-          {"clockValid", clockOk}};
+          {"clockValid", clockOk},
+          {"version", MENSA_VERSION}};
 }
 // Why the Dial last started (shown under Gerät; after a crash also briefly on the Dial).
 std::string resetReason = "-";
