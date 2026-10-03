@@ -402,7 +402,7 @@ public:
       auto pw = wrap("Kennwort: " + x.wifi, {span(94, 1), span(110, 1)});
       for (size_t i = 0; i < pw.size(); i++)
         list.push_back(text(120, i ? 110 : 94, 1, white, pw[i]));
-      list.push_back(text(120, 134, 1, yellow, "http://192.168.4.1"));
+      list.push_back(text(120, 134, 1, yellow, fit(x.url, 1, span(134, 1))));
       if (!x.configured) {
         list.push_back(text(120, 160, 1, white, "Einrichtungscode:"));
         list.push_back(text(120, 184, 2, yellow, x.setupCode));

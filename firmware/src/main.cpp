@@ -126,6 +126,21 @@ bool drawFast = false;
 std::atomic<uint32_t> drawMs{0}, drawMaxMs{0}; // written by the loop outside the lock, read by the web task
 // Names of all hosts point to the Dial, so tablets can run their internet check against it (probes.hpp).
 DNSServer dns;
+// Router mode (netconfig.hpp, 0.18.0). routerHost: the Dial's address in the router network, fixed from the start (a
+// change restarts the Dial). routerUp is written by the WiFi event task. rescue: own WLAN opened in addition because
+// the router was unreachable for 30 s. dnsWanted: address the DNS answers with (web task restarts the DNS on change).
+std::string routerHost;
+std::atomic<bool> routerUp{false}, rescue{false};
+std::atomic<uint32_t> dnsWanted{0};
+uint64_t routerSeenAt = 0, routerRetryAt = 0;
+IPAddress toIp(uint32_t v) {
+  return IPAddress(v >> 24, v >> 16 & 255, v >> 8 & 255, v & 255);
+}
+uint32_t ipValue(const std::string &text) {
+  uint32_t v = 0;
+  mensa::net::parseIp(text, v);
+  return v;
+}
 // Last WLAN joins/leaves (seconds since start, joined?, end of the MAC); written by the WiFi event task.
 struct WlanEvent {
   uint32_t at;
@@ -167,6 +182,8 @@ Json wlanEvents() {
 int rssiMin = 0;
 Json stations() {
   Json list = Json::array();
+  // Router mode: the Dial's own connection to the router (tablets there are not visible to the Dial).
+  if (routerUp) list.push_back({{"mac", "Router"}, {"rssi", WiFi.RSSI()}});
   wifi_sta_list_t sta{};
   if (esp_wifi_ap_get_sta_list(&sta) != ESP_OK) return list;
   for (int i = 0; i < sta.num; i++)
@@ -316,7 +333,7 @@ void reply(int code, const Json &value) {
 }
 bool localOrigin() {
   String host = web.hostHeader();
-  if (host != "192.168.4.1" && host != "192.168.4.1:80") return false;
+  if (!mensa::net::hostAllowed(host.c_str(), routerHost)) return false;
   String origin = web.header("Origin");
   return origin.isEmpty() || origin == String("http://") + host;
 }
@@ -373,6 +390,13 @@ Json state(bool withCards = true) {
       {"readerError", reader.error},
       {"ssid", config.ssid},
       {"channel", config.channel},
+      {"wifiMode", config.wifiMode},
+      {"routerSsid", config.router.ssid},
+      {"routerIp", config.router.ip},
+      {"routerGateway", config.router.gateway},
+      {"routerMask", config.router.mask},
+      {"routerConnected", routerUp.load()},
+      {"rescue", rescue.load()},
       {"captureTarget", captureTarget},
       {"capturedUid", capturedUid},
       {"captureUntil", captureUntil},
@@ -404,6 +428,7 @@ Json state(bool withCards = true) {
         {"drawMs", drawMs.load()},
         {"drawMaxMs", drawMaxMs.load()},
         {"rssiMin", rssiMin},
+        {"router", config.routerMode()},
         {"stations", stations()},
         {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
       {"clients", WiFi.softAPgetStationNum()},
@@ -566,6 +591,7 @@ Json healthJson() {
             {"drawMs", drawMs.load()},
             {"drawMaxMs", drawMaxMs.load()},
             {"rssiMin", rssiMin},
+            {"router", config.routerMode()},
             {"stations", stations()},
             {"minBlock", health.minBlock == UINT32_MAX ? ESP.getMaxAllocHeap() : health.minBlock}}},
           {"freeHeap", ESP.getFreeHeap()},
@@ -575,6 +601,9 @@ Json healthJson() {
           {"webRequests", webRequests},
           {"ampelAgo", ampelSeenAt ? int((nowMs() - ampelSeenAt) / 1000) : -1},
           {"clients", WiFi.softAPgetStationNum()},
+          {"wifiMode", config.wifiMode},
+          {"routerConnected", routerUp.load()},
+          {"rescue", rescue.load()},
           {"readerHealthy", reader.healthy},
           {"storageError", storage.error},
           {"needsReview", needsReview},
@@ -660,6 +689,21 @@ Json command(const Json &j) {
     if (channel != 1 && channel != 6 && channel != 11) return result(false, "WLAN-Kanal: 1, 6 oder 11.");
     next.channel = channel;
     next.ssid = ssid;
+    next.wifiMode = j.value("wifiMode", config.wifiMode);
+    if (next.wifiMode != "ap" && next.wifiMode != "router") return result(false, "WLAN-Art: eigenes WLAN oder Router.");
+    auto routerText = [&](const char *key, std::string &into) {
+      if (j.contains(key) && j[key].is_string()) into = j[key].get<std::string>();
+    };
+    routerText("routerSsid", next.router.ssid);
+    routerText("routerIp", next.router.ip);
+    routerText("routerGateway", next.router.gateway);
+    routerText("routerMask", next.router.mask);
+    // Empty router password: keep the saved one (like the own WLAN password).
+    if (!j.value("routerPassword", std::string()).empty()) next.router.password = j["routerPassword"];
+    if (next.routerMode()) {
+      auto problem = mensa::net::check(next.router);
+      if (!problem.empty()) return result(false, problem);
+    }
     if (!wifi.empty()) next.wifiPassword = wifi;
     if (!password.empty()) {
       next.salt = randomKey();
@@ -669,14 +713,23 @@ Json command(const Json &j) {
     next.setupCode.clear();
     if (!next.save()) return result(false, "Geräteeinstellungen konnten nicht gespeichert werden.");
     bool wifiChanged =
-        next.ssid != config.ssid || next.wifiPassword != config.wifiPassword || next.channel != config.channel;
+        next.ssid != config.ssid || next.wifiPassword != config.wifiPassword || next.channel != config.channel ||
+        next.wifiMode != config.wifiMode ||
+        (next.routerMode() && (next.router.ssid != config.router.ssid ||
+                               next.router.password != config.router.password || next.router.ip != config.router.ip ||
+                               next.router.gateway != config.router.gateway || next.router.mask != config.router.mask));
     config = next;
     // New password: other tablets must sign in again; this one stays.
     if (!password.empty()) sessions.keepOnly(web.header("X-Mensa-Token").c_str());
     if (wifiChanged) {
       engine.command({{"type", "restart"}}, nowMs());
       restartAt = nowMs() + 2500;
-      return result(true, "Gespeichert. Gerät startet neu. Tablet anschließend mit dem neuen WLAN verbinden.");
+      if (next.routerMode())
+        return result(true, "Gespeichert. Dial startet neu und verbindet sich mit dem Router. Tablet mit dem "
+                            "Router-WLAN verbinden und http://" +
+                                next.router.ip + " öffnen.");
+      return result(true, "Gespeichert. Gerät startet neu. Tablet mit dem WLAN des Dials verbinden und "
+                          "http://192.168.4.1 öffnen.");
     }
     return result(true, "Gerät eingerichtet. Jetzt Leser prüfen und echte Karten zuordnen.");
   }
@@ -1058,8 +1111,11 @@ bool buildScreen(Json &list) {
     x.screen = "broken";
   else if (!config.configured || now < showCredentialsUntil) {
     x.screen = "credentials";
-    x.ssid = config.ssid;
-    x.wifi = config.wifiPassword;
+    // Router mode: the router WLAN and the Dial's address there; while the rescue WLAN is needed, its data.
+    bool viaRouter = config.routerMode() && (routerUp || !rescue);
+    x.ssid = viaRouter ? config.router.ssid : config.ssid;
+    x.wifi = viaRouter ? config.router.password : config.wifiPassword;
+    x.url = std::string("http://") + (viaRouter ? config.router.ip : mensa::net::apIp);
     x.setupCode = config.setupCode;
     x.configured = config.configured;
     x.hint = crashHint;
@@ -1074,7 +1130,8 @@ bool buildScreen(Json &list) {
                "Lesungen: " + std::to_string(testReads) +
                    (testAt ? "  vor " + std::to_string((now - testAt) / 1000) + " s" : ""),
                "Ring: " + std::to_string(testTurn) + "  Taste: " + testButton,
-               "Tablets: " + std::to_string(WiFi.softAPgetStationNum()) +
+               (config.routerMode() ? std::string("Router: ") + (routerUp ? "ok" : "fehlt")
+                                    : "Tablets: " + std::to_string(WiFi.softAPgetStationNum())) +
                    "  Ampel: " + (ampelSeenAt && !ampelLost() ? "ok" : "-"),
                "Speicher frei: " + std::to_string(ESP.getFreeHeap() / 1024) + " KB",
                "Uhr: " + std::string(clock),
@@ -1087,12 +1144,14 @@ bool buildScreen(Json &list) {
       x.hint = crashHint;
     else
       x.hint = !webStarted && config.configured ? "Webserver aus: neu starten"
-               : !reader.healthy                ? "Leser prüfen!"
-               : !storage.error.empty()         ? "Speicher prüfen!"
-               : !captureTarget.empty()         ? "Einlernen am Tablet"
-               : ampelLost()                    ? (ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!")
-               : noClock                        ? "Uhr nicht gestellt"
-                                                : "";
+               : config.routerMode() && !routerUp
+                   ? (rescue ? "Router fehlt: eigenes WLAN an" : "Verbinde mit Router ...")
+               : !reader.healthy        ? "Leser prüfen!"
+               : !storage.error.empty() ? "Speicher prüfen!"
+               : !captureTarget.empty() ? "Einlernen am Tablet"
+               : ampelLost()            ? (ampelSeenAt ? "Ampel draußen getrennt!" : "Ampel nicht verbunden!")
+               : noClock                ? "Uhr nicht gestellt"
+                                        : "";
     if (feedbackAt && now - feedbackAt < 3500) {
       x.feedback = feedback;
       x.feedbackOk = feedbackOk;
@@ -1126,7 +1185,15 @@ void draw() {
   if (drawMs > drawMaxMs) drawMaxMs = drawMs.load();
 }
 void webTask(void *) {
+  uint32_t dnsIp = 0;
   for (;;) {
+    // Start or move the DNS answers (only here: the DNS belongs to this task).
+    if (dnsWanted != dnsIp) {
+      dnsIp = dnsWanted;
+      dns.stop();
+      dns.setTTL(60);
+      dns.start(53, "*", toIp(dnsIp));
+    }
     dns.processNextRequest();
     web.handleClient();
     vTaskDelay(1);
@@ -1175,22 +1242,49 @@ void setup() {
   loginNonce = randomKey();
   if (configValid) {
     reader.begin(config.reader);
-    WiFi.mode(WIFI_AP);
     WiFi.setSleep(false);
-    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
     // Tablets joining/leaving the Dial WLAN (health report). Runs in the event task: only the small locked log.
     WiFi.onEvent(
         [](arduino_event_id_t, arduino_event_info_t info) { wlanEvent(false, info.wifi_ap_stadisconnected.mac); },
         ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
     WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t info) { wlanEvent(true, info.wifi_ap_staconnected.mac); },
                  ARDUINO_EVENT_WIFI_AP_STACONNECTED);
-    if (!WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4)) {
+    bool started;
+    if (config.routerMode()) {
+      // Router mode: join with the fixed address; the DNS answers every name with it (the router names the Dial as
+      // its DNS server), so the tablets' internet check is answered (probes.hpp).
+      routerHost = config.router.ip;
+      WiFi.onEvent(
+          [](arduino_event_id_t, arduino_event_info_t info) {
+            routerUp = true;
+            wlanEvent(true, info.wifi_sta_connected.bssid);
+          },
+          ARDUINO_EVENT_WIFI_STA_CONNECTED);
+      WiFi.onEvent(
+          [](arduino_event_id_t, arduino_event_info_t info) {
+            if (routerUp.exchange(false)) wlanEvent(false, info.wifi_sta_disconnected.bssid);
+          },
+          ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+      WiFi.mode(WIFI_STA);
+      WiFi.setSleep(false);
+      WiFi.setAutoReconnect(true);
+      uint32_t ip = ipValue(config.router.ip), gateway = ipValue(config.router.gateway);
+      started = WiFi.config(toIp(ip), toIp(gateway), toIp(ipValue(config.router.mask)), toIp(gateway));
+      if (started) WiFi.begin(config.router.ssid.c_str(), config.router.password.c_str());
+      routerSeenAt = routerRetryAt = nowMs();
+      dnsWanted = ip;
+    } else {
+      WiFi.mode(WIFI_AP);
+      WiFi.setSleep(false);
+      WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+      started = WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4);
+      dnsWanted = ipValue(mensa::net::apIp);
+    }
+    if (!started) {
       configValid = false;
       feedback = "WLAN konnte nicht gestartet werden.";
     } else {
       configureWeb();
-      dns.setTTL(60);
-      dns.start(53, "*", IPAddress(192, 168, 4, 1));
       webStarted = true;
     }
   }
@@ -1234,6 +1328,31 @@ void loop() {
   } catch (...) { lastScreen.clear(); }
   delay(2);
 }
+// Router mode: try again every minute while the router is missing (the library gives up after a wrong password); after
+// 30 s without router open the own WLAN in addition (rescue: the Dial stays reachable to fix the settings). The rescue
+// WLAN stays on until the next restart.
+void routerStep(uint64_t now) {
+  if (!webStarted || !config.routerMode()) return;
+  if (routerUp) {
+    routerSeenAt = now;
+    if (rescue) dnsWanted = ipValue(config.router.ip);
+    return;
+  }
+  if (now - routerRetryAt >= 60000) {
+    routerRetryAt = now;
+    WiFi.reconnect();
+  }
+  if (!rescue && mensa::net::rescueNeeded(true, false, routerSeenAt, now)) {
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+    if (WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4)) {
+      rescue = true;
+      note("Router nicht gefunden. Eigenes WLAN ist an.", false);
+    }
+  }
+  // Tablets in the rescue WLAN need the DNS answer 192.168.4.1.
+  if (rescue) dnsWanted = ipValue(mensa::net::apIp);
+}
 // Everything that reads or changes shared state, once per loop, under the state lock.
 void step(uint64_t now) {
   otaHealthy(now);
@@ -1246,7 +1365,12 @@ void step(uint64_t now) {
     if (esp_wifi_ap_get_sta_list(&sta) == ESP_OK)
       for (int i = 0; i < sta.num; i++)
         if (sta.sta[i].rssi < 0 && (rssiMin == 0 || sta.sta[i].rssi < rssiMin)) rssiMin = sta.sta[i].rssi;
+    if (routerUp) {
+      int rssi = WiFi.RSSI();
+      if (rssi < 0 && (rssiMin == 0 || rssi < rssiMin)) rssiMin = rssi;
+    }
   }
+  routerStep(now);
   // An upload that stopped (tablet gone) must not keep the entrance blocked.
   if (ota.active && !ota.ok && now - ota.lastAt > 30000) {
     if (Update.isRunning()) Update.abort();

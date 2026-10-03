@@ -5,7 +5,7 @@ Ab Firmware **0.17.1**. Das Dial hängt per **USB-Datenkabel** am Windows-PC; de
 ## Für den Nutzer (vorher)
 
 1. Dial per USB-Datenkabel an den PC (dasselbe Kabel wie bei der Installation).
-2. **Beide** Tablets mit dem Dial-WLAN verbinden: Ampel-Tablet mit `/ampel`, Betreuungs-Tablet angemeldet (je nur **ein** Browserfenster). Vorher am Ampel-Tablet „Ampel-Tablet: WLAN stabil halten“ aus `ANLEITUNG-DIAL.md` einstellen.
+2. **Beide** Tablets mit dem Dial-WLAN verbinden (im Router-Betrieb mit dem Router-WLAN, Adresse des Dials z. B. http://192.168.8.20): Ampel-Tablet mit `/ampel`, Betreuungs-Tablet angemeldet (je nur **ein** Browserfenster). Vorher am Ampel-Tablet „Ampel-Tablet: WLAN stabil halten“ aus `ANLEITUNG-DIAL.md` einstellen.
 3. Claude Code am PC im Ordner des Projekts starten und schreiben: *„Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“*
 4. Während der Prüfung (10 Minuten) gern normal weiterarbeiten oder Karten scannen – nur das Dial nicht ausstecken.
 

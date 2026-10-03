@@ -144,6 +144,8 @@ struct DialExtras {
   std::string hint, feedback;
   bool feedbackOk = true;
   std::string screen, ssid, wifi, setupCode;
+  // Address the tablets open (own WLAN; in router mode the Dial's address in the router network).
+  std::string url = "http://192.168.4.1";
   bool configured = true;
   std::vector<std::string> lines;
   // How long the button has been held so far (ms); the Dial shows a progress ring towards 3 s (and 10 s).

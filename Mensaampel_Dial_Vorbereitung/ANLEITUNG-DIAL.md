@@ -297,6 +297,75 @@ Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets
 
 **Immer:** Auf dem Ampel-Tablet nur **einen** Tab mit `/ampel` offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).
 
+## Router einrichten (ab 0.18, freiwillig)
+
+**Du hast die Wahl.** Ohne Router läuft alles wie bisher: Das Dial macht sein eigenes WLAN auf (Standard). Mit einem eigenen kleinen Router (ohne Internet) meldet sich das Dial dort an, und die Tablets verbinden sich ebenfalls mit dem Router. Vorteile: Der Router funkt stärker und weiter, und Tablets bleiben meist stabiler verbunden. Zurück zum eigenen WLAN geht jederzeit (Schritt E).
+
+**Was du brauchst:** einen kleinen Reiserouter, empfohlen **GL.iNet GL-SFT1200 „Opal“** (ca. 35 €, Strom über USB-C, Oberfläche auf Deutsch). Ein Internetanschluss ist **nicht** nötig. Die Anleitung passt zur Router-Software 4.x; heißen Menüpunkte bei dir etwas anders, mach ein Foto vom Bildschirm und frag nach.
+
+### A · Router auspacken und anmelden
+1. Router mit dem USB-C-Netzteil an den Strom, etwa 1 Minute warten. Kein Kabel in die Buchsen „WAN“ oder „LAN“ stecken.
+2. Laptop oder Tablet mit dem WLAN des Routers verbinden. Name und Kennwort stehen auf dem **Aufkleber unten** am Router (z. B. „GL-SFT1200-xxx“).
+3. Im Browser **http://192.168.8.1** öffnen.
+4. **Sprache: Deutsch** wählen und ein **Admin-Kennwort** für den Router festlegen (mindestens 10 Zeichen). **Aufschreiben** – es ist nicht das WLAN-Kennwort.
+5. Fragt der Router nach Internet oder Updates: **überspringen**.
+
+### B · WLAN des Routers einstellen
+Menü links: **DRAHTLOS** (bzw. „WLAN“).
+1. Bei **2,4 GHz WLAN**: **WLAN-Name (SSID)** z. B. `Mensaampel`, **WLAN-Kennwort** mindestens 8 Zeichen (z. B. 12 Zeichen aus Buchstaben und Zahlen). **Aufschreiben.**
+2. Dort auf **Erweitert** bzw. das Zahnrad: **Kanal fest auf 1, 6 oder 11** (nicht „Auto“; am besten einen anderen als das Schul-WLAN). „AP-Isolation“ muss **aus** sein (ist sie ab Werk).
+3. **5 GHz WLAN: ausschalten** (das Dial kann nur 2,4 GHz; so landen alle Tablets im selben Netz).
+4. **Gast-WLAN: aus** lassen.
+5. **Übernehmen.** Der Router startet das WLAN neu – den Laptop bzw. das Tablet jetzt mit dem **neuen** Namen und Kennwort verbinden und wieder http://192.168.8.1 öffnen.
+
+### C · Dial als DNS-Server eintragen
+Damit die Tablets nicht „Kein Internet“ melden und das WLAN verlassen, beantwortet das Dial ihre Internetprüfung. Dafür muss der Router die Anfragen ans Dial geben:
+1. Menü **NETZWERK → DNS**.
+2. **DNS-Rebinding-Angriffsschutz** (bzw. „Rebind-Schutz“): **ausschalten**. Wichtig – sonst verwirft der Router die Antworten des Dials.
+3. **Modus: Manuell** (bzw. „Benutzerdefinierter DNS-Server“) und als DNS-Server **192.168.8.20** eintragen (das ist gleich die Adresse des Dials).
+4. **Übernehmen.**
+
+Mehr ist am Router nicht einzustellen. Eine feste Adresse für das Dial muss im Router **nicht** eingetragen werden: 192.168.8.20 liegt außerhalb des Bereichs, den der Router selbst vergibt (ab 192.168.8.100).
+
+### D · Dial auf den Router umstellen
+1. Das Betreuungs-Tablet noch **mit dem WLAN des Dials** verbinden (wie bisher) und anmelden.
+2. **Gerät → WLAN und Zugang → WLAN-Art: „WLAN eines Routers“**.
+3. **WLAN-Name des Routers** und **WLAN-Kennwort des Routers** aus Schritt B eintragen. Adresse des Dials `192.168.8.20`, Adresse des Routers `192.168.8.1`, Netzmaske `255.255.255.0` sind schon vorausgefüllt – so lassen.
+4. **Zugang speichern.** Das Dial startet neu und zeigt kurz „Verbinde mit Router …“.
+5. Alle Tablets (Ampel und Betreuung) mit dem **Router-WLAN** verbinden und öffnen:
+   - Betreuung: **http://192.168.8.20**
+   - Ampel: **http://192.168.8.20/ampel** (Lesezeichen bzw. „Zum Home-Bildschirm“ neu anlegen; die alte Adresse 192.168.4.1 geht jetzt nicht mehr)
+6. Die Einstellungen aus „Ampel-Tablet: WLAN stabil halten“ gelten genauso für das Router-WLAN (dort beim Router-Netz statt beim Dial-Netz).
+
+**Adresse vergessen?** Am Dial Betreuerkarte → „WLAN-Daten“ (oder Taste 3 s halten): Das Dial zeigt Router-Name, Kennwort und seine Adresse.
+
+### E · Wenn etwas nicht klappt (Rettung)
+Findet das Dial den Router **30 Sekunden** lang nicht (Router aus, Name oder Kennwort falsch), macht es **zusätzlich sein eigenes WLAN** wieder auf. Das Display zeigt dann „Router fehlt: eigenes WLAN an“.
+1. Tablet mit dem **eigenen WLAN des Dials** verbinden (Name und Kennwort zeigt das Dial unter „WLAN-Daten“) und **http://192.168.4.1** öffnen.
+2. Unter Gerät → WLAN und Zugang die Router-Daten korrigieren – oder **WLAN-Art: „Eigenes WLAN des Dials“** wählen, um ganz zurückzuwechseln – und speichern.
+
+Kommt der Router später wieder, verbindet sich das Dial von selbst (es versucht es jede Minute).
+
+| Was du siehst | Was tun |
+|---|---|
+| Dial: „Verbinde mit Router …“ bleibt stehen | Router an? Name und Kennwort genau gleich wie im Router (Groß-/Kleinschreibung)? 5 GHz-only-Netz? → 2,4 GHz an. |
+| Tablet im Router-WLAN, aber Seite lädt nicht | Adresse genau **http://192.168.8.20** (nicht https). Gast-WLAN? → normales WLAN nehmen. AP-Isolation aus? |
+| Tablet meldet „Kein Internet“ und wechselt | Schritt C prüfen: DNS-Server 192.168.8.20 **und** Rebind-Schutz aus. |
+| Gesundheit heute: „Verbindung zum Router verloren“ | Router näher ans Dial, Router-Netzteil prüfen, festen Kanal 1/6/11 einstellen. |
+| Anderer Router, z. B. FRITZ!Box | Siehe unten. |
+
+### Anderer Router (Kurzfassung)
+Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Client-Isolation aus, **DNS-Server für die Geräte = Adresse des Dials**, Rebind-Schutz aus bzw. Ausnahme für die Adresse. Die Adresse des Dials muss im Netz des Routers liegen, aber außerhalb des Bereichs, den der Router selbst vergibt.
+- **FRITZ!Box** (Adresse meist 192.168.178.1): Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Einstellungen: DHCP-Bereich z. B. ab .100 lassen, **Lokaler DNS-Server: 192.168.178.20**. Im Tablet dann Adresse des Dials `192.168.178.20`, Router `192.168.178.1`.
+- Router mit Internet: geht auch, aber dann das Dial **nicht** als DNS-Server eintragen (sonst haben alle Geräte kein Internet mehr).
+
+## Neu in 0.18.0
+
+- **WLAN über einen eigenen Router (freiwillig):** Unter Gerät → WLAN und Zugang lässt sich „WLAN eines Routers“ wählen. Das Dial meldet sich dann mit fester Adresse (Standard http://192.168.8.20) beim Router an, die Tablets verbinden sich mit dem Router. Genaue Schritte: „Router einrichten“. Standard bleibt das eigene WLAN des Dials.
+- **Rettung:** Findet das Dial den Router 30 s nicht, öffnet es zusätzlich sein eigenes WLAN (http://192.168.4.1), damit man die Einstellung korrigieren kann.
+- „Gesundheit heute“ und die Prüfung über USB zeigen im Router-Betrieb die Verbindung des Dials zum Router und deren Signalstärke.
+- Noch nicht am echten Router geprüft – bitte nach dem Einrichten die Prüfung über USB einmal laufen lassen.
+
 ## Neu in 0.17.7
 
 - **Tablets holen sich nach einem Update die neue Oberfläche von selbst:** Bisher lief die Ampelseite nach einem Dial-Update mit dem alten Stand weiter, bis jemand sie neu geladen hat (z. B. fehlten deshalb zunächst Japanisch und Chinesisch). Jetzt merkt jedes Tablet die neue Version und lädt die Seite einmal neu; die Anmeldung bleibt. **Einmalig** beim Wechsel auf 0.17.7 die Ampelseite noch von Hand neu laden.

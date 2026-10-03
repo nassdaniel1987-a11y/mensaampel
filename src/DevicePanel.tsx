@@ -74,7 +74,8 @@ export function DevicePanel({
   const d = s.device!;
   const [selected, setSelected] = useState('sim:K01'),
     [reader, setReader] = useState(d.reader),
-    [localError, setLocalError] = useState('');
+    [localError, setLocalError] = useState(''),
+    [wifiMode, setWifiMode] = useState<'ap' | 'router'>(d.wifiMode ?? 'ap');
   const disabled = busy || !connected;
   const bound = s.cards.filter(c => !c.uid.startsWith('sim:')).length;
   const effectiveSelected = s.cards.some(c => c.uid === selected)
@@ -102,7 +103,17 @@ export function DevicePanel({
           <h2>
             <Wifi /> WLAN und Zugang
           </h2>
-          <p>Das Tablet verbindet sich mit dem WLAN des Dial. Internet ist nicht erforderlich.</p>
+          <p>
+            {d.wifiMode === 'router'
+              ? `Das Dial ist im WLAN des Routers „${d.routerSsid}“ unter http://${d.routerIp}. Internet ist nicht erforderlich.`
+              : 'Das Tablet verbindet sich mit dem WLAN des Dial. Internet ist nicht erforderlich.'}
+          </p>
+          {d.wifiMode === 'router' && (
+            <p className={`flow-status${d.rescue && !d.routerConnected ? ' warn' : ''}`}>
+              Router: {d.routerConnected ? 'verbunden' : 'nicht verbunden'}
+              {d.rescue ? ' · eigenes WLAN des Dials als Rettung an' : ''}
+            </p>
+          )}
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -120,9 +131,74 @@ export function DevicePanel({
                 wifiPassword: String(data.get('wifiPassword')),
                 channel: Number(data.get('channel') || 1),
                 adminPassword: password,
+                wifiMode,
+                ...(wifiMode === 'router'
+                  ? {
+                      routerSsid: String(data.get('routerSsid')),
+                      routerPassword: String(data.get('routerPassword') ?? ''),
+                      routerIp: String(data.get('routerIp')),
+                      routerGateway: String(data.get('routerGateway')),
+                      routerMask: String(data.get('routerMask')),
+                    }
+                  : {}),
               });
             }}
           >
+            <label>
+              WLAN-Art
+              <select value={wifiMode} onChange={e => setWifiMode(e.target.value as 'ap' | 'router')}>
+                <option value="ap">Eigenes WLAN des Dials (Standard)</option>
+                <option value="router">WLAN eines Routers</option>
+              </select>
+            </label>
+            {wifiMode === 'router' && (
+              <fieldset className="router-fields">
+                <legend>Router</legend>
+                <p className="hint">
+                  Zuerst den Router einrichten (Anleitung „Router einrichten“). Die Werte unten passen für einen GL.iNet
+                  Router. Findet das Dial den Router nicht, macht es nach 30 Sekunden sein eigenes WLAN wieder auf.
+                </p>
+                <label>
+                  WLAN-Name des Routers
+                  <input name="routerSsid" defaultValue={d.routerSsid} required maxLength={32} />
+                </label>
+                <label>
+                  WLAN-Kennwort des Routers
+                  <input
+                    name="routerPassword"
+                    type="password"
+                    minLength={8}
+                    maxLength={63}
+                    required={!d.routerSsid}
+                    autoComplete="new-password"
+                    placeholder={d.routerSsid ? 'Leer lassen: bisheriges Kennwort behalten' : ''}
+                  />
+                </label>
+                <label>
+                  Adresse des Dials
+                  <input name="routerIp" defaultValue={d.routerIp || '192.168.8.20'} required inputMode="decimal" />
+                </label>
+                <label>
+                  Adresse des Routers
+                  <input
+                    name="routerGateway"
+                    defaultValue={d.routerGateway || '192.168.8.1'}
+                    required
+                    inputMode="decimal"
+                  />
+                </label>
+                <label>
+                  Netzmaske
+                  <input
+                    name="routerMask"
+                    defaultValue={d.routerMask || '255.255.255.0'}
+                    required
+                    inputMode="decimal"
+                  />
+                </label>
+              </fieldset>
+            )}
+            {wifiMode === 'router' && <p className="hint">Eigenes WLAN des Dials (Rettung, falls der Router fehlt):</p>}
             <label>
               WLAN-Name
               <input name="ssid" defaultValue={d.ssid} required maxLength={32} />
@@ -174,8 +250,10 @@ export function DevicePanel({
               </p>
             )}
             <p className="hint">
-              Eine WLAN-Änderung startet das Gerät neu. Danach das Tablet mit dem neuen WLAN verbinden. Das
-              WLAN-Kennwort lässt sich am Dial anzeigen: Taste 3 Sekunden halten und loslassen.
+              Eine WLAN-Änderung startet das Gerät neu. Danach das Tablet mit dem neuen WLAN verbinden und die Adresse
+              öffnen, die das Dial anzeigt (eigenes WLAN: http://192.168.4.1, Router: Adresse des Dials). Die alte Seite
+              funktioniert dann nicht mehr. WLAN-Daten und Adresse zeigt das Dial: Betreuerkarte → „WLAN-Daten“ oder
+              Taste 3 Sekunden halten.
             </p>
             <button disabled={disabled}>Zugang speichern</button>
           </form>

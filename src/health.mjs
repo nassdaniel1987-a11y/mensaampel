@@ -58,11 +58,15 @@ export function healthRows(device, diag) {
     rows.push({
       name: 'WLAN-Trennungen',
       level: rate(h.wlanDrops, 2, 6),
-      value: `${h.wlanDrops}× hat ein Tablet das Dial-WLAN verlassen`,
+      value: h.router
+        ? `${h.wlanDrops}× hat das Dial die Verbindung zum Router verloren`
+        : `${h.wlanDrops}× hat ein Tablet das Dial-WLAN verlassen`,
       todo:
-        h.wlanDrops >= 2
-          ? 'Tablet im Dial-WLAN halten: Samsung „Intelligentes WLAN“ und WLAN-Energiesparmodus aus, MAC-Adresstyp „Telefon-MAC“; iPad „Private WLAN-Adresse“ aus (Anleitung „Ampel-Tablet: WLAN stabil halten“). Hilft das nicht: WLAN-Kanal wechseln.'
-          : 'Alles in Ordnung.',
+        h.wlanDrops >= 2 && h.router
+          ? 'Router näher ans Dial stellen, Router-Strom prüfen, im Router einen festen 2,4-GHz-Kanal (1, 6 oder 11) einstellen.'
+          : h.wlanDrops >= 2
+            ? 'Tablet im Dial-WLAN halten: Samsung „Intelligentes WLAN“ und WLAN-Energiesparmodus aus, MAC-Adresstyp „Telefon-MAC“; iPad „Private WLAN-Adresse“ aus (Anleitung „Ampel-Tablet: WLAN stabil halten“). Hilft das nicht: WLAN-Kanal wechseln.'
+            : 'Alles in Ordnung.',
     });
   if (h.stations?.length || h.rssiMin) {
     const values = [...(h.stations ?? []).map(x => x.rssi), ...(h.rssiMin ? [h.rssiMin] : [])],
@@ -73,7 +77,12 @@ export function healthRows(device, diag) {
       value:
         `schwächster Wert ${weakest} dBm` +
         (h.stations?.length ? `, jetzt ${h.stations.map(x => x.rssi).join(' / ')} dBm` : ''),
-      todo: weakest >= -70 ? 'Alles in Ordnung.' : 'Tablet näher ans Dial stellen; kein Metall dazwischen.',
+      todo:
+        weakest >= -70
+          ? 'Alles in Ordnung.'
+          : h.router
+            ? 'Router näher ans Dial stellen; kein Metall dazwischen.'
+            : 'Tablet näher ans Dial stellen; kein Metall dazwischen.',
     });
   }
   if (h.drawMaxMs !== undefined)

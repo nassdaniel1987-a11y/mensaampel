@@ -56,6 +56,7 @@ extern "C" const char *mensa_call(const char *input) {
       x.ssid = q.value("ssid", std::string());
       x.wifi = q.value("wifi", std::string());
       x.setupCode = q.value("setupCode", std::string());
+      x.url = q.value("url", x.url);
       x.configured = q.value("configured", true);
       x.holdMs = q.value("holdMs", 0);
       x.progress = q.value("progress", 0);

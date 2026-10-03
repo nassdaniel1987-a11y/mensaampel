@@ -20,6 +20,13 @@ export type Device = {
   readerError: string;
   ssid: string;
   channel?: number;
+  wifiMode?: 'ap' | 'router';
+  routerSsid?: string;
+  routerIp?: string;
+  routerGateway?: string;
+  routerMask?: string;
+  routerConnected?: boolean;
+  rescue?: boolean;
   captureTarget: string;
   capturedUid: string;
   captureUntil: number;
@@ -50,6 +57,7 @@ export type Device = {
     drawMs?: number;
     drawMaxMs?: number;
     rssiMin?: number;
+    router?: boolean;
     stations?: { mac: string; rssi: number }[];
   };
   clients: number;

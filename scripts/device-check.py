@@ -61,7 +61,10 @@ def pauses(samples):
         a, b = p['start'], p['end']
         ha, hb = a.get('health') or {}, b.get('health') or {}
         rows = p['samples'] + [b]
-        if hb.get('wlanDrops', 0) > ha.get('wlanDrops', 0) or any(r.get('clients', 1) == 0 for r in rows):
+        router = any(r.get('wifiMode') == 'router' for r in rows)
+        if router and (hb.get('wlanDrops', 0) > ha.get('wlanDrops', 0) or any(r.get('routerConnected') is False for r in rows)):
+            cause = 'Dial hatte keine Verbindung zum Router (Router-Strom, Abstand, Kanal prüfen)'
+        elif not router and (hb.get('wlanDrops', 0) > ha.get('wlanDrops', 0) or any(r.get('clients', 1) == 0 for r in rows)):
             rssi = [st.get('rssi', 0) for r in [a] + rows for st in (r.get('health') or {}).get('stations') or []]
             weakest = min(rssi) if rssi else None
             if weakest is not None and weakest < LIMITS['rssi_weak']:
@@ -205,9 +208,17 @@ def evaluate(record):
     if missed:
         add('USB-Antworten', 'warnung', f'{missed} ohne Antwort', '0',
             'Kabel prüfen; bei vielen Aussetzern war das Dial beschäftigt oder hat neu gestartet.')
-    clients = max((s.get('clients', 0) for s in samples), default=0)
-    add('Tablets im Dial-WLAN', 'ok' if clients >= 1 else 'übersprungen', f'bis zu {clients}', '≥ 1',
-        '' if clients else 'Für die WLAN-Werte Ampel- und Betreuungs-Tablet verbinden.')
+    if any(s.get('wifiMode') == 'router' for s in samples):
+        lost = sum(1 for s in samples if s.get('routerConnected') is False)
+        add('Dial mit dem Router verbunden', 'ok' if lost == 0 else 'warnung', f'{lost} Messungen ohne Router', '0',
+            '' if lost == 0 else 'Router-Strom, Abstand zum Dial und festen 2,4-GHz-Kanal prüfen.')
+        if any(s.get('rescue') for s in samples):
+            add('Rettungs-WLAN', 'warnung', 'eigenes WLAN des Dials war an', 'aus',
+                'Das Dial hat den Router 30 s nicht gefunden. Router-Name und -Kennwort am Tablet prüfen.')
+    else:
+        clients = max((s.get('clients', 0) for s in samples), default=0)
+        add('Tablets im Dial-WLAN', 'ok' if clients >= 1 else 'übersprungen', f'bis zu {clients}', '≥ 1',
+            '' if clients else 'Für die WLAN-Werte Ampel- und Betreuungs-Tablet verbinden.')
     return checks
 
 
@@ -407,6 +418,16 @@ def selftest():
     rec['samples'] = seq
     checks = evaluate(rec)
     assert '## Pausen der Ampel' in report_md(rec, checks)
+    # Router mode: a pause without router connection names the router; the rescue WLAN is a warning.
+    rseq = [dict(at(0, 0), wifiMode='router', routerConnected=True),
+            dict(at(1, 6, drops=1), wifiMode='router', routerConnected=False, clients=0),
+            dict(at(2, 0, drops=1), wifiMode='router', routerConnected=True, rescue=True)]
+    assert 'Router' in pauses(rseq)[0]['cause'], pauses(rseq)
+    rec = dict(record)
+    rec['samples'] = rseq
+    status = {c['name']: c['status'] for c in evaluate(rec)}
+    assert status['Dial mit dem Router verbunden'] == 'warnung' and status['Rettungs-WLAN'] == 'warnung', status
+    assert 'Tablets im Dial-WLAN' not in status
     # Unclear card reads are a hint, not a reader fault.
     soft = dict(record)
     soft['samples'] = [good(0), good(1, health={'readerFaults': 0, 'unclearReads': 2, 'minBlock': 52000})]

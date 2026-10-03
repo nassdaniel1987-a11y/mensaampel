@@ -249,3 +249,16 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 
 - Am Gerät bemerkt: Japanisch/Chinesisch fehlten auf der Ampel, obwohl 0.17.5+ eingespielt war – die Seite lief mit dem alten Stand weiter (Web-App wird einmal geladen, dann nur Datenabfragen). Jetzt liefert `/api/signal` (Firmware `publicSignal`, PC-Dienst) `version`, `/api/state` hat `device.version`; `src/useMensa.ts` vergleicht mit `VERSION` und lädt bei Unterschied einmal neu (`src/version-check.mjs` `needsReload`, Schleifenschutz über `sessionStorage` `mensa-reloaded-for`, nicht während `locked`). Test `tests/version-check.test.mjs`; Browserprüfung mit Playwright (abgefangene Antwort mit anderer Version → genau ein Neuladen).
 
+## Version 0.18.0-preview: WLAN über einen eigenen Router (Plan 23)
+
+- `DeviceConfig` (`firmware/src/config.hpp`): `wifiMode` `"ap"` (Standard, eigenes WLAN wie bisher) oder `"router"`, dazu `router` (SSID, Kennwort, feste Adresse des Dials, Router-Adresse, Netzmaske; GL.iNet-Vorgabe 192.168.8.20/192.168.8.1). Felder beim Laden optional; unbrauchbare Router-Daten → eigenes WLAN, nie „Konfiguration defekt“. Gesetzt über `deviceSettings` (leeres Router-Kennwort = behalten); jede WLAN-Änderung startet neu.
+- Reine Logik in `firmware/src/netconfig.hpp` (nativ getestet, `tests/native-netconfig.test.mjs`): Prüfung der Router-Daten (Adressformat, Netzmaske, gleiches Netz, nicht Router-/Netz-/Rundrufadresse, nicht 192.168.4.x), erlaubte Hosts (`hostAllowed`: 192.168.4.1 und im Router-Betrieb die Dial-Adresse, je mit/ohne `:80`), `rescueNeeded`.
+- Router-Betrieb: `WIFI_STA` mit fester Adresse, Schlafmodus aus, automatisches Wiederverbinden; zusätzlich `WiFi.reconnect()` jede Minute ohne Router (die Bibliothek gibt z. B. nach falschem Kennwort auf). Nichts blockiert in `setup()`.
+- **Rettung:** 30 s ohne Router (beim Start oder später) → `WIFI_AP_STA`, eigenes WLAN wie im AP-Betrieb (192.168.4.1) bis zum nächsten Neustart. DNS-Antworten zeigen dann auf 192.168.4.1, sobald der Router wieder da ist wieder auf die Dial-Adresse. Der DNS gehört dem Web-Task (`dnsWanted`, dort neu gestartet).
+- Internetprüfung: Im Router wird das Dial als DNS-Server eingetragen (Rebind-Schutz aus); das Dial antwortet auf jeden Namen mit seiner Adresse, `probes.hpp` beantwortet die Prüf-URLs wie im AP-Betrieb.
+- `localOrigin()` nutzt `hostAllowed` mit der beim Start festgelegten Router-Adresse (`routerHost`, ändert sich nur mit Neustart → keine geteilten Strings zwischen Tasks).
+- Gesundheit: `health.router`; `wlanDrops` zählt im Router-Betrieb Trennungen vom Router (Ereignisse STA_CONNECTED/STA_DISCONNECTED, nur nach bestehender Verbindung), `stations` enthält `{mac: "Router", rssi: WiFi.RSSI()}`, `rssiMin` auch daraus. Status/USB zusätzlich `wifiMode`, `routerConnected`, `rescue`. `scripts/device-check.py` ordnet Pausen ohne Router-Verbindung dem Router zu und meldet Rettungs-WLAN.
+- Dial: WLAN-Daten zeigen Router-Name/-Kennwort und `DialExtras::url` (Router-Adresse); Hinweise „Verbinde mit Router ...“ bzw. „Router fehlt: eigenes WLAN an“; Gerätetest-Zeile „Router: ok/fehlt“.
+- Tablet: Gerät → WLAN und Zugang mit „WLAN-Art“ und Router-Feldern. Anleitung „Router einrichten“ (GL.iNet Opal Schritt für Schritt, Kurzfassung FRITZ!Box).
+- Nur gebaut und mit Logiktests geprüft; am echten Router noch nicht getestet.
+

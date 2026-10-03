@@ -63,3 +63,14 @@ test('Gesundheit: Zeit zum Zeichnen eines Dial-Bildes', () => {
   assert.equal(r.level, 1);
   assert.match(r.value, /20 ms.*55 ms/);
 });
+
+test('Gesundheit im Router-Betrieb: Trennungen und Signal betreffen den Router', () => {
+  const h = { ...good.health, router: true, wlanDrops: 2, rssiMin: -82, stations: [{ mac: 'Router', rssi: -75 }] };
+  const rows = healthRows({ ...good, health: h }, undefined);
+  const drops = rows.find(r => r.name === 'WLAN-Trennungen');
+  assert.match(drops.value, /Router/);
+  assert.match(drops.todo, /Router näher/);
+  const signal = rows.find(r => r.name === 'Signalstärke');
+  assert.equal(signal.level, 2);
+  assert.match(signal.todo, /Router näher/);
+});

@@ -4,6 +4,7 @@
 #include <mbedtls/md.h>
 #include <mbedtls/pkcs5.h>
 #include "../../core/engine.hpp"
+#include "netconfig.hpp"
 inline std::string randomKey(size_t length = 24) {
   static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   std::string value;
@@ -41,10 +42,16 @@ struct DeviceConfig {
   std::string reader = "auto", ssid, wifiPassword, salt, adminHash, setupCode;
   // WLAN channel of the Dial's own network (1, 6 or 11); change when neighbouring networks disturb.
   int channel = 1;
+  // "ap": own WLAN of the Dial (default). "router": the Dial joins the WLAN of a router with a fixed address
+  // (netconfig.hpp); unreachable router -> own WLAN as rescue in addition.
+  std::string wifiMode = "ap";
+  mensa::net::Router router{"", "", "192.168.8.20", "192.168.8.1", "255.255.255.0"};
+  bool routerMode() const { return wifiMode == "router"; }
   void fresh() {
     configured = false;
     reader = "auto";
     channel = 1;
+    wifiMode = "ap";
     ssid = "Mensaampel-" + randomKey(4);
     wifiPassword = randomKey(12);
     salt = randomKey();
@@ -60,7 +67,13 @@ struct DeviceConfig {
             {"salt", salt},
             {"adminHash", adminHash},
             {"setupCode", setupCode},
-            {"channel", channel}};
+            {"channel", channel},
+            {"wifiMode", wifiMode},
+            {"routerSsid", router.ssid},
+            {"routerPassword", router.password},
+            {"routerIp", router.ip},
+            {"routerGateway", router.gateway},
+            {"routerMask", router.mask}};
   }
   bool load() {
     Preferences p;
@@ -84,6 +97,18 @@ struct DeviceConfig {
       setupCode = j.at("setupCode");
       channel = j.contains("channel") && j["channel"].is_number_integer() ? j["channel"].get<int>() : 1;
       if (channel != 1 && channel != 6 && channel != 11) return false;
+      // Router fields are optional (older configurations: own WLAN). Unusable router settings: own WLAN, never
+      // "configuration broken".
+      auto text = [&](const char *key, std::string &into) {
+        if (j.contains(key) && j[key].is_string()) into = j[key].get<std::string>();
+      };
+      text("routerSsid", router.ssid);
+      text("routerPassword", router.password);
+      text("routerIp", router.ip);
+      text("routerGateway", router.gateway);
+      text("routerMask", router.mask);
+      wifiMode =
+          j.value("wifiMode", std::string("ap")) == "router" && mensa::net::check(router).empty() ? "router" : "ap";
       return (reader == "internal" || reader == "external" || reader == "auto") && ssid.size() > 0 &&
              ssid.size() <= 32 && wifiPassword.size() >= 8 && wifiPassword.size() <= 63 && salt.size() == 24 &&
              adminHash.size() == 64;
