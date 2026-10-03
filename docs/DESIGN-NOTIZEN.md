@@ -22,6 +22,22 @@ Kopf-Karte: Überschrift „Gerätestatus & Gesundheit“ mit zwei Knöpfen (z. 
 
 Nicht übernehmen (erfunden): HDMI-Kiosk, 32-GB-Speicher, Lenovo-Tablet, Akku/Batteriemodus, IP 192.168.10.42, „Wartung 02:00“, Kiosk-Schutz, „Türgong“. Gefüllt wird mit den echten Zeilen aus `src/health.mjs`.
 
+## Dial-Display (Stitch „Variante 1: Gauge & Segment-Ringe“)
+
+Grundidee: Jeder Zustand nutzt den Rand des runden Displays als Ring (Anzeige, Countdown, Rahmen). Hintergrund radialer Verlauf je Zustand: Grün `#15803d→#052e16`, Bernstein `#b45309→#451a03`, Rot `#b91c1c→#450a0a`, Türkis `#0f766e→#042f2e` (Karte zurück), Dunkel `#1e293b→#020617` (Menü, Start-Check, Taste halten). Schrift: große Zahl ~72 px (wir: 84 px), Zeit 52 px (vorhanden), Beschriftung 20 px, Unterzeile 13 px (wir: 15 px).
+
+1. **Grün:** Ring r≈109, 9 px: blasse Spur + weißer Bogen = Anteil freier Plätze; Mitte „12“, „PLÄTZE FREI“ (Großbuchstaben, hellgrün), Unterzeile „Mensa 20 • Küche 8“ mit Punkt.
+2. **Gelb:** wie 1, Bogen fast voll, Unterzeile „Fast voll“.
+3. **Rot / Gruppe voll:** Countdown als weißer Bogen, Mitte „1:20“ (52 px), darunter „NÄCHSTE GRUPPE“ zweizeilig.
+4. **Karte ausgegeben:** grün, Doppelring (weiß 4 px r 111 + blass 2 px r 104), dicker Haken, „K12“ groß, „Guten Appetit!“.
+4b. **Karte zurück:** türkis, weißer Ring 5 px + gestrichelter innerer Ring, kleiner Haken im hellen Kreis, „K12 zurück, danke!“.
+5. **Karte gesperrt:** rot, Ring in Stücken (Strich-Lücke), dickes Kreuz, „KARTE GESPERRT“, Unterzeile mit Hinweis.
+6. **Menü:** dunkel, Rand mit Strichmarken + blauer Bogen als Zeiger; Mitte „MENÜ“, darüber/darunter graue Einträge, ausgewählter Eintrag als blaue Pille mit weißem Punkt.
+7. **Start-Check:** dunkel, Ring in 4 Viertel, je Viertel grün/orange/rot nach Zustand von Leser/Uhr/Speicher/WLAN; Liste mit „✓ OK“ / „! …“ rechtsbündig.
+8. **Taste halten:** dunkel, dicker weißer Fortschrittsring 12 px, Pfeil-Symbol, „LOSLASSEN“, „nach 3 Sek.“.
+
+Umsetzung: nur `core/engine.hpp`/`core/dial.hpp` (Zeichenliste); Rasterer hat Verlauf, Bögen, Kreise, Linien, abgerundete Rechtecke – runde Bogenenden mit kleinen Kreisen, Strich-Ringe als mehrere Bögen. Schriftgrößen prüfen (Glyphen „K“, „:“ in 52 px ggf. per `scripts/build-dial-font.py` ergänzen). Erfundenes: „Sekretariat“ bei gesperrter Karte → eigener Text („bei der Betreuung melden“); „Speicher 88 %“ → unsere Zustände.
+
 ## Noch ausstehend
 
-Ampelseite (Kinder) und Dial-Display (240 × 240, nur Zeichenbefehle des Rasterers).
+Ampelseite (Kinder).
