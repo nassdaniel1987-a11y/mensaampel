@@ -97,6 +97,14 @@ struct MemoryTest {
 } memoryTest;
 // Since when the stock is confirmed (for the Ampel warning) and how many reminders have beeped.
 uint64_t readySince = 0;
+// Start check (0.19.0): shown for 4 s after power-on (10 s with a fault); a button or a card ends it.
+uint64_t checkUntil = 0;
+bool checkExtended = false;
+// Rest mode (0.19.0): screen dark and quiet after engine.rest minutes without use (Engine::resting). A card wakes the
+// Dial and is booked; ring, button and touch only wake it (nothing is triggered by accident).
+uint64_t lastInput = 0;
+bool restingNow = false, ignoreButton = false;
+uint8_t brightness = 0;
 int remindersBeeped = 0;
 long encoderBase = 0;
 // Device test: scans, ring and button are only shown, nothing is booked.
@@ -397,6 +405,8 @@ Json state(bool withCards = true) {
       {"routerMask", config.router.mask},
       {"routerConnected", routerUp.load()},
       {"rescue", rescue.load()},
+      {"resting", restingNow},
+      {"rest", engine.restMinutes()},
       {"captureTarget", captureTarget},
       {"capturedUid", capturedUid},
       {"captureUntil", captureUntil},
@@ -604,6 +614,7 @@ Json healthJson() {
           {"wifiMode", config.wifiMode},
           {"routerConnected", routerUp.load()},
           {"rescue", rescue.load()},
+          {"resting", restingNow},
           {"readerHealthy", reader.healthy},
           {"storageError", storage.error},
           {"needsReview", needsReview},
@@ -1119,6 +1130,26 @@ bool buildScreen(Json &list) {
     x.setupCode = config.setupCode;
     x.configured = config.configured;
     x.hint = crashHint;
+  } else if (now < checkUntil && !testMode) {
+    x.screen = "check";
+    m5::rtc_datetime_t t;
+    int clock = engine.flowState().clockReady(now) || rtcTime(t) ? 0 : 1;
+    int store = storage.error.empty() && !needsReview ? 0 : 2;
+    int net = config.routerMode() ? (routerUp ? 0 : rescue ? 2 : 1) : webStarted ? 0 : 2;
+    x.checks = {{"Leser", reader.healthy ? 0 : 2},
+                {"Uhr", clock},
+                {"Speicher", store},
+                {config.routerMode() ? "Router" : "WLAN", net}};
+    x.hint = !reader.healthy ? "Leser prüfen"
+             : store         ? (needsReview ? "Bestand abgleichen" : "Speicher prüfen")
+             : net == 2      ? (config.routerMode() ? "Router fehlt: Notfall-WLAN" : "WLAN aus: neu starten")
+             : net == 1      ? "Suche Router ..."
+             : clock         ? "Uhr: Tablet verbinden"
+                             : "";
+    if (!checkExtended && (!reader.healthy || store || net == 2)) {
+      checkExtended = true;
+      checkUntil = std::max<uint64_t>(checkUntil, now + 6000);
+    }
   } else if (testMode) {
     x.screen = "test";
     m5::rtc_datetime_t t;
@@ -1133,7 +1164,8 @@ bool buildScreen(Json &list) {
                (config.routerMode() ? std::string("Router: ") + (routerUp ? "ok" : "fehlt")
                                     : "Tablets: " + std::to_string(WiFi.softAPgetStationNum())) +
                    "  Ampel: " + (ampelSeenAt && !ampelLost() ? "ok" : "-"),
-               "Speicher frei: " + std::to_string(ESP.getFreeHeap() / 1024) + " KB",
+               "Speicher frei: " + std::to_string(ESP.getFreeHeap() / 1024) + " KB  Ruhe: " +
+                   (engine.restMinutes() ? std::to_string(engine.restMinutes()) + " min" : std::string("aus")),
                "Uhr: " + std::string(clock),
                std::string("Version ") + MENSA_VERSION};
   } else {
@@ -1169,7 +1201,7 @@ bool buildScreen(Json &list) {
 // Painting (SPI) runs without the lock, so the web task can answer meanwhile.
 void draw() {
   uint64_t now = nowMs();
-  if (now - drawAt < (drawFast ? 40 : 250)) return;
+  if (restingNow || now - drawAt < (drawFast ? 40 : 250)) return;
   drawAt = now;
   Json list;
   if (!buildScreen(list)) return;
@@ -1294,6 +1326,8 @@ void setup() {
     note("Neustart nach Fehler: " + resetReason, false);
   }
   mark("Start");
+  lastInput = nowMs();
+  if (configValid && config.configured) checkUntil = nowMs() + 4000;
   dataRev = esp_random() | 1;
   loopTask = xTaskGetCurrentTaskHandle();
   // The web task starts last, when all shared state is set up.
@@ -1327,6 +1361,35 @@ void loop() {
     draw();
   } catch (...) { lastScreen.clear(); }
   delay(2);
+}
+// Rest mode and start check: every input counts as use; the first input after rest only wakes the Dial (the card
+// edge is handled later in step and books normally). Returns nothing; touchWoke tells the relief touch to skip.
+bool touchWoke = false;
+void restStep(uint64_t now, bool touched) {
+  long position = M5Dial.Encoder.read();
+  bool turned = (position - encoderBase) / 4 != 0, pressed = M5.BtnA.wasPressed();
+  touchWoke = false;
+  if (pressed) checkUntil = 0;
+  if (touched || turned || pressed) {
+    lastInput = now;
+    if (restingNow) {
+      if (turned) encoderBase = position;
+      if (pressed) ignoreButton = true;
+      touchWoke = touched;
+    }
+  }
+  bool rest = configValid && config.configured && !needsReview && storage.error.empty() && captureTarget.empty() &&
+              !testMode && !ota.active && now >= showCredentialsUntil && now >= resetConfirmUntil &&
+              now >= checkUntil && engine.resting(now, lastInput);
+  if (rest == restingNow) return;
+  restingNow = rest;
+  if (rest) {
+    brightness = M5.Display.getBrightness();
+    M5.Display.setBrightness(0);
+  } else {
+    M5.Display.setBrightness(brightness ? brightness : 127);
+    lastScreen.clear();
+  }
 }
 // Router mode: try again every minute while the router is missing (the library gives up after a wrong password); after
 // 30 s without router open the own WLAN in addition (rescue: the Dial stays reachable to fix the settings). The rescue
@@ -1387,17 +1450,21 @@ void step(uint64_t now) {
     note("Einlernen abgelaufen. Einlass bleibt pausiert.", false);
   }
   auto touch = M5.Touch.getDetail();
+  restStep(now, touch.wasPressed());
   if (testMode && touch.wasPressed()) testButton = "Touch " + std::to_string(touch.x) + "," + std::to_string(touch.y);
   // Touch field: "ENTLASTEN" on the main screen; in menu, enrolment and Mensa setting the core treats it as the button.
   bool touchOk = engine.menuOpen(now) || engine.seriesActive() || engine.editingMensa(now);
-  if (touch.wasPressed() && touch.x >= 44 && touch.x <= 196 && touch.y >= 182 && touch.y <= 222 && configValid &&
-      config.configured && !needsReview && now >= showCredentialsUntil && now >= resetConfirmUntil &&
+  if (touch.wasPressed() && !touchWoke && touch.x >= 44 && touch.x <= 196 && touch.y >= 182 && touch.y <= 222 &&
+      configValid && config.configured && !needsReview && now >= showCredentialsUntil && now >= resetConfirmUntil &&
       (touchOk || !engine.isRelieving()) && !testMode) {
     auto r = transact({{"type", "relief"}});
     if (!r.value("message", std::string()).empty()) note(r.value("message", std::string()), r.value("ok", false));
     dialResult(r, now);
   }
-  if (M5.BtnA.wasReleaseFor(10000) && resetConfirmUntil <= now) {
+  if (ignoreButton) {
+    // The press that woke the Dial from rest mode does nothing else.
+    if (!M5.BtnA.isPressed()) ignoreButton = false;
+  } else if (M5.BtnA.wasReleaseFor(10000) && resetConfirmUntil <= now) {
     resetConfirmUntil = now + 15000;
   } else if (resetConfirmUntil > now && M5.BtnA.wasReleaseFor(3000)) {
     // Second long hold on the reset screen: reset the access (stock stays).
@@ -1477,7 +1544,7 @@ void step(uint64_t now) {
     ampelWarned = lost;
     // Reminder while a pause, relief or full group waits for a person: short double beep each interval.
     int due = engine.reminders(now);
-    if (due > remindersBeeped) { play(mensa::sound::Remind); }
+    if (due > remindersBeeped && !restingNow) { play(mensa::sound::Remind); }
     remindersBeeped = due;
   }
   if (configValid && config.configured && !needsReview && storage.error.empty() && !blocked() && !testMode &&
@@ -1522,6 +1589,8 @@ void step(uint64_t now) {
         note("Karte gelesen", true);
       }
     } else if (sampled && edge.kind) {
+      lastInput = now;
+      checkUntil = 0;
       if (edge.kind < 0)
         engine.command({{"type", "remove"}}, now);
       else if (!captureTarget.empty()) {

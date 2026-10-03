@@ -42,6 +42,8 @@ extern "C" const char *mensa_call(const char *input) {
     } else if (op == "restore") {
       engine.restore(q.at("state"), q.value("preserveUndo", false));
       result = {{"ok", true}};
+    } else if (op == "resting") {
+      result = engine.resting(q.at("now").get<long long>(), q.at("lastInput").get<long long>());
     } else if (op == "snapshot")
       result = engine.snapshot();
     else if (op == "status")
@@ -60,6 +62,9 @@ extern "C" const char *mensa_call(const char *input) {
       x.configured = q.value("configured", true);
       x.holdMs = q.value("holdMs", 0);
       x.progress = q.value("progress", 0);
+      if (q.contains("checks"))
+        for (auto &c : q["checks"])
+          x.checks.push_back({c.at(0).get<std::string>(), c.at(1).get<int>()});
       if (q.contains("lines"))
         for (auto &l : q["lines"])
           x.lines.push_back(l.get<std::string>());

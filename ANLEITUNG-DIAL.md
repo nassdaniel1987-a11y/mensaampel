@@ -178,6 +178,11 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Update per Tablet über das Dial-WLAN (Gerät → Firmware-Update) | Fortschritt am Dial, Neustart mit neuer Version, Karten unverändert; ein Foto wird abgelehnt | ☐ |
 | Küche auf wenige Plätze stellen, bis „Mensa öffnen? Drehen“ erscheint; Ring drehen | Mensa-Einstellung öffnet mit Vorschlag, Taste übernimmt | ☐ |
 | Gerät → „Gesundheit heute“ nach einem Mittag | Alle Punkte grün oder erklärbar; Werte notieren | ☐ |
+| Dial einschalten (0.19) | „Start-Check“ mit Haken für Leser, Uhr, Speicher, WLAN/Router; Uhr gelb, bis ein Tablet verbunden ist | ☐ |
+| Ruhemodus auf 10 Minuten, keine Karte draußen, 10 Minuten nichts tun | Dial wird dunkel; Ampel läuft weiter | ☐ |
+| Im Ruhemodus Ring drehen bzw. Taste drücken | Dial wird hell, sonst passiert nichts (keine Pause, keine Mensa-Einstellung) | ☐ |
+| Im Ruhemodus eine Kinderkarte auflegen | Dial wird hell und bucht die Karte wie gewohnt | ☐ |
+| Mensa fast voll (≥ 85 % der freigegebenen Plätze belegt) | Ampel bei Grün zusätzlich „bitte leise reingehen“ | ☐ |
 | Mindestens ein kompletter Mittag als Probelauf | WLAN, Scans, Stromversorgung und Speicher stabil | ☐ |
 
 Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern, tatsächliche Speicherreserven mit allen 112 Karten, gleichzeitiger WLAN-/RFID-Betrieb und Stromausfallverhalten. Softwaretests ersetzen diese Prüfung nicht.
@@ -358,6 +363,17 @@ Kommt der Router später wieder, verbindet sich das Dial von selbst (es versucht
 Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Client-Isolation aus, **DNS-Server für die Geräte = Adresse des Dials**, Rebind-Schutz aus bzw. Ausnahme für die Adresse. Die Adresse des Dials muss im Netz des Routers liegen, aber außerhalb des Bereichs, den der Router selbst vergibt.
 - **FRITZ!Box** (Adresse meist 192.168.178.1): Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Einstellungen: DHCP-Bereich z. B. ab .100 lassen, **Lokaler DNS-Server: 192.168.178.20**. Im Tablet dann Adresse des Dials `192.168.178.20`, Router `192.168.178.1`.
 - Router mit Internet: geht auch, aber dann das Dial **nicht** als DNS-Server eintragen (sonst haben alle Geräte kein Internet mehr).
+
+## Start-Check, Ruhemodus und Hinweise (ab 0.19)
+
+- **Start-Check:** Nach dem Einschalten zeigt das Dial etwa 4 Sekunden lang Haken für **Leser, Uhr, Speicher und WLAN** (im Router-Betrieb „Router“). Grün = in Ordnung, gelb = wartet (z. B. die Uhr, bis ein Tablet verbunden ist), rot = Fehler – dann bleibt die Anzeige länger stehen und darunter steht, was zu tun ist. Taste oder Karte beenden den Check sofort (eine Karte wird dabei normal gebucht).
+- **Ruhemodus:** Wird das Dial eine Weile nicht benutzt und ist **keine Karte draußen**, wird es dunkel und leise (Standard 20 Minuten; einstellen unter Einstellungen → „Ruhemodus“, auch „aus“). Eine **Karte** weckt es und wird sofort gebucht. **Ring, Taste oder Berühren** wecken es nur – es passiert dabei nichts anderes. Die Ampel draußen und die Tablets laufen unverändert weiter. Nicht im Ruhemodus: solange der Bestand nicht bestätigt ist, ein Menü, das Einlernen oder ein Countdown läuft.
+- **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
+- **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
+
+## Neu in 0.19.0
+
+- Start-Check nach dem Einschalten, Ruhemodus (Dial dunkel und leise, Karte weckt und bucht), Ampel-Hinweis „bitte leise reingehen“ bei fast voller Mensa, Übersicht „Wie sicher ist das Gelernte?“. Einzelheiten im Abschnitt davor. Nur gebaut und mit Tests geprüft – bitte am Gerät ausprobieren (Abnahme-Tabelle).
 
 ## Neu in 0.18.0
 

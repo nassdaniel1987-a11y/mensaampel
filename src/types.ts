@@ -27,6 +27,7 @@ export type Device = {
   routerMask?: string;
   routerConnected?: boolean;
   rescue?: boolean;
+  resting?: boolean;
   captureTarget: string;
   capturedUid: string;
   captureUntil: number;
@@ -69,6 +70,7 @@ export type State = {
   volume?: number;
   sound?: number;
   remind?: number;
+  rest?: number;
   dayWaiting?: boolean;
   reminders?: number;
   lostCards?: string[];
@@ -95,6 +97,7 @@ export type State = {
     nextFreeIn?: number;
     stayMinutes?: number;
     mensaHint?: number;
+    busy?: number;
     mensaBasis?: number;
   };
   outCards?: string[];

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forecast, coach, simulate, waitText } from '../src/insights.mjs';
+import { forecast, coach, simulate, waitText, confidence, slotLevel, stayLevel, daysLevel } from '../src/insights.mjs';
 
 // day, weekday, issued, returned, groups, auto, earlier, too full, reliefs, first, last, missing, tenths, peak, mensa
 const day = (n, wd, o = {}) => {
@@ -98,4 +98,43 @@ test('Simulator: größere Gruppen = kürzere Wartezeit an der Tür, längere Sc
   assert.deepEqual(simulate({ ...base, batch: 4 }), small, 'immer gleich (keine Zufallszahlen)');
   assert.equal(waitText(45), '45 s');
   assert.equal(waitText(150), '3 Min.');
+});
+
+test('Wie sicher ist das Gelernte: Stufen, leere Daten, Wochentage', () => {
+  assert.deepEqual([0, 1, 2, 3, 6, 7].map(slotLevel), [0, 1, 1, 2, 2, 3]);
+  assert.deepEqual([0, 4, 5, 29, 30].map(stayLevel), [0, 1, 2, 2, 3]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(daysLevel), [0, 1, 2, 2, 3]);
+  const empty = confidence({ history: [] });
+  assert.equal(empty.rows.length, 5);
+  assert.ok(empty.rows.every(r => r.level === 0 && /noch nicht/.test(r.text)));
+  assert.equal(empty.stay.level, 0);
+  // Tuesday: 5 days and a window with 8 groups -> sure; Friday: 1 day, 2 groups -> unsure.
+  const c = confidence({
+    history: [...[1, 2, 3, 4, 5].map(n => day(n, 2)), day(6, 5), day(7, 5, { 2: 0 })],
+    autoSlots: [
+      [2, 24, 150, 8, 6],
+      [2, 25, 150, 3, 6],
+      [5, 24, 150, 2, 6],
+      [6, 24, 150, 9, 6], // Saturday is not shown
+    ],
+    autoGlobalN: 13,
+    stayN: 40,
+  });
+  assert.deepEqual(c.halfHours, [24, 25]);
+  const tue = c.rows.find(r => r.weekday === 2),
+    fri = c.rows.find(r => r.weekday === 5);
+  assert.equal(tue.level, 3);
+  assert.equal(tue.text, 'Dienstag: sicher (5 Mittage)');
+  assert.deepEqual(
+    tue.cells.map(x => [x.n, x.level]),
+    [
+      [8, 3],
+      [3, 2],
+    ],
+  );
+  assert.equal(fri.days, 1, 'Tag ohne Ausgaben zählt nicht');
+  assert.equal(fri.level, 1);
+  assert.match(fri.text, /unsicher.*noch 3 Mittage.*noch 5 Gruppen/);
+  assert.equal(c.groups.level, 2);
+  assert.equal(c.stay.level, 3);
 });

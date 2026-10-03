@@ -262,3 +262,11 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - Tablet: Gerät → WLAN und Zugang mit „WLAN-Art“ und Router-Feldern. Anleitung „Router einrichten“ (GL.iNet Opal Schritt für Schritt, Kurzfassung FRITZ!Box).
 - Nur gebaut und mit Logiktests geprüft; am echten Router noch nicht getestet.
 
+## Version 0.19.0-preview: Start-Check, Ruhemodus, Ruhe-Hinweis, Lern-Sicherheit (Plan 24)
+
+- **Start-Check:** Bildschirm `"check"` im Kern (`DialExtras::checks`, Name + 0 ok/1 wartet/2 Fehler, Symbole aus vorhandenen Zeichenbefehlen – kein neuer Rasterbefehl). Firmware zeigt ihn 4 s nach dem Start (`checkUntil`), bei Fehler mindestens 6 s länger; Taste oder Karte beenden ihn (die Taste wirkt dabei normal, damit „3 s halten = Bestand bestätigen“ gleich nach dem Start geht).
+- **Ruhemodus:** `Engine::rest` (Minuten, 0 = aus, Standard 20, im Snapshot, alte Bestände 20; gesetzt über `settings.rest`). `Engine::resting(now, lastInput)` nur bei bestätigtem Bestand, keiner Karte draußen, ohne Menü/Serie/Einstellung/Countdown/Entlastung. Firmware `restStep()`: `lastInput` bei Karte, Ring, Taste, Touch; im Ruhemodus Helligkeit 0, kein Zeichnen, keine Erinnerungstöne. Wecken: Karte bucht normal; Ring verwirft die Schritte, Taste wird bis zum Loslassen ignoriert (`ignoreButton`), Touch löst keine Entlastung aus. Kein Ruhemodus bei Einlernen, Gerätetest, Update, WLAN-/Reset-Anzeige oder Start-Check. Status: `device.resting`, `device.rest`. Die Ampel ändert sich bewusst nicht.
+- **Ruhe-Hinweis:** `signal.busy` = belegte / freigegebene Plätze der offenen Räume in Prozent (-1 ohne offenen Raum). Tablet: `wantsQuiet(admitting, busy)` ab 85 % (`src/ampel-texts.mjs`), Zeile unter dem Titel und jede zweite Sprachrunde `quiet`.
+- **Wie sicher ist das Gelernte:** `confidence(flow)` in `src/insights.mjs` (Zeitfenster 3/7 Gruppen, Tage 2/4, Verweildauer 5/30, Gruppen gesamt 5/20); Karte `Confidence` in `src/Insights.tsx` unter dem Wochen-Coach, Stufe immer als Text und Farbe.
+- Tests: `tests/rest.test.mjs` (Ruhemodus, alte Bestände, busy, Start-Check-Bildschirm), `insights`, `ampel-texts`.
+

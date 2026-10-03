@@ -474,6 +474,7 @@ export function Management({
                   volume: Number(d.get('volume')),
                   sound: Number(d.get('sound')),
                   remind: Number(d.get('remind')),
+                  ...(s.device ? { rest: Number(d.get('rest')) } : {}),
                 });
               else if (modal === 'enroll')
                 void apply({
@@ -620,6 +621,25 @@ export function Management({
                     ))}
                   </select>
                 </label>
+                {s.device && (
+                  <label>
+                    Ruhemodus: Dial wird dunkel und leise, wenn keine Karte draußen ist und niemand es benutzt
+                    <select name="rest" defaultValue={s.rest ?? 20}>
+                      <option value="0">aus</option>
+                      {[10, 20, 30, 60].map(m => (
+                        <option key={m} value={m}>
+                          nach {m} Minuten
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {s.device && (
+                  <p className="hint">
+                    Eine Karte weckt das Dial und wird sofort gebucht. Ring, Taste oder Berühren wecken es nur. Die
+                    Ampel draußen läuft unverändert weiter.
+                  </p>
+                )}
                 <div className="staff-cards">
                   <strong>Betreuerkarten: {s.staffCount ?? 0} von 5</strong>
                   <p className="hint">

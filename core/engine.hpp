@@ -37,6 +37,8 @@ class Engine {
   std::array<Room, 2> rooms;
   bool ready = false, paused = false, hasUndo = false;
   int cooldown = 3, day = 1, volume = 7, sound = 1; // sound: set in core/sounds.hpp
+  // Rest mode: the Dial screen goes dark after this many minutes without use (0 = never).
+  int rest = 20;
   std::string held;
   Card undo;
   // Transient Dial state (not stored): Mensa seats being set with the rotary ring.
@@ -190,6 +192,13 @@ public:
   bool confirmingDay(long long now) const { return now < dayConfirmUntil; }
   bool menuOpen(long long now) const { return menuSel >= 0 && now < menuUntil; }
   bool seriesActive() const { return seriesRoom >= 0; }
+  // Rest mode (Dial dark and quiet): only when nothing is going on - stock confirmed, no card out, no menu, series,
+  // setting or countdown - and no input for `rest` minutes. The Ampel is not affected.
+  bool resting(long long now, long long lastInput) const {
+    return rest > 0 && ready && outCards() == 0 && !menuOpen(now) && !seriesActive() && !editingMensa(now) &&
+           !editingVolume(now) && !confirmingDay(now) && !dayWaiting(now) && !autoPending() && !flow.relief &&
+           now - lastInput >= rest * 60000LL;
+  }
   bool isStaff(const std::string &uid) const { return std::find(staff.begin(), staff.end(), uid) != staff.end(); }
   // Holding the button is used by the core in these situations; otherwise the device shows the WLAN data.
   bool wantsHold(long long now) const {
@@ -276,6 +285,7 @@ public:
     return turnAcc != 0 && turnAt >= 0 && now - turnAt < 1500 && !editingMensa(now);
   }
   int volumeLevel() const { return volume; }
+  int restMinutes() const { return rest; }
   int soundSet() const { return sound; }
   const Flow &flowState() const { return flow; }
   // Automatic release is only due while the group waits and nothing else holds the entrance closed.
@@ -367,6 +377,25 @@ public:
         list.push_back(text(120, y, 1, white, fit(x.lines[i], 1, span(y, 1))));
       }
       list.push_back(text(120, 202, 1, yellow, "Scans buchen nicht"));
+      return list;
+    }
+    if (x.screen == "check") {
+      list.push_back(gradient(toneDark));
+      list.push_back(text(120, 44, 2, white, "START-CHECK"));
+      for (size_t i = 0; i < x.checks.size() && i < 4; i++) {
+        int y = 74 + int(i) * 27, state = x.checks[i].second;
+        std::string name = fit(x.checks[i].first, 2, 130);
+        int w = 28 + raster::textWidth(name, 2), left = 120 - w / 2;
+        int color = state == 0 ? okText : state == 1 ? warnText : red;
+        if (state == 0)
+          iconCheck(list, left + 8, y, 8, 4, color);
+        else if (state == 1)
+          iconAlert(list, left + 8, y, 7, color);
+        else
+          iconCross(list, left + 8, y, 7, 4, color);
+        list.push_back(text(left + 28 + raster::textWidth(name, 2) / 2, y, 2, white, name));
+      }
+      if (!x.hint.empty()) list.push_back(text(120, 186, 1, warnText, fit(x.hint, 1, span(186, 1))));
       return list;
     }
     if (x.screen == "update") {
@@ -590,6 +619,7 @@ public:
               {"paused", paused},
               {"cooldown", cooldown},
               {"volume", volume},
+              {"rest", rest},
               {"sound", sound},
               {"remind", remind},
               {"readyDate", readyDate},
@@ -622,6 +652,7 @@ public:
     next.cooldown = number(v, "cooldown", 1, 600);
     next.volume = v.contains("volume") ? number(v, "volume", 0, 10) : 7;
     next.sound = v.contains("sound") ? number(v, "sound", 0, mensa::sound::setCount - 1) : 1;
+    next.rest = v.contains("rest") ? number(v, "rest", 0, 120) : 20;
     next.remind = v.contains("remind") ? number(v, "remind", 0, 30) : 3;
     next.readyDate = v.contains("readyDate") ? number(v, "readyDate", -1, 50000) : -1;
     next.day = number(v, "day", 1, 1000000);
@@ -678,6 +709,13 @@ public:
                                                             : "free";
     // groupLeft: children still admitted in the running group (-1 without groups or while the group is full).
     int groupLeft = flow.batch && !flow.waiting && now >= 0 ? groupRemaining(now) : -1, basis = 0;
+    // busy: share of the released seats in use (percent, -1 when nothing is open); the Ampel asks for quiet when high.
+    int seats = 0, used = 0;
+    for (int r = 0; r < 2; r++)
+      if (rooms[r].open) {
+        seats += rooms[r].limit;
+        used += occupied(r);
+      }
     return {{"green", isGreen()},
             {"reason", reason},
             {"free", available(0) + available(1)},
@@ -689,7 +727,8 @@ public:
             {"nextFreeIn", now >= 0 ? nextFreeIn(now) : -1},
             {"stayMinutes", flow.stayN >= 5 ? (flow.stayAvg + 30) / 60 : -1},
             {"mensaHint", mensaAssist() ? mensaSuggestion(&basis) : -1},
-            {"mensaBasis", basis}};
+            {"mensaBasis", basis},
+            {"busy", seats > 0 ? std::min(100, used * 100 / seats) : -1}};
   }
   // Card list as JSON text without building a JSON tree (about 1 KB of RAM instead of ~80 KB on the Dial); same
   // fields as in status(): with remainingMs.
@@ -1139,6 +1178,7 @@ private:
         if (cmd.contains("volume")) volume = number(cmd, "volume", 0, 10);
         if (cmd.contains("sound")) sound = number(cmd, "sound", 0, mensa::sound::setCount - 1);
         if (cmd.contains("remind")) remind = number(cmd, "remind", 0, 30);
+        if (cmd.contains("rest")) rest = number(cmd, "rest", 0, 120);
         hasUndo = false;
         message = "Sperrzeit und Lautstärke gespeichert.";
       } else if (action == "enroll") {

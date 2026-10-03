@@ -137,13 +137,15 @@ inline void ring(nlohmann::json &list, double share, int color, int track) {
 }
 } // namespace dial
 // Device-specific additions supplied by firmware or simulation host.
-// screen: "" main screen, "credentials" WLAN data, "reset" access reset question, "broken" invalid configuration,
-// "test" device test with lines.
+// screen: "" main screen, "check" start check after power-on, "credentials" WLAN data, "reset" access reset question,
+// "broken" invalid configuration, "test" device test with lines.
 struct DialExtras {
   bool blocked = false;
   std::string hint, feedback;
   bool feedbackOk = true;
   std::string screen, ssid, wifi, setupCode;
+  // Start check (screen "check"): name and state per line (0 ok, 1 waiting, 2 fault).
+  std::vector<std::pair<std::string, int>> checks;
   // Address the tablets open (own WLAN; in router mode the Dial's address in the router network).
   std::string url = "http://192.168.4.1";
   bool configured = true;

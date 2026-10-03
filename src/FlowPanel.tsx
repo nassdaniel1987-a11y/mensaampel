@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DayCharts } from './Charts';
-import { Coach } from './Insights';
+import { Coach, Confidence } from './Insights';
 import type { State, Send, FlowState } from './types';
 const queues = ['Keine Schlange', 'Kurze Schlange', 'Lange Schlange'],
   days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -638,6 +638,7 @@ export function FlowPanel({
         </p>
       </section>
       <Coach state={s} send={send} disabled={disabled} />
+      <Confidence state={s} />
       <section className="flow-section flow-results">
         <div className="section-heading">
           <h2>Tagesbericht</h2>

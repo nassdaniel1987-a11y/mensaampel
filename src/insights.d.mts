@@ -39,3 +39,27 @@ export function simulate(p: {
   batch: number;
 }): Simulation;
 export function waitText(seconds: number): string;
+export const confidenceLevels: string[];
+export type ConfidenceLevel = 0 | 1 | 2 | 3;
+export function slotLevel(n: number): ConfidenceLevel;
+export function stayLevel(n: number): ConfidenceLevel;
+export function daysLevel(n: number): ConfidenceLevel;
+export function groupLevel(n: number): ConfidenceLevel;
+export type Confidence = {
+  halfHours: number[];
+  rows: {
+    weekday: number;
+    days: number;
+    cells: { slot: number; n: number; level: ConfidenceLevel }[];
+    level: ConfidenceLevel;
+    text: string;
+  }[];
+  groups: { n: number; level: ConfidenceLevel };
+  stay: { n: number; level: ConfidenceLevel };
+};
+export function confidence(flow: {
+  autoSlots?: number[][];
+  autoGlobalN?: number;
+  stayN?: number;
+  history: number[][];
+}): Confidence;

@@ -190,3 +190,48 @@ export function simulate({ children, minutes, perChild, stay, seats, batch }) {
 }
 /** Seconds as short German text: "45 s", "3 Min.". */
 export const waitText = s => (s < 60 ? `${s} s` : `${Math.round(s / 60)} Min.`);
+
+// "Wie sicher ist das Gelernte?": how much the learned values are based on. Levels 0 not yet, 1 unsure, 2 medium,
+// 3 sure. Time windows: observations per weekday and half hour (autoSlots[3]); the automatic release prefers a
+// window from 3 observations on. Forecast: served days of the same weekday (it uses the last four).
+export const confidenceLevels = ['noch nicht', 'unsicher', 'mittel', 'sicher'];
+const levelOf = (n, mid, sure) => (n <= 0 ? 0 : n < mid ? 1 : n < sure ? 2 : 3);
+export const slotLevel = n => levelOf(n, 3, 7);
+export const stayLevel = n => levelOf(n, 5, 30);
+export const daysLevel = n => levelOf(n, 2, 4);
+export const groupLevel = n => levelOf(n, 5, 20);
+/**
+ * @param {{ autoSlots?: number[][], autoGlobalN?: number, stayN?: number, history: number[][] }} flow
+ */
+export function confidence(flow) {
+  const slots = (flow.autoSlots ?? []).filter(x => x[0] >= 1 && x[0] <= 5);
+  const halfHours = [...new Set(slots.map(x => x[1]))].sort((a, b) => a - b);
+  const learnsWindows = slots.length > 0;
+  const rows = [1, 2, 3, 4, 5].map(weekday => {
+    const cells = halfHours.map(slot => {
+      const n = slots.find(x => x[0] === weekday && x[1] === slot)?.[3] ?? 0;
+      return { slot, n, level: slotLevel(n) };
+    });
+    const days = flow.history.filter(d => served(d) && d[1] === weekday).length,
+      best = Math.max(0, ...cells.map(c => c.n)),
+      level = learnsWindows ? Math.min(daysLevel(days), slotLevel(best)) : daysLevel(days);
+    const missing = [];
+    if (days < 4) missing.push(`noch ${4 - days} ${4 - days === 1 ? 'Mittag' : 'Mittage'}`);
+    if (learnsWindows && best < 7) missing.push(`noch ${7 - best} Gruppen im häufigsten Zeitfenster`);
+    return {
+      weekday,
+      days,
+      cells,
+      level,
+      text:
+        `${weekdays[weekday]}: ${confidenceLevels[level]} (${days} ${days === 1 ? 'Mittag' : 'Mittage'})` +
+        (level < 3 && missing.length ? ` – bis sicher ${missing.join(', ')}` : ''),
+    };
+  });
+  return {
+    halfHours,
+    rows,
+    groups: { n: flow.autoGlobalN ?? 0, level: groupLevel(flow.autoGlobalN ?? 0) },
+    stay: { n: flow.stayN ?? 0, level: stayLevel(flow.stayN ?? 0) },
+  };
+}

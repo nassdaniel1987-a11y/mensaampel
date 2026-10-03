@@ -258,6 +258,31 @@
 <td>☐</td>
 </tr>
 <tr>
+<td>Dial einschalten (0.19)</td>
+<td>„Start-Check“ mit Haken für Leser, Uhr, Speicher, WLAN/Router; Uhr gelb, bis ein Tablet verbunden ist</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ruhemodus auf 10 Minuten, keine Karte draußen, 10 Minuten nichts tun</td>
+<td>Dial wird dunkel; Ampel läuft weiter</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Im Ruhemodus Ring drehen bzw. Taste drücken</td>
+<td>Dial wird hell, sonst passiert nichts (keine Pause, keine Mensa-Einstellung)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Im Ruhemodus eine Kinderkarte auflegen</td>
+<td>Dial wird hell und bucht die Karte wie gewohnt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Mensa fast voll (≥ 85 % der freigegebenen Plätze belegt)</td>
+<td>Ampel bei Grün zusätzlich „bitte leise reingehen“</td>
+<td>☐</td>
+</tr>
+<tr>
 <td>Mindestens ein kompletter Mittag als Probelauf</td>
 <td>WLAN, Scans, Stromversorgung und Speicher stabil</td>
 <td>☐</td>
@@ -484,6 +509,17 @@
 <p>Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Client-Isolation aus, <strong>DNS-Server für die Geräte = Adresse des Dials</strong>, Rebind-Schutz aus bzw. Ausnahme für die Adresse. Die Adresse des Dials muss im Netz des Routers liegen, aber außerhalb des Bereichs, den der Router selbst vergibt.
 - <strong>FRITZ!Box</strong> (Adresse meist 192.168.178.1): Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Einstellungen: DHCP-Bereich z. B. ab .100 lassen, <strong>Lokaler DNS-Server: 192.168.178.20</strong>. Im Tablet dann Adresse des Dials <code>192.168.178.20</code>, Router <code>192.168.178.1</code>.
 - Router mit Internet: geht auch, aber dann das Dial <strong>nicht</strong> als DNS-Server eintragen (sonst haben alle Geräte kein Internet mehr).</p>
+<h2>Start-Check, Ruhemodus und Hinweise (ab 0.19)</h2>
+<ul>
+<li><strong>Start-Check:</strong> Nach dem Einschalten zeigt das Dial etwa 4 Sekunden lang Haken für <strong>Leser, Uhr, Speicher und WLAN</strong> (im Router-Betrieb „Router“). Grün = in Ordnung, gelb = wartet (z. B. die Uhr, bis ein Tablet verbunden ist), rot = Fehler – dann bleibt die Anzeige länger stehen und darunter steht, was zu tun ist. Taste oder Karte beenden den Check sofort (eine Karte wird dabei normal gebucht).</li>
+<li><strong>Ruhemodus:</strong> Wird das Dial eine Weile nicht benutzt und ist <strong>keine Karte draußen</strong>, wird es dunkel und leise (Standard 20 Minuten; einstellen unter Einstellungen → „Ruhemodus“, auch „aus“). Eine <strong>Karte</strong> weckt es und wird sofort gebucht. <strong>Ring, Taste oder Berühren</strong> wecken es nur – es passiert dabei nichts anderes. Die Ampel draußen und die Tablets laufen unverändert weiter. Nicht im Ruhemodus: solange der Bestand nicht bestätigt ist, ein Menü, das Einlernen oder ein Countdown läuft.</li>
+<li><strong>Ampel bei fast voller Mensa:</strong> Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).</li>
+<li><strong>Wie sicher ist das Gelernte?</strong> Unter Einlass &amp; Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen <em>noch nicht · unsicher · mittel · sicher</em>. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.</li>
+</ul>
+<h2>Neu in 0.19.0</h2>
+<ul>
+<li>Start-Check nach dem Einschalten, Ruhemodus (Dial dunkel und leise, Karte weckt und bucht), Ampel-Hinweis „bitte leise reingehen“ bei fast voller Mensa, Übersicht „Wie sicher ist das Gelernte?“. Einzelheiten im Abschnitt davor. Nur gebaut und mit Tests geprüft – bitte am Gerät ausprobieren (Abnahme-Tabelle).</li>
+</ul>
 <h2>Neu in 0.18.0</h2>
 <ul>
 <li><strong>WLAN über einen eigenen Router (freiwillig):</strong> Unter Gerät → WLAN und Zugang lässt sich „WLAN eines Routers“ wählen. Das Dial meldet sich dann mit fester Adresse (Standard http://192.168.8.20) beim Router an, die Tablets verbinden sich mit dem Router. Genaue Schritte: „Router einrichten“. Standard bleibt das eigene WLAN des Dials.</li>

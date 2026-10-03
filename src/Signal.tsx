@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Hand, WifiOff, Maximize, Bell, BellOff } from 'lucide-react';
+import { Check, Hand, WifiOff, Maximize, Bell, BellOff, Volume1 } from 'lucide-react';
 import type { State } from './types';
-import { ampelLanguages, ampelTexts, friendlyLines, nextSeatText } from './ampel-texts.mjs';
+import { ampelLanguages, ampelTexts, friendlyLines, nextSeatText, wantsQuiet } from './ampel-texts.mjs';
 // Two-tone chime when the entrance opens again; browsers only allow it after one tap on "Ton an".
 let chimeAudio: AudioContext | null = null;
 function chime() {
@@ -112,8 +112,11 @@ export function Signal({
         : 'wait',
     turn = Math.floor(now.getTime() / 4000),
     language = ampelLanguages[turn % ampelLanguages.length],
-    // While waiting, every second round of languages says thank you instead of "please wait".
-    languageKey = mood === 'wait' && Math.floor(turn / ampelLanguages.length) % 2 ? 'thanks' : mood,
+    quiet = wantsQuiet(admitting, sig?.busy),
+    // While waiting, every second round says thank you; when the Mensa is almost full, every second round asks for
+    // quiet.
+    second = Math.floor(turn / ampelLanguages.length) % 2 === 1,
+    languageKey = mood === 'wait' && second ? 'thanks' : quiet && second ? 'quiet' : mood,
     nextSeat = reason === 'full' && sig ? nextSeatText(sig.nextFreeIn ?? -1) : '',
     friendly = friendlyLines[Math.floor(now.getTime() / 6000) % friendlyLines.length];
   useEffect(() => {
@@ -169,6 +172,11 @@ export function Signal({
       <h2>{time && full ? "Gleich geht's weiter" : title}</h2>
       {full && count && <p className="signal-count">{count}</p>}
       {full && nextSeat && <p className="signal-count">{nextSeat}</p>}
+      {quiet && (
+        <p className="signal-quiet">
+          <Volume1 aria-hidden="true" /> {ampelTexts.quiet.DE}
+        </p>
+      )}
       {time && full && <p className="signal-time">{time}</p>}
       {full && mood === 'wait' && (
         <p className="signal-dots" aria-hidden="true">

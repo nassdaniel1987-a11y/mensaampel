@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ampelLanguages, ampelTexts, friendlyLines, nextSeatText } from '../src/ampel-texts.mjs';
+import { ampelLanguages, ampelTexts, friendlyLines, nextSeatText, wantsQuiet } from '../src/ampel-texts.mjs';
 
 test('Ampel: jeder Zustand hat in jeder Sprache einen Text', () => {
   for (const [state, texts] of Object.entries(ampelTexts)) {
@@ -22,4 +22,13 @@ test('Ampel: freundliches Warten und Hinweis auf den nächsten Platz', () => {
   assert.equal(nextSeatText(0), 'Gleich wird ein Platz frei');
   assert.equal(nextSeatText(61), 'Nächster Platz frei in ca. 2 Min.');
   assert.equal(nextSeatText(300), 'Nächster Platz frei in ca. 5 Min.');
+});
+
+test('Ampel: Hinweis bei voller Mensa nur bei Einlass und ab 85 %', () => {
+  assert.equal(wantsQuiet(true, 85), true);
+  assert.equal(wantsQuiet(true, 84), false);
+  assert.equal(wantsQuiet(false, 100), false, 'bei Rot gilt das freundliche Warten');
+  assert.equal(wantsQuiet(true, -1), false);
+  assert.equal(wantsQuiet(true, undefined), false);
+  assert.match(ampelTexts.quiet.DE, /leise/);
 });

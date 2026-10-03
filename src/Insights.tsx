@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { CalendarClock, Lightbulb, Check } from 'lucide-react';
-import { forecast, coach, simulate, waitText, weekdays } from './insights.mjs';
+import { CalendarClock, Lightbulb, Check, ShieldCheck } from 'lucide-react';
+import { forecast, coach, simulate, waitText, weekdays, confidence, confidenceLevels } from './insights.mjs';
 import type { State, Send, FlowState } from './types';
 // Weekday of the running serving day (report), otherwise from the clock.
 const todayWeekday = (f: FlowState) => (f.today[1] >= 0 ? f.today[1] : f.clockValid ? f.weekday : -1);
@@ -131,5 +131,68 @@ export function Coach({ state: s, send, disabled }: { state: State; send: Send; 
         <p className="hint">0 = ohne Gruppen (nur die Platzzahl begrenzt). Aktuell eingestellt: {label(f.batch)}.</p>
       </section>
     </>
+  );
+}
+
+const halfHour = (slot: number) => `${Math.floor(slot / 2)}:${slot % 2 ? '30' : '00'}`;
+/** "Wie sicher ist das Gelernte?": per weekday and half hour how much the learned values rest on (tablet only). */
+export function Confidence({ state: s }: { state: State }) {
+  const f = s.flow;
+  if (!f) return null;
+  const c = confidence(f);
+  return (
+    <section className="flow-section confidence" aria-label="Wie sicher ist das Gelernte">
+      <h2>
+        <ShieldCheck /> Wie sicher ist das Gelernte?
+      </h2>
+      <p className="hint">
+        Stufen: noch nicht · unsicher · mittel · sicher. Ein Zeitfenster (Wochentag und halbe Stunde) nutzt die
+        Automatik ab 3 Gruppen, sicher ist es ab 7. Die Tagesprognose ist ab 4 Mittagen desselben Wochentags sicher.
+      </p>
+      {c.halfHours.length > 0 && (
+        <div className="table-scroll">
+          <table className="confidence-grid">
+            <thead>
+              <tr>
+                <th>Tag</th>
+                {c.halfHours.map(h => (
+                  <th key={h}>{halfHour(h)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {c.rows.map(r => (
+                <tr key={r.weekday}>
+                  <th>{weekdays[r.weekday].slice(0, 2)}</th>
+                  {r.cells.map(x => (
+                    <td key={x.slot} className={`level-${x.level}`} title={confidenceLevels[x.level]}>
+                      {x.n ? `${x.n}×` : '–'}
+                      <small>{confidenceLevels[x.level]}</small>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <ul className="confidence-days">
+        {c.rows.map(r => (
+          <li key={r.weekday}>
+            <span className={`level-badge level-${r.level}`}>{confidenceLevels[r.level]}</span> {r.text}
+          </li>
+        ))}
+      </ul>
+      <ul className="confidence-days">
+        <li>
+          <span className={`level-badge level-${c.groups.level}`}>{confidenceLevels[c.groups.level]}</span>{' '}
+          Gruppen-Zeiten insgesamt: {c.groups.n} Gruppen gemessen (Rückfall, wenn ein Zeitfenster noch fehlt).
+        </li>
+        <li>
+          <span className={`level-badge level-${c.stay.level}`}>{confidenceLevels[c.stay.level]}</span> Verweildauer:
+          aus {c.stay.n} Rückgaben gelernt (für „nächster Platz frei in …“ an der Ampel, ab 5).
+        </li>
+      </ul>
+    </section>
   );
 }

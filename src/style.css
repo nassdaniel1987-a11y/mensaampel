@@ -1894,6 +1894,24 @@ dialog {
   font-size: clamp(24px, 3.4vw, 42px) !important;
   font-weight: 800 !important;
 }
+.signal-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  font-weight: 700;
+}
+.fullscreen-signal .signal-quiet {
+  font-size: clamp(20px, 2.6vw, 32px) !important;
+}
+.signal-quiet svg {
+  width: 1.2em;
+  height: 1.2em;
+  flex: none;
+}
 .signal-language {
   margin-top: 22px;
   font-size: clamp(20px, 2.6vw, 32px) !important;
@@ -2066,4 +2084,48 @@ dialog {
   background: var(--accent-soft);
   border-color: #99d5c9;
   color: var(--navy);
+}
+
+/* "Wie sicher ist das Gelernte?" – level shown as text and colour, never colour alone. */
+.confidence-grid td {
+  text-align: center;
+  font-weight: 700;
+  min-width: 64px;
+}
+.confidence-grid td small {
+  display: block;
+  font-weight: 500;
+  font-size: 11px;
+}
+.level-0 {
+  background: #f1f5f9;
+  color: #475569;
+}
+.level-1 {
+  background: #fef3c7;
+  color: #92400e;
+}
+.level-2 {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.level-3 {
+  background: #dcfce7;
+  color: #166534;
+}
+.confidence-days {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.level-badge {
+  display: inline-block;
+  min-width: 82px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 700;
 }

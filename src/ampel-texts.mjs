@@ -39,6 +39,16 @@ export const ampelTexts = {
     JA: '待ってくれてありがとう！',
     ZH: '谢谢你的耐心等待！',
   },
+  // Green or amber while the Mensa is almost full (alternates with "open").
+  quiet: {
+    DE: 'Die Mensa ist fast voll – bitte leise reingehen',
+    EN: 'The canteen is almost full – please come in quietly',
+    TR: 'Yemekhane neredeyse dolu – lütfen sessizce gir',
+    AR: 'المطعم ممتلئ تقريبًا – من فضلك ادخل بهدوء',
+    UK: 'Їдальня майже повна – заходь, будь ласка, тихо',
+    JA: '食堂はほぼ満席です。静かに入ってください',
+    ZH: '食堂快满了，请安静地进去',
+  },
   // Not ready, no connection, fault.
   closed: {
     DE: 'Noch geschlossen',
@@ -62,4 +72,10 @@ export function nextSeatText(seconds) {
   if (!(seconds >= 0)) return '';
   if (seconds < 60) return 'Gleich wird ein Platz frei';
   return `Nächster Platz frei in ca. ${Math.ceil(seconds / 60)} Min.`;
+}
+// The Mensa counts as almost full from this share of the released seats in use (signal.busy, percent).
+export const quietFrom = 85;
+/** Ask for quiet: children may come in and the released seats are almost all in use. */
+export function wantsQuiet(admitting, busy) {
+  return Boolean(admitting) && typeof busy === 'number' && busy >= quietFrom;
 }
