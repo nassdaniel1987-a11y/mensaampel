@@ -61,6 +61,17 @@ public:
     }
   }
 };
+// Upload in pieces (0.19.1): the tablet sends the firmware in pieces of at most `maxLength` bytes, each one complete
+// before it is written. After a WLAN drop the tablet repeats the piece; a piece that is already written is only
+// acknowledged (Skip), the next piece in order is written (Write), anything else is refused. Before 0.19.1 one long
+// upload broke off when the tablet left the WLAN for a moment.
+enum class ChunkAction { Write, Skip, Reject };
+inline ChunkAction chunk(size_t offset, size_t length, size_t written, size_t total, size_t maxLength) {
+  if (length == 0 || length > maxLength || offset + length > total) return ChunkAction::Reject;
+  if (offset == written) return ChunkAction::Write;
+  if (offset + length <= written) return ChunkAction::Skip;
+  return ChunkAction::Reject;
+}
 // Boot of a freshly installed firmware: tries counts starts without reaching "healthy" (60 s running, web server
 // up). After three such starts the Dial switches back to the previous firmware.
 enum class BootAction { None, Count, Rollback };

@@ -132,6 +132,9 @@ std::atomic<uint32_t> sendMaxMs{0}, sendAborts{0}, wlanDrops{0}, probeAnswers{0}
 // ms; it is only painted when it changed. drawMs/drawMaxMs: time to paint one picture (health report).
 bool drawFast = false;
 std::atomic<uint32_t> drawMs{0}, drawMaxMs{0}; // written by the loop outside the lock, read by the web task
+// Smoothness: longest wait for the state lock before a frame and longest gap between two frames while something moves
+// (health report; a tablet request holding the lock shows up here).
+std::atomic<uint32_t> lockWaitMaxMs{0}, frameGapMaxMs{0};
 // Names of all hosts point to the Dial, so tablets can run their internet check against it (probes.hpp).
 DNSServer dns;
 // Router mode (netconfig.hpp, 0.18.0). routerHost: the Dial's address in the router network, fixed from the start (a
@@ -320,6 +323,14 @@ struct OtaUpload {
   volatile size_t written = 0, total = 0;
   volatile uint64_t lastAt = 0;
   mensa::ota::MarkScan scan;
+  // Upload in pieces (0.19.1, /api/update/begin|chunk|finish): one piece is collected here completely before it is
+  // written, so a piece broken off by a WLAN drop can simply be sent again.
+  // A multiple of the web server's read block (1436 bytes): it reads whole blocks and would otherwise wait 5 s for the
+  // rest of the last block of every piece.
+  static constexpr size_t chunkMax = 11 * HTTP_RAW_BUFLEN;
+  std::vector<uint8_t> buf;
+  size_t chunkOffset = 0, chunkLength = 0;
+  bool chunkTooLong = false, chunkComplete = false;
 } ota;
 bool blocked() {
   if (ota.active) return true;
@@ -437,6 +448,8 @@ Json state(bool withCards = true) {
         {"probeAnswers", probeAnswers.load()},
         {"drawMs", drawMs.load()},
         {"drawMaxMs", drawMaxMs.load()},
+        {"frameGapMaxMs", frameGapMaxMs.load()},
+        {"lockWaitMaxMs", lockWaitMaxMs.load()},
         {"rssiMin", rssiMin},
         {"router", config.routerMode()},
         {"stations", stations()},
@@ -600,6 +613,8 @@ Json healthJson() {
             {"probeAnswers", probeAnswers.load()},
             {"drawMs", drawMs.load()},
             {"drawMaxMs", drawMaxMs.load()},
+            {"frameGapMaxMs", frameGapMaxMs.load()},
+            {"lockWaitMaxMs", lockWaitMaxMs.load()},
             {"rssiMin", rssiMin},
             {"router", config.routerMode()},
             {"stations", stations()},
@@ -907,6 +922,115 @@ void receiveUpdate() {
   } else if (u.status == UPLOAD_FILE_ABORTED)
     fail("Übertragung abgebrochen.");
 }
+// Upload in pieces (0.19.1). begin: size and checks; chunk (header X-Update-Offset): raw body of one piece; finish:
+// check and restart.
+void otaStop(const std::string &why) {
+  if (Update.isRunning()) Update.abort();
+  ota.active = false;
+  ota.ok = false;
+  ota.error = why;
+  std::vector<uint8_t>().swap(ota.buf);
+}
+void otaBegin() {
+  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  if (needsReview || !configValid)
+    return reply(200, result(false, "Zuerst Bestand und Einrichtung in Ordnung bringen."));
+  size_t size = 0;
+  try {
+    size = Json::parse(web.arg("plain").c_str()).at("size").get<size_t>();
+  } catch (...) { return reply(400, result(false, "Ungültige Anfrage.")); }
+  const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+  if (size < 1024 || !next || size > next->size) return reply(200, result(false, "Datei passt nicht in den Speicher."));
+  if (Update.isRunning()) Update.abort();
+  ota = OtaUpload{};
+  try {
+    ota.buf.resize(OtaUpload::chunkMax);
+  } catch (...) { return reply(200, result(false, "Zu wenig freier Speicher. Dial neu starten und nochmal.")); }
+  if (!Update.begin(size, U_FLASH)) {
+    std::vector<uint8_t>().swap(ota.buf);
+    return reply(200, result(false, "Update konnte nicht starten."));
+  }
+  ota.total = size;
+  ota.active = true;
+  ota.lastAt = nowMs();
+  mark("Update");
+  reply(200, {{"ok", true}, {"chunk", OtaUpload::chunkMax}, {"written", 0}});
+}
+// Raw body of one piece (web task, outside the lock like the old upload; only this task writes ota during upload).
+void otaChunkData() {
+  HTTPRaw &r = web.raw();
+  if (r.status == RAW_START) {
+    // As a header: the web server does not read URL arguments for raw bodies.
+    ota.chunkOffset = strtoul(web.header("X-Update-Offset").c_str(), nullptr, 10);
+    ota.chunkLength = 0;
+    ota.chunkTooLong = false;
+    ota.chunkComplete = false;
+  } else if (r.status == RAW_WRITE) {
+    if (!ota.active || ota.buf.empty()) return;
+    if (ota.chunkLength + r.currentSize > ota.buf.size()) {
+      ota.chunkTooLong = true;
+      return;
+    }
+    memcpy(ota.buf.data() + ota.chunkLength, r.buf, r.currentSize);
+    ota.chunkLength += r.currentSize;
+    ota.lastAt = nowMs();
+  } else if (r.status == RAW_END)
+    ota.chunkComplete = true;
+}
+void otaChunk() {
+  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  if (!ota.active || ota.buf.empty() || !Update.isRunning())
+    return reply(200,
+                 {{"ok", false}, {"restart", true}, {"message", ota.error.empty() ? "Kein Update aktiv." : ota.error}});
+  // A piece that did not arrive completely is simply sent again by the tablet.
+  if (!ota.chunkComplete || ota.chunkTooLong)
+    return reply(200, {{"ok", false}, {"written", size_t(ota.written)}, {"message", "Stück unvollständig."}});
+  auto action = mensa::ota::chunk(ota.chunkOffset, ota.chunkLength, ota.written, ota.total, ota.buf.size());
+  if (action == mensa::ota::ChunkAction::Write) {
+    if (ota.written == 0 && ota.buf[0] != 0xE9) {
+      otaStop("Keine Dial-Firmware (Dateianfang).");
+      return reply(200, {{"ok", false}, {"restart", true}, {"message", ota.error}});
+    }
+    ota.scan.feed(ota.buf.data(), ota.chunkLength);
+    if (Update.write(ota.buf.data(), ota.chunkLength) != ota.chunkLength) {
+      otaStop("Schreiben fehlgeschlagen.");
+      return reply(200, {{"ok", false}, {"restart", true}, {"message", ota.error}});
+    }
+    ota.written += ota.chunkLength;
+  }
+  ota.lastAt = nowMs();
+  ota.chunkComplete = false;
+  // Reject: the tablet continues from "written".
+  reply(200, {{"ok", action != mensa::ota::ChunkAction::Reject}, {"written", size_t(ota.written)}});
+}
+void otaFinish() {
+  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  if (!ota.active || !Update.isRunning())
+    return reply(200, result(false, ota.error.empty() ? "Kein Update aktiv." : ota.error));
+  if (ota.written != ota.total) return reply(200, result(false, "Update unvollständig."));
+  if (!ota.scan.found) {
+    otaStop("Keine Mensaampel-Firmware.");
+    return reply(200, result(false, ota.error));
+  }
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  if (!Update.end(true)) {
+    otaStop(std::string("Prüfung fehlgeschlagen: ") + Update.errorString());
+    return reply(200, result(false, ota.error));
+  }
+  std::vector<uint8_t>().swap(ota.buf);
+  Preferences p;
+  if (p.begin("ota", false)) {
+    p.putString("prev", running ? running->label : "");
+    p.putBool("pending", true);
+    p.putInt("tries", 0);
+    p.end();
+  }
+  ota.version = ota.scan.version;
+  ota.ok = true;
+  restartAt = nowMs() + 1500;
+  note("Update fertig. Neustart ...", true);
+  reply(200, {{"ok", true}, {"message", "Update übertragen. Das Dial startet neu."}, {"version", ota.version}});
+}
 // A freshly installed firmware that never runs healthily (three starts) switches back to the previous one.
 bool otaPending = false;
 std::string otaNote;
@@ -947,8 +1071,8 @@ void otaHealthy(uint64_t now) {
   }
 }
 void configureWeb() {
-  const char *headers[] = {"Origin", "X-Mensa-Token", "X-Firmware-Size"};
-  web.collectHeaders(headers, 3);
+  const char *headers[] = {"Origin", "X-Mensa-Token", "X-Firmware-Size", "X-Update-Offset"};
+  web.collectHeaders(headers, 4);
   web.on("/api/update", HTTP_POST, guarded([] {
            if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
            if (!ota.ok) {
@@ -961,6 +1085,9 @@ void configureWeb() {
                  {{"ok", true}, {"message", "Update übertragen. Das Dial startet neu."}, {"version", ota.version}});
          }),
          [] { receiveUpdate(); });
+  web.on("/api/update/begin", HTTP_POST, guarded([] { otaBegin(); }));
+  web.on("/api/update/chunk", HTTP_POST, guarded([] { otaChunk(); }), [] { otaChunkData(); });
+  web.on("/api/update/finish", HTTP_POST, guarded([] { otaFinish(); }));
   web.on("/api/info", HTTP_GET, guarded([] {
            if (!localOrigin()) return reply(403, result(false, "Fremder Zugriff."));
            reply(200, {{"mode", "device"},
@@ -1102,13 +1229,28 @@ void configureWeb() {
 // Draws the core's draw list, smooth (core/dial_raster.hpp, same pixels as the browser). Redraws only on change.
 // Flicker-free in five horizontal strips of 240x48 pixels in a static buffer (23 KB, not from the heap: the Dial has
 // no PSRAM, WLAN and the web server need the memory).
-constexpr int stripH = 48;
-uint16_t strip[240 * stripH];
+// 0.19.1: two strip buffers of 24 rows (same memory as one of 48): the next strip is painted while the previous one
+// goes to the display by DMA, and strips that did not change (hash) are not sent again.
+constexpr int stripH = 24, stripCount = 240 / stripH;
+uint16_t strip[2][240 * stripH];
+uint32_t stripHash[stripCount];
+bool stripHashValid = false;
+uint64_t lastFrameAt = 0;
+bool lastFrameFast = false;
+uint32_t stripHashOf(const uint16_t *px) {
+  uint32_t h = 2166136261u;
+  const uint32_t *w = (const uint32_t *)px;
+  for (int i = 0; i < 240 * stripH / 2; i++)
+    h = (h ^ w[i]) * 16777619u;
+  return h;
+}
 std::string lastScreen;
 // Builds the Dial picture under the state lock; returns false when nothing changed.
 bool buildScreen(Json &list) {
+  uint64_t asked = nowMs();
   Guard g;
   uint64_t now = nowMs();
+  if (drawFast && now - asked > lockWaitMaxMs) lockWaitMaxMs = uint32_t(now - asked);
   mensa::DialExtras x;
   // After a crash: for one minute show where it happened (black box), so it can be reported without a PC.
   std::string crashHint =
@@ -1192,7 +1334,8 @@ bool buildScreen(Json &list) {
   if (M5.BtnA.isPressed() && configValid)
     x.holdMs = int(std::min<uint32_t>(M5.BtnA.getUpdateMsec() - M5.BtnA.lastChange(), 20000));
   list = engine.dialScreen(now, x);
-  drawFast = engine.animating(now, x) || ota.active || (feedbackAt && now - feedbackAt < 600);
+  // During an update only the progress changes: no fast frames, the upload gets the processor.
+  drawFast = !ota.active && (engine.animating(now, x) || (feedbackAt && now - feedbackAt < 600));
   auto dump = list.dump();
   if (dump == lastScreen) return false;
   lastScreen = dump;
@@ -1201,19 +1344,35 @@ bool buildScreen(Json &list) {
 // Painting (SPI) runs without the lock, so the web task can answer meanwhile.
 void draw() {
   uint64_t now = nowMs();
-  if (restingNow || now - drawAt < (drawFast ? 40 : 250)) return;
+  // About 30 frames per second while something moves, if painting is quick enough; otherwise 25.
+  if (restingNow || now - drawAt < (drawFast ? (drawMs < 24 ? 33 : 40) : 250)) return;
   drawAt = now;
   Json list;
   if (!buildScreen(list)) return;
   uint64_t t0 = nowMs();
+  if (drawFast && lastFrameFast && t0 - lastFrameAt > frameGapMaxMs) frameGapMaxMs = uint32_t(t0 - lastFrameAt);
   M5.Display.startWrite();
-  for (int y = 0; y < 240; y += stripH) {
-    mensa::raster::Target t{strip, 240, y, stripH, true};
+  int inFlight = -1; // buffer whose DMA transfer may still run
+  for (int k = 0; k < stripCount; k++) {
+    int b = k & 1;
+    if (inFlight == b) {
+      M5.Display.waitDMA();
+      inFlight = -1;
+    }
+    mensa::raster::Target t{strip[b], 240, k * stripH, stripH, true};
     mensa::raster::paint(t, list);
-    M5.Display.pushImage(0, y, 240, stripH, (const lgfx::swap565_t *)strip);
+    uint32_t h = stripHashOf(strip[b]);
+    if (stripHashValid && h == stripHash[k]) continue;
+    stripHash[k] = h;
+    M5.Display.pushImageDMA(0, k * stripH, 240, stripH, (const lgfx::swap565_t *)strip[b]);
+    inFlight = b;
   }
+  M5.Display.waitDMA();
   M5.Display.endWrite();
-  drawMs = uint32_t(nowMs() - t0);
+  stripHashValid = true;
+  lastFrameAt = nowMs();
+  lastFrameFast = drawFast;
+  drawMs = uint32_t(lastFrameAt - t0);
   if (drawMs > drawMaxMs) drawMaxMs = drawMs.load();
 }
 void webTask(void *) {
@@ -1434,10 +1593,10 @@ void step(uint64_t now) {
     }
   }
   routerStep(now);
-  // An upload that stopped (tablet gone) must not keep the entrance blocked.
-  if (ota.active && !ota.ok && now - ota.lastAt > 30000) {
-    if (Update.isRunning()) Update.abort();
-    ota.active = false;
+  // An upload that stopped (tablet gone for 2 minutes) must not keep the entrance blocked; short WLAN drops are
+  // bridged by repeating the piece.
+  if (ota.active && !ota.ok && now - ota.lastAt > 120000) {
+    otaStop("Update abgebrochen.");
     note("Update abgebrochen. Altes Programm bleibt.", false);
   }
   if (!otaNote.empty() && now > 3000) {

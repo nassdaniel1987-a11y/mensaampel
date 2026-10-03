@@ -200,6 +200,12 @@ def evaluate(record):
         level = 'ok' if draw <= 40 else 'warnung' if draw <= 80 else 'fehler'
         add('Bild zeichnen (längstes)', level, f'{draw} ms', '≤ 40 ms',
             '' if level == 'ok' else 'Animationen ruckeln noch etwas – Wert an den Entwickler melden.')
+    if any('frameGapMaxMs' in (s.get('health') or {}) for s in samples):
+        gap = max(((s.get('health') or {}).get('frameGapMaxMs', 0) for s in samples), default=0)
+        wait = max(((s.get('health') or {}).get('lockWaitMaxMs', 0) for s in samples), default=0)
+        level = 'ok' if gap <= 80 else 'warnung' if gap <= 150 else 'fehler'
+        add('Flüssige Animation (längste Pause)', level, f'{gap} ms (davon auf Sperre gewartet {wait} ms)', '≤ 80 ms',
+            '' if level == 'ok' else 'Animationen stocken – Bericht an den Entwickler; Wartezeit zeigt, ob Tablet-Anfragen bremsen.')
     probes = h1.get('probeAnswers')
     if probes is not None:
         add('Internetprüfung der Tablets beantwortet', 'hinweis', f'{probes}×', '–',
@@ -428,6 +434,11 @@ def selftest():
     status = {c['name']: c['status'] for c in evaluate(rec)}
     assert status['Dial mit dem Router verbunden'] == 'warnung' and status['Rettungs-WLAN'] == 'warnung', status
     assert 'Tablets im Dial-WLAN' not in status
+    smooth = dict(record)
+    smooth['samples'] = [dict(good(0), health={'minBlock': 52000, 'frameGapMaxMs': 40, 'lockWaitMaxMs': 2}),
+                         dict(good(1), health={'minBlock': 52000, 'frameGapMaxMs': 170, 'lockWaitMaxMs': 120})]
+    status = {c['name']: c['status'] for c in evaluate(smooth)}
+    assert status['Flüssige Animation (längste Pause)'] == 'fehler', status
     # Unclear card reads are a hint, not a reader fault.
     soft = dict(record)
     soft['samples'] = [good(0), good(1, health={'readerFaults': 0, 'unclearReads': 2, 'minBlock': 52000})]

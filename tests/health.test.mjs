@@ -74,3 +74,13 @@ test('Gesundheit im Router-Betrieb: Trennungen und Signal betreffen den Router',
   assert.equal(signal.level, 2);
   assert.match(signal.todo, /Router näher/);
 });
+
+test('Gesundheit: flüssige Animation aus der längsten Pause zwischen zwei Bildern', () => {
+  const row = h => healthRows({ ...good, health: { ...good.health, ...h } }).find(r => r.name === 'Flüssige Animation');
+  assert.equal(row({}), undefined, 'ältere Firmware ohne Wert');
+  assert.equal(row({ frameGapMaxMs: 45, lockWaitMaxMs: 3 }).level, 0);
+  const slow = row({ frameGapMaxMs: 210, lockWaitMaxMs: 160 });
+  assert.equal(slow.level, 2);
+  assert.match(slow.value, /gewartet 160 ms/);
+  assert.match(slow.todo, /Tablet-Anfrage/);
+});

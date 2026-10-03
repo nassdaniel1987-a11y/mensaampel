@@ -175,6 +175,7 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Taste halten | Weißer Fortschrittsring, nach 3 s „Loslassen“ | ☐ |
 | Strom während Speichern unterbrechen, nur Testbestand | Kein unbemerkter Neustart mit falschem Bestand | ☐ |
 | Update des Testgeräts | Kartenzuordnungen und Einstellungen bleiben | ☐ |
+| Update per Tablet, dabei das WLAN des Tablets kurz aus- und wieder einschalten (ab 0.19.1) | Fortschritt bleibt kurz stehen und läuft danach weiter; Update fertig | ☐ |
 | Update per Tablet über das Dial-WLAN (Gerät → Firmware-Update) | Fortschritt am Dial, Neustart mit neuer Version, Karten unverändert; ein Foto wird abgelehnt | ☐ |
 | Küche auf wenige Plätze stellen, bis „Mensa öffnen? Drehen“ erscheint; Ring drehen | Mensa-Einstellung öffnet mit Vorschlag, Taste übernimmt | ☐ |
 | Gerät → „Gesundheit heute“ nach einem Mittag | Alle Punkte grün oder erklärbar; Werte notieren | ☐ |
@@ -248,10 +249,24 @@ Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspie
 1. **Mit Internet:** Im Release die Datei **„Mensaampel-Dial-Update.bin“** auf das Tablet laden (Android: landet unter „Downloads“; iPad: in Safari laden, liegt dann in der App „Dateien“).
 2. Tablet mit dem **WLAN des Dials** verbinden, `http://192.168.4.1` öffnen und anmelden.
 3. **Gerät → Firmware-Update** → Datei auswählen. Das Tablet prüft sie und zeigt „Version alt → neu“.
-4. **Update starten** und bestätigen. Am Dial läuft ein Ring mit Prozentzahl („UPDATE“), danach startet es neu. Nicht ausschalten. Dauer etwa eine Minute; so lange ist der Einlass unterbrochen und die Ampel rot.
+4. **Update starten** und bestätigen. Am Dial läuft ein Ring mit Prozentzahl („UPDATE“), danach startet es neu. Nicht ausschalten. Dauer etwa eine Minute; so lange ist der Einlass unterbrochen und die Ampel rot. Ab 0.19.1 überträgt das Tablet die Datei in kleinen Stücken: Fällt das Tablet kurz aus dem WLAN, macht es danach an derselben Stelle weiter (bis zu 90 Sekunden ohne Verbindung).
 5. Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen. Ab 0.17.7 laden die übrigen Tablets (auch die Ampel) die neue Oberfläche von selbst; bei älteren Versionen die Ampelseite einmal neu laden.
 
 Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.
+
+## Update per USB, wenn das Tablet-Update abbricht
+
+Bis 0.19.0 lief ein Update vom Tablet in einem Stück. Fiel das Tablet dabei kurz aus dem WLAN (beim Galaxy Tab etwa jede Minute), brach die Übertragung ab und das alte Programm blieb. Ab 0.19.1 geht das stückweise. **Einmalig** muss 0.19.1 aber noch über den alten Weg auf das Dial – am sichersten per USB:
+
+1. Release **v0.19.1-preview** öffnen und `Mensaampel_Dial_Vorbereitung.zip` **neu** herunterladen und vollständig entpacken (nicht den alten Ordner benutzen – der alte Helfer hatte beim Update einen Fehler, siehe unten).
+2. Vorher am Tablet **Gerät → Sicherung herunterladen** (zur Sicherheit).
+3. G0-Taste am Dial gedrückt halten, USB-Datenkabel mit dem PC verbinden, G0 loslassen.
+4. `Dial-Installieren.cmd` starten, Anschluss wählen, **„Update – Karten und Einstellungen behalten“** wählen, bestätigen, **Software übertragen**.
+5. Nach „Fertig“ RST drücken bzw. USB neu verbinden. Am Tablet unter Gerät muss **Version 0.19.1-preview** stehen. Bestand wie nach jedem Neustart bestätigen.
+
+**Fehler im alten Helfer (bis 0.19.0):** Die Option „Update“ schrieb das Programm nur in den ersten Programmbereich. Nach einem Tablet-Update startet das Dial aber aus dem zweiten Bereich – das neue Programm wäre dann unsichtbar geblieben. Ab 0.19.1 setzt der Helfer zusätzlich den Startbereich zurück. Karten und Einstellungen bleiben dabei erhalten.
+
+**Ohne PC:** Statt mit dem Galaxy Tab das Update mit einem Laptop oder einem Tablet machen, das zuverlässig im WLAN bleibt (Bildschirm an, nahe am Dial). Mit Claude Code am PC: „Bitte das Dial per USB auf 0.19.1 aktualisieren (Update-Modus, Karten behalten).“
 
 ## Lernen, Hinweise und Gesundheit (ab 0.16)
 
@@ -370,6 +385,13 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ruhemodus:** Wird das Dial eine Weile nicht benutzt und ist **keine Karte draußen**, wird es dunkel und leise (Standard 20 Minuten; einstellen unter Einstellungen → „Ruhemodus“, auch „aus“). Eine **Karte** weckt es und wird sofort gebucht. **Ring, Taste oder Berühren** wecken es nur – es passiert dabei nichts anderes. Die Ampel draußen und die Tablets laufen unverändert weiter. Nicht im Ruhemodus: solange der Bestand nicht bestätigt ist, ein Menü, das Einlernen oder ein Countdown läuft.
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
+
+## Neu in 0.19.1
+
+- **Update vom Tablet in Stücken:** Kurze WLAN-Aussetzer brechen das Update nicht mehr ab; das Tablet setzt an derselben Stelle fort. Während des Updates zeichnet das Dial langsamer, damit die Übertragung Vorrang hat.
+- **USB-Update repariert:** Der Helfer setzt beim Update jetzt auch den Startbereich zurück (siehe „Update per USB, wenn das Tablet-Update abbricht“). **Diese Version einmal per USB aufspielen.**
+- **Flüssigere Animationen:** Das Dial malt den nächsten Bildstreifen, während der vorige schon zum Display unterwegs ist, schickt unveränderte Streifen nicht erneut und zeichnet bis zu 30 Bilder pro Sekunde. Neu unter „Gesundheit heute“: **„Flüssige Animation“** (längste Pause zwischen zwei Bildern). Steht dort Gelb oder Rot, den Wert melden – dann wissen wir, ob Tablet-Anfragen das Dial aufhalten.
+- Nur gebaut und mit Tests geprüft, noch nicht am Gerät.
 
 ## Neu in 0.19.0
 

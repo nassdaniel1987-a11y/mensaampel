@@ -57,6 +57,8 @@ export type Device = {
     probeAnswers?: number;
     drawMs?: number;
     drawMaxMs?: number;
+    frameGapMaxMs?: number;
+    lockWaitMaxMs?: number;
     rssiMin?: number;
     router?: boolean;
     stations?: { mac: string; rssi: number }[];

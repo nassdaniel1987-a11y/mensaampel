@@ -93,6 +93,21 @@ export function healthRows(device, diag) {
       todo:
         h.drawMaxMs <= 40 ? 'Alles in Ordnung.' : 'Animationen können leicht ruckeln – Wert an den Entwickler melden.',
     });
+  if (h.frameGapMaxMs !== undefined) {
+    const gap = h.frameGapMaxMs,
+      held = (h.lockWaitMaxMs ?? 0) >= 50;
+    rows.push({
+      name: 'Flüssige Animation',
+      level: gap <= 80 ? 0 : gap <= 150 ? 1 : 2,
+      value: `längste Pause zwischen zwei Bildern ${gap} ms` + (held ? `, davon gewartet ${h.lockWaitMaxMs} ms` : ''),
+      todo:
+        gap <= 80
+          ? 'Alles in Ordnung.'
+          : held
+            ? 'Das Dial war kurz mit einer Tablet-Anfrage beschäftigt – Werte an den Entwickler melden.'
+            : 'Animationen haben gestockt – Werte an den Entwickler melden.',
+    });
+  }
   if (h.sendAborts !== undefined)
     rows.push({
       name: 'Antworten abgebrochen',

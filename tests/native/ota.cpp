@@ -27,6 +27,16 @@ int main() {
   check(onBoot(false, 5) == BootAction::None, "ohne Update nichts tun");
   check(onBoot(true, 0) == BootAction::Count && onBoot(true, 2) == BootAction::Count, "erste drei Starts zählen");
   check(onBoot(true, 3) == BootAction::Rollback, "nach drei Fehlstarts zurück");
+  check(chunk(0, 100, 0, 1000, 100) == ChunkAction::Write, "erstes Stück schreiben");
+  check(chunk(100, 100, 100, 1000, 100) == ChunkAction::Write, "nächstes Stück schreiben");
+  check(chunk(0, 100, 200, 1000, 100) == ChunkAction::Skip, "wiederholtes Stück nur bestätigen");
+  check(chunk(100, 100, 200, 1000, 100) == ChunkAction::Skip, "letztes Stück wiederholt");
+  check(chunk(300, 100, 200, 1000, 100) == ChunkAction::Reject, "Lücke abgelehnt");
+  check(chunk(150, 100, 200, 1000, 100) == ChunkAction::Reject, "überlappend abgelehnt");
+  check(chunk(900, 101, 900, 1000, 200) == ChunkAction::Reject, "über das Ende");
+  check(chunk(0, 101, 0, 1000, 100) == ChunkAction::Reject, "zu groß");
+  check(chunk(0, 0, 0, 1000, 100) == ChunkAction::Reject, "leer");
+  check(chunk(950, 50, 950, 1000, 100) == ChunkAction::Write, "kurzes letztes Stück");
   printf("ok %d\n", failures);
   return failures ? 1 : 0;
 }

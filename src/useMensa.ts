@@ -3,6 +3,7 @@ import type { State, Command, Info } from './types';
 import { mergeCards } from './state-merge.mjs';
 import { needsReload } from './version-check.mjs';
 import { VERSION } from './version.mjs';
+import { uploadInPieces } from './firmware-upload.mjs';
 export function useMensa() {
   const [state, setState] = useState<State | null>(null),
     [info, setInfo] = useState<Info | null>(null),
@@ -280,26 +281,23 @@ export function useMensa() {
     epoch.current++;
     setBusy(true);
     try {
-      const result = await new Promise<{ ok: boolean; message: string }>(resolve => {
-        const xhr = new XMLHttpRequest(),
-          form = new FormData();
-        form.append('firmware', file, 'firmware.bin');
-        xhr.open('POST', '/api/update');
-        xhr.setRequestHeader('X-Mensa-Token', token.current);
-        xhr.setRequestHeader('X-Firmware-Size', String(file.size));
-        xhr.timeout = 180000;
-        xhr.upload.onprogress = e => e.lengthComputable && progress(Math.round((e.loaded * 100) / e.total));
-        xhr.onload = () => {
-          try {
-            resolve(JSON.parse(xhr.responseText));
-          } catch {
-            resolve({ ok: false, message: 'Unerwartete Antwort vom Dial.' });
-          }
-        };
-        xhr.onerror = xhr.ontimeout = () =>
-          resolve({ ok: false, message: 'Übertragung unterbrochen. Altes Programm bleibt.' });
-        xhr.send(form);
-      });
+      // In pieces with repetition after WLAN drops (src/firmware-upload.mjs).
+      const result = await uploadInPieces(
+        new Uint8Array(await file.arrayBuffer()),
+        async (path, body, type, offset) => {
+          const headers: Record<string, string> = { 'X-Mensa-Token': token.current, 'Content-Type': type };
+          if (offset !== undefined) headers['X-Update-Offset'] = String(offset);
+          const r = await fetch(path, {
+            method: 'POST',
+            headers,
+            body: body as BodyInit,
+            cache: 'no-store',
+            signal: AbortSignal.timeout(30000),
+          });
+          return r.json();
+        },
+        progress,
+      );
       if (!result.ok) {
         setNotice({ ok: false, text: result.message });
         return false;

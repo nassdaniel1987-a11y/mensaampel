@@ -76,7 +76,9 @@ $start.Add_Click({
    $layoutLength=(Get-Item -LiteralPath $expectedPath).Length.ToString()
    Run-Flash ($base+@('--after','no_reset','read_flash','0x8000',$layoutLength,$layoutPath))
    if((File-Sha256 $layoutPath) -ne (File-Sha256 $expectedPath)){throw 'Speicherlayout passt nicht. Update abgebrochen; nichts geschrieben. Erstinstallation nur nach Sicherung waehlen.'}
-   Run-Flash ($base+@('--before','no_reset','write_flash','--flash_size','8MB','0x10000',(Join-Path $bundleRoot 'firmware/firmware.bin')))
+   # 0xe000 (ota data) zuruecksetzen: nach einem Update ueber das Tablet startet das Dial sonst weiter aus dem zweiten
+   # Programmbereich und die per USB geschriebene Version waere unsichtbar. Karten und Einstellungen bleiben.
+   Run-Flash ($base+@('--before','no_reset','write_flash','--flash_size','8MB','0xe000',(Join-Path $bundleRoot 'firmware/boot_app0.bin'),'0x10000',(Join-Path $bundleRoot 'firmware/firmware.bin')))
   }
   $log.AppendText("`r`nFertig. Falls noetig RST druecken oder USB neu verbinden. WLAN und Einrichtungscode stehen auf dem Dial. Dann ANLEITUNG-DIAL.html oeffnen.")
  }catch{$log.AppendText("`r`n"+$_.Exception.Message)}finally{$script:running=$false;$start.Enabled=$true;$refresh.Enabled=$true;$mode.Enabled=$true;$ports.Enabled=$true}
