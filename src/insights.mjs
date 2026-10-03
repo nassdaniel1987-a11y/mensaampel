@@ -1,0 +1,306 @@
+// Evaluations computed in the tablet's browser from the data the Dial already delivers (daily reports, learned
+// values). Nothing here is stored on the Dial; every tablet computes the same from the same data.
+// Daily report indices (core/flow.hpp Flow::Day): 0 day, 1 weekday, 2 issued, 3 returned, 4 groups, 5 automatic
+// releases, 6 earlier releases, 7 too full, 8 reliefs, 9 first issue minute, 10 last issue minute, 11 missing cards,
+// 12 tenths per child, 13 most cards out at once, 14 most Mensa seats.
+export const weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const served = d => d && d[2] > 0;
+const mean = list => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0);
+const clock = m => `${Math.floor(m / 60)}:${String(Math.round(m) % 60).padStart(2, '0')}`;
+// Same rule as Engine::mensaSuggestion: highest use, rounded up to five, at least 10, at most the capacity.
+const mensaSeats = (most, capacity) => Math.min(capacity, Math.max(10, Math.ceil(most / 5) * 5));
+
+/**
+ * Forecast for a weekday from the last four served days of that weekday.
+ * @returns {null | { days: number, weekday: number, meals: number, peak: number, mensaDays: number,
+ *   mensaSeats: number, mensaNeeded: boolean, start: string, end: string, minutes: number }}
+ */
+export function forecast(history, weekday, mensaCapacity = 64) {
+  if (!(weekday >= 0)) return null;
+  const days = history.filter(d => served(d) && d[1] === weekday).slice(-4);
+  if (!days.length) return null;
+  const peaks = days.filter(d => (d[13] ?? -1) >= 0).map(d => d[13]),
+    mensa = days.filter(d => (d[14] ?? -1) >= 0).map(d => d[14]),
+    times = days.filter(d => d[9] >= 0 && d[10] >= d[9]);
+  const mensaDays = mensa.filter(v => v > 0).length,
+    start = mean(times.map(d => d[9])),
+    end = mean(times.map(d => d[10]));
+  return {
+    days: days.length,
+    weekday,
+    meals: Math.round(mean(days.map(d => d[2]))),
+    peak: peaks.length ? Math.round(mean(peaks)) : -1,
+    mensaDays,
+    mensaNeeded: mensa.length > 0 && mensaDays * 2 >= mensa.length,
+    mensaSeats: mensaSeats(Math.max(0, ...mensa), mensaCapacity),
+    start: times.length ? clock(start) : '',
+    end: times.length ? clock(end) : '',
+    minutes: times.length ? Math.max(5, Math.round(end - start)) : 30,
+  };
+}
+
+/**
+ * Weekly coach: simple rules over the last served days. Each tip has a reason with the numbers behind it and, where
+ * it can be applied with one tap, the command for the Dial.
+ * @param {{ history: number[][], batch: number, yellow: number, autoOn: boolean, autoStart: number }} flow
+ * @param {{ M: { capacity: number, limit: number, open: boolean } }} rooms
+ */
+export function coach(flow, rooms) {
+  const days = flow.history.filter(served).slice(-10),
+    tips = [];
+  if (days.length < 3)
+    return [
+      {
+        id: 'wait',
+        title: 'Noch zu wenig Tage',
+        reason: `Der Coach braucht mindestens 3 Essenstage mit Ausgaben (bisher ${days.length}).`,
+      },
+    ];
+  const sum = i => days.reduce((a, d) => a + Math.max(0, d[i]), 0);
+  const groups = sum(4),
+    reliefs = sum(8),
+    auto = sum(5),
+    earlier = sum(6);
+  // Servery often too full: smaller groups.
+  if (flow.batch > 1 && groups >= 5 && reliefs / groups >= 0.25)
+    tips.push({
+      id: 'smaller',
+      title: `Gruppen auf ${flow.batch - 1} verkleinern`,
+      reason: `In den letzten ${days.length} Tagen musste bei ${reliefs} von ${groups} Gruppen entlastet werden – die Ausgabe war oft zu voll.`,
+      action: { type: 'flowSettings', yellow: flow.yellow, batch: flow.batch - 1 },
+    });
+  // Calm and often released earlier by hand: groups may be one larger.
+  else if (
+    flow.batch > 0 &&
+    flow.batch < 48 &&
+    groups >= 8 &&
+    reliefs === 0 &&
+    earlier / Math.max(1, auto + earlier) >= 0.3
+  )
+    tips.push({
+      id: 'larger',
+      title: `Gruppen auf ${flow.batch + 1} vergrößern`,
+      reason: `Keine Entlastung in ${days.length} Tagen, und ${earlier}-mal wurde die nächste Gruppe früher von Hand freigegeben – die Ausgabe schafft mehr.`,
+      action: { type: 'flowSettings', yellow: flow.yellow, batch: flow.batch + 1 },
+    });
+  // Groups in use, but released by hand only.
+  if (flow.batch > 0 && !flow.autoOn && groups >= 5)
+    tips.push({
+      id: 'auto',
+      title: 'Automatische Freigabe einschalten',
+      reason: `Es wurden ${groups} Gruppen von Hand freigegeben. Die Automatik lernt die Zeit pro Kind und gibt selbst frei; die Taste bleibt jederzeit möglich.`,
+      action: { type: 'autoSettings', on: true, start: Math.max(3, Math.min(180, Math.round(flow.autoStart / 10))) },
+    });
+  // Mensa needed on (almost) every day: open it right away.
+  const mensa = days.filter(d => (d[14] ?? -1) >= 0).slice(-5);
+  const mensaUsed = mensa.filter(d => d[14] > 0);
+  if (mensa.length >= 3 && mensaUsed.length >= mensa.length - 1 && !rooms.M.open) {
+    const seats = mensaSeats(Math.max(...mensaUsed.map(d => d[14])), rooms.M.capacity);
+    tips.push({
+      id: 'mensa',
+      title: `Mensa heute gleich mit ${seats} Plätzen öffnen`,
+      reason: `An ${mensaUsed.length} von ${mensa.length} Tagen wurde die Mensa gebraucht, höchstens ${Math.max(...mensaUsed.map(d => d[14]))} Plätze. Gilt für heute – beim nächsten Essenstag ist die Mensa wieder gesperrt und der Vorschlag erscheint erneut.`,
+      action: { type: 'room', room: 'M', capacity: rooms.M.capacity, limit: seats, open: true },
+    });
+  }
+  // Cards often missing at the end of the day: organisational tip only.
+  const missingDays = days.filter(d => d[11] > 0).length;
+  if (missingDays >= 3)
+    tips.push({
+      id: 'missing',
+      title: 'Karten am Ende einsammeln',
+      reason: `An ${missingDays} von ${days.length} Tagen fehlten Karten am Tagesende. Unter Betreuung → Hinweise steht, welche Nummern häufiger fehlen.`,
+    });
+  if (!tips.length)
+    tips.push({
+      id: 'fine',
+      title: 'Alles im grünen Bereich',
+      reason: `In den letzten ${days.length} Tagen gab es nichts, was sich klar verbessern ließe.`,
+    });
+  return tips;
+}
+
+/**
+ * What-if simulator: children arrive at the door, most of them right at the start; groups of `batch` are admitted (0 = no groups, only seats
+ * limit), the next group follows `batch × perChild` seconds after the first child of the group (as the automatic
+ * release); the servery serves one child every `perChild` seconds; seats are free again after `stay` seconds.
+ * A rough estimate, deterministic, in whole seconds.
+ * @param {{ children: number, minutes: number, perChild: number, stay: number, seats: number, batch: number }} p
+ */
+export function simulate({ children, minutes, perChild, stay, seats, batch }) {
+  children = Math.max(1, Math.min(500, Math.round(children)));
+  perChild = Math.max(1, perChild);
+  const spread = Math.max(0, minutes) * 60,
+    // Most children come right at the start (after the bell): arrival share grows like the square root of time.
+    arrivals = Array.from({ length: children }, (_, i) => Math.round(spread * (i / children) ** 2)),
+    leave = [];
+  let next = 0,
+    inGroup = 0,
+    groupStart = -1,
+    releaseAt = 0,
+    groups = 0,
+    serveryFree = 0,
+    doorWait = 0,
+    doorMax = 0,
+    serveryWait = 0,
+    serveryMax = 0,
+    queueMax = 0,
+    t = 0;
+  for (; next < children && t < 6 * 3600; t++) {
+    while (leave.length && leave[0] <= t) leave.shift();
+    let waiting = 0;
+    for (let i = next; i < children && arrivals[i] <= t; i++) waiting++;
+    queueMax = Math.max(queueMax, waiting);
+    while (next < children && arrivals[next] <= t && leave.length < seats && (!batch || t >= releaseAt)) {
+      const wait = t - arrivals[next];
+      doorWait += wait;
+      doorMax = Math.max(doorMax, wait);
+      const start = Math.max(t, serveryFree);
+      serveryFree = start + perChild;
+      serveryWait += start - t;
+      serveryMax = Math.max(serveryMax, start - t);
+      leave.push(t + stay);
+      leave.sort((a, b) => a - b);
+      next++;
+      if (batch) {
+        if (inGroup === 0) {
+          groupStart = t;
+          groups++;
+        }
+        if (++inGroup >= batch) {
+          releaseAt = groupStart + batch * perChild;
+          inGroup = 0;
+        }
+      }
+    }
+  }
+  const done = next;
+  return {
+    children,
+    admitted: done,
+    groups,
+    doorAvg: done ? Math.round(doorWait / done) : 0,
+    doorMax,
+    serveryAvg: done ? Math.round(serveryWait / done) : 0,
+    serveryMax,
+    queueMax,
+    minutes: Math.round(Math.max(t, serveryFree) / 60),
+    complete: done === children,
+  };
+}
+/** Seconds as short German text: "45 s", "3 Min.". */
+export const waitText = s => (s < 60 ? `${s} s` : `${Math.round(s / 60)} Min.`);
+
+// "Wie sicher ist das Gelernte?": how much the learned values are based on. Levels 0 not yet, 1 unsure, 2 medium,
+// 3 sure. Time windows: observations per weekday and half hour (autoSlots[3]); the automatic release prefers a
+// window from 3 observations on. Forecast: served days of the same weekday (it uses the last four).
+export const confidenceLevels = ['noch nicht', 'unsicher', 'mittel', 'sicher'];
+const levelOf = (n, mid, sure) => (n <= 0 ? 0 : n < mid ? 1 : n < sure ? 2 : 3);
+export const slotLevel = n => levelOf(n, 3, 7);
+export const stayLevel = n => levelOf(n, 5, 30);
+export const daysLevel = n => levelOf(n, 2, 4);
+export const groupLevel = n => levelOf(n, 5, 20);
+/**
+ * @param {{ autoSlots?: number[][], autoGlobalN?: number, stayN?: number, history: number[][] }} flow
+ */
+export function confidence(flow) {
+  const slots = (flow.autoSlots ?? []).filter(x => x[0] >= 1 && x[0] <= 5);
+  const halfHours = [...new Set(slots.map(x => x[1]))].sort((a, b) => a - b);
+  const learnsWindows = slots.length > 0;
+  const rows = [1, 2, 3, 4, 5].map(weekday => {
+    const cells = halfHours.map(slot => {
+      const n = slots.find(x => x[0] === weekday && x[1] === slot)?.[3] ?? 0;
+      return { slot, n, level: slotLevel(n) };
+    });
+    const days = flow.history.filter(d => served(d) && d[1] === weekday).length,
+      best = Math.max(0, ...cells.map(c => c.n)),
+      level = learnsWindows ? Math.min(daysLevel(days), slotLevel(best)) : daysLevel(days);
+    const missing = [];
+    if (days < 4) missing.push(`noch ${4 - days} ${4 - days === 1 ? 'Mittag' : 'Mittage'}`);
+    if (learnsWindows && best < 7) missing.push(`noch ${7 - best} Gruppen im häufigsten Zeitfenster`);
+    return {
+      weekday,
+      days,
+      cells,
+      level,
+      text:
+        `${weekdays[weekday]}: ${confidenceLevels[level]} (${days} ${days === 1 ? 'Mittag' : 'Mittage'})` +
+        (level < 3 && missing.length ? ` – bis sicher ${missing.join(', ')}` : ''),
+    };
+  });
+  return {
+    halfHours,
+    rows,
+    groups: { n: flow.autoGlobalN ?? 0, level: groupLevel(flow.autoGlobalN ?? 0) },
+    stay: { n: flow.stayN ?? 0, level: stayLevel(flow.stayN ?? 0) },
+  };
+}
+
+// Learning diary (0.20, core/flow.hpp Flow::diary): the Dial keeps compact lines "day,weekday,kind,key,before,after,
+// count;..."; the tablet writes the sentences. Kinds: 0 seconds per child of a time window (tenths; before -1 = new),
+// 1 overall, 2 group size (key -1 = overall), 3 start group, 4 card stay (seconds), 5 unusual group softened,
+// 6 unusual card stay softened, 7 learning reset. key = weekday * 48 + half hour.
+/** @param {string | undefined} text */
+export function parseDiary(text) {
+  if (!text) return [];
+  return text
+    .split(';')
+    .map(l => l.split(',').map(Number))
+    .filter(l => l.length === 7 && l.every(Number.isFinite))
+    .map(([day, weekday, kind, key, before, after, count]) => ({ day, weekday, kind, key, before, after, count }));
+}
+const tenths = t => `${Math.floor(t / 10)},${Math.abs(t) % 10} s`;
+const minutes = s => `${Math.round(s / 60)} Min.`;
+const window = key => {
+  const half = key % 48,
+    end = half + 1;
+  return `${weekdays[Math.floor(key / 48)]} ${Math.floor(half / 2)}:${half % 2 ? '30' : '00'}–${Math.floor(end / 2)}:${end % 2 ? '30' : '00'}`;
+};
+const times = n => (n > 1 ? ` (${n}×)` : '');
+function diarySentence(l) {
+  const place = l.key >= 0 ? `${window(l.key)}: ` : '';
+  switch (l.kind) {
+    case 0:
+      return l.before < 0
+        ? `${place}neu gelernt ${tenths(l.after)} pro Kind`
+        : `${place}${tenths(l.before)} → ${tenths(l.after)} pro Kind (${l.count} ${l.count === 1 ? 'Gruppe' : 'Gruppen'})`;
+    case 1:
+      return `Alle Zeitfenster zusammen: ${tenths(l.before)} → ${tenths(l.after)} pro Kind`;
+    case 2:
+      return `${place || 'Allgemein: '}Gruppengröße ${l.before} → ${l.after} Kinder`;
+    case 3:
+      return `Startgruppe: ${l.before} → ${l.after} Kinder`;
+    case 4:
+      return l.before > 0
+        ? `Karten bleiben im Schnitt ${minutes(l.before).replace(' Min.', '')} → ${minutes(l.after)} (${l.count} Rückgaben)`
+        : `Karten bleiben im Schnitt etwa ${minutes(l.after)} (erste Rückgaben)`;
+    case 5:
+      return `${place}ungewöhnlich ${l.before < l.after ? 'schnelle' : 'langsame'} Gruppe (${tenths(l.before)} pro Kind) – zählt nur als ${tenths(l.after)}${times(l.count)}`;
+    case 6:
+      return `Karte war ungewöhnlich ${l.before > l.after ? 'lange' : 'kurz'} weg (${minutes(l.before)}) – zählt nur als ${minutes(l.after)}${times(l.count)}`;
+    case 7:
+      return 'Gelerntes wurde zurückgesetzt.';
+    default:
+      return '';
+  }
+}
+/**
+ * Diary grouped by serving day, newest first.
+ * @param {{ day: number, weekday: number, kind: number, key: number, before: number, after: number, count: number }[]} lines
+ */
+export function diaryLines(lines) {
+  const days = [];
+  for (const l of lines) {
+    let d = days.find(x => x.day === l.day);
+    if (!d) days.push((d = { day: l.day, weekday: l.weekday, lines: [] }));
+    const text = diarySentence(l);
+    if (text) d.lines.push(text);
+  }
+  return days
+    .sort((a, b) => b.day - a.day)
+    .map(d => ({
+      day: d.day,
+      title: `Mittag ${d.day}${d.weekday >= 0 ? ` (${weekdays[d.weekday]})` : ''}`,
+      lines: d.lines,
+    }));
+}

@@ -2,5 +2,11 @@ node_modules/
 data/
 .pio/
 runtime/
-dist/
-build/
+
+Mensaampel_Dial_Vorbereitung.zip
+build/memory-test
+build/storage-test
+build/raster-test
+build/ota-test
+pruefbericht/
+__pycache__/

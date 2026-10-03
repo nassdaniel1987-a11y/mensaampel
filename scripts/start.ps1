@@ -6,7 +6,14 @@ try {
     try { $health = Invoke-RestMethod "$appUrl/api/health" -TimeoutSec 2 } catch {}
     if ($health.app -ne 'mensaampel') {
         $runtime = Join-Path $appRoot 'runtime/node.exe'
-        if (!(Test-Path -LiteralPath $runtime)) { throw 'Die Laufzeit fehlt. Bitte das gesamte ZIP entpacken.' }
+        if (!(Test-Path -LiteralPath $runtime)) {
+            # Without the bundled runtime (e.g. a copy from GitHub) an installed Node.js 22 or newer is used.
+            $installed = Get-Command node -ErrorAction SilentlyContinue
+            if (!$installed) { throw 'Node.js fehlt. Entweder das komplette Mensaampel-ZIP mit Laufzeit entpacken oder Node.js 22 (oder neuer) von https://nodejs.org installieren.' }
+            $version = (& $installed.Source --version) -replace '^v',''
+            if ([int]($version.Split('.')[0]) -lt 22) { throw "Node.js $version ist zu alt. Bitte Node.js 22 oder neuer von https://nodejs.org installieren." }
+            $runtime = $installed.Source
+        }
         $dataPath = Join-Path $appRoot 'data'
         New-Item -ItemType Directory -Force -Path $dataPath | Out-Null
         $entry = Join-Path $appRoot 'server/main.mjs'
