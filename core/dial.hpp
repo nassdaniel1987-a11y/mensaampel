@@ -19,6 +19,10 @@ constexpr int black = 0x0000, white = 0xFFFF, green = 0x1407, yellow = 0xFE62, r
 inline int shade(int c, int share) {
   return raster::mix(uint16_t(c), 0, share);
 }
+// Blend of two colours (share 0..16 of b), same arithmetic as raster::mix.
+inline int mix(int a, int b, int share) {
+  return raster::mix(uint16_t(a), uint16_t(b), share);
+}
 // Text as the font can show it: characters the size does not have become '?'.
 inline std::string clean(const std::string &s, int size) {
   std::string out;
@@ -100,8 +104,12 @@ inline nlohmann::json rect(int x, int y, int w, int h, int r, int color) {
 struct Tone {
   int centre, edge, text;
 };
-constexpr Tone toneGreen{0x1D08, 0x0AC5, white}, toneRed{0xEA28, 0x90C3, white}, toneAmber{0xFE89, 0xDCA0, dark},
-    toneDark{0x31A7, 0x0841, white};
+// 0.21 (Stitch design "Gauge & Segment rings"): deeper radial gradients, white text everywhere; teal for a returned
+// card.
+constexpr Tone toneGreen{0x1407, 0x0162, white}, toneRed{0xB8E3, 0x4041, white}, toneAmber{0xB281, 0x40C0, white},
+    toneDark{0x1947, 0x0022, white}, toneTeal{0x0BAD, 0x0165, white};
+// Accents of the design: menu selection, start check states, light label colours on the gradients.
+constexpr int accentBlue = 0x231D, checkGreen = 0x15D0, checkAmber = 0xF4E1, checkCyan = 0x675F, slate = 0x9517;
 inline nlohmann::json gradient(const Tone &t) {
   return nlohmann::json::array({"g", t.centre, t.edge, 1});
 }
@@ -129,6 +137,30 @@ inline void iconAlert(nlohmann::json &l, int cx, int cy, int s, int c) {
   l.push_back(line(cx, cy - s, cx, cy + s / 3, std::max(3, s / 2), c));
   l.push_back(circle(cx, cy + s, std::max(2, s / 4), c));
 }
+inline nlohmann::json band(int r0, int r1, int a0, int a1, int color) {
+  return nlohmann::json::array({"a", 120, 120, r0, r1, a0, a1, color});
+}
+// Gauge along the edge with a gap at the top for the key hint (angles: 270 = top, clockwise). share 0..1 fills from the
+// left end of the gap clockwise; both ends of the filled part are rounded.
+constexpr int gaugeFrom = 312, gaugeSweep = 276, gaugeInner = 105, gaugeOuter = 114;
+inline void gauge(nlohmann::json &list, double share, int color, int track) {
+  list.push_back(band(gaugeInner, gaugeOuter, gaugeFrom, gaugeFrom + gaugeSweep, track));
+  if (share <= 0) return;
+  int end = gaugeFrom + std::max(1, int(std::lround(gaugeSweep * std::min(share, 1.0))));
+  list.push_back(band(gaugeInner, gaugeOuter, gaugeFrom, end, color));
+  for (int a : {gaugeFrom, end}) {
+    double rad = a * 3.14159265358979 / 180, r = (gaugeInner + gaugeOuter) / 2.0;
+    list.push_back(circle(int(std::lround(120 + r * std::cos(rad))), int(std::lround(120 + r * std::sin(rad))),
+                          (gaugeOuter - gaugeInner) / 2, color));
+  }
+}
+// Ring in `pieces` equal parts with gaps of `gap` degrees (segment rings of the design).
+inline void segments(nlohmann::json &list, int r0, int r1, int pieces, int gap, int color, int start = 270) {
+  for (int i = 0; i < pieces; i++) {
+    int a0 = start + i * 360 / pieces + gap / 2;
+    list.push_back(band(r0, r1, a0, start + (i + 1) * 360 / pieces - gap / 2, color));
+  }
+}
 inline void ring(nlohmann::json &list, double share, int color, int track) {
   if (share <= 0) return;
   list.push_back(nlohmann::json::array({"a", 120, 120, 110, 118, 0, 360, track}));
@@ -143,6 +175,8 @@ struct DialExtras {
   bool blocked = false;
   std::string hint, feedback;
   bool feedbackOk = true;
+  // What the feedback is about: 0 other, 1 card issued, 2 card returned (own screens in the 0.21 design).
+  int feedbackKind = 0;
   std::string screen, ssid, wifi, setupCode;
   // Start check (screen "check"): name and state per line (0 ok, 1 waiting, 2 fault).
   std::vector<std::pair<std::string, int>> checks;

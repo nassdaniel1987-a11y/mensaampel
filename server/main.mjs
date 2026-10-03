@@ -26,7 +26,7 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
     storageError = '',
     loadError = '',
     forceWriteFailure = false,
-    feedback = { text: '', ok: true, at: 0 },
+    feedback = { text: '', ok: true, at: 0, kind: 0 },
     ampelSeenAt = 0,
     readySince = 0,
     ampelWarned = false,
@@ -111,7 +111,9 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
             ? 'Ampel draußen getrennt!'
             : 'Ampel nicht verbunden!'
           : '',
-      ...(Date.now() - feedback.at < 3500 ? { feedback: feedback.text, feedbackOk: feedback.ok } : {}),
+      ...(Date.now() - feedback.at < 3500
+        ? { feedback: feedback.text, feedbackOk: feedback.ok, feedbackKind: feedback.kind }
+        : {}),
     });
     return {
       ...s,
@@ -122,8 +124,9 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       sim: { offset, offline: Date.now() < offlineUntil, forceWriteFailure },
     };
   }
-  const note = (text, ok) => {
-    if (text) feedback = { text, ok: !!ok, at: Date.now() };
+  // kind: 1 card issued, 2 card returned (own screens on the Dial), 0 other.
+  const note = (text, ok, kind = 0) => {
+    if (text) feedback = { text, ok: !!ok, at: Date.now(), kind };
   };
   // Like the Dial: missing polls for more than 10 s are reported inside, and no Ampel at all a minute after the stock
   // was confirmed.
@@ -219,7 +222,16 @@ export async function createApp({ dataDir = resolve(root, 'data') } = {}) {
       result = engine.command({ type: 'scan', uid: command.uid }, now());
       engine.command({ type: 'remove' }, now());
     } else result = engine.command(command, now());
-    if (command.type !== 'advance') note(result.message, result.ok);
+    if (command.type !== 'advance')
+      note(
+        result.message,
+        result.ok,
+        (command.type === 'tap' || command.type === 'scan') && result.booking
+          ? /ausgegeben/.test(result.message)
+            ? 1
+            : 2
+          : 0,
+      );
     if (result.changed === false) return { ...result, state: state() };
     syncClock();
     if (command.type === 'advance') {

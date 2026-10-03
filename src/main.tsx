@@ -29,8 +29,18 @@ function App() {
     <>
       <header>
         <a href="/" className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
           Mensaampel
         </a>
+        {model.state && (
+          <span className={`conn-pill ${model.connected ? 'ok' : 'off'}`}>
+            <i /> {model.connected ? (device ? 'Dial verbunden' : 'Lokal verbunden') : 'Keine Verbindung'}
+          </span>
+        )}
         <nav aria-label="Hauptnavigation">
           <button
             className={tab === 'management' ? 'selected' : ''}
@@ -39,7 +49,7 @@ function App() {
               location.hash = 'betreuung';
             }}
           >
-            Betreuung
+            Betrieb
           </button>
           {device ? (
             <button
@@ -82,7 +92,7 @@ function App() {
           </button>
         </nav>
         <a href="/ampel" target="_blank" rel="noreferrer" className="button outline">
-          <ExternalLink size={19} /> Ampel öffnen
+          <ExternalLink size={19} /> <span className="hide-narrow">Ampel öffnen</span>
         </a>
         {device && !model.authRequired && model.state && (
           <button className="quiet" onClick={() => void model.logout()}>

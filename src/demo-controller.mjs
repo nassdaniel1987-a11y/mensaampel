@@ -5,11 +5,12 @@ export function createDemoController(engine, clock = () => Date.now()) {
     offlineUntil = 0,
     forceWriteFailure = false,
     storageError = '',
-    feedback = { text: '', ok: true, at: -1e9 },
+    feedback = { text: '', ok: true, at: -1e9, kind: 0 },
     test = null;
   const now = () => clock() + offset;
-  const note = (text, ok) => {
-    if (text) feedback = { text, ok: !!ok, at: clock() };
+  // kind: 1 card issued, 2 card returned (own screens on the Dial), 0 other.
+  const note = (text, ok, kind = 0) => {
+    if (text) feedback = { text, ok: !!ok, at: clock(), kind };
   };
   const dial = () =>
     engine.call({
@@ -17,7 +18,9 @@ export function createDemoController(engine, clock = () => Date.now()) {
       now: now(),
       blocked: !!storageError,
       hint: storageError ? 'Speicher prüfen!' : '',
-      ...(clock() - feedback.at < 3500 ? { feedback: feedback.text, feedbackOk: feedback.ok } : {}),
+      ...(clock() - feedback.at < 3500
+        ? { feedback: feedback.text, feedbackOk: feedback.ok, feedbackKind: feedback.kind }
+        : {}),
     });
   // Device test as on the Dial: scans, ring and button are only shown, nothing is booked.
   const testDial = () =>
@@ -130,7 +133,12 @@ export function createDemoController(engine, clock = () => Date.now()) {
       note(storageError, false);
       return reply(false, storageError);
     }
-    if (c.type !== 'advance') note(r.message, r.ok);
+    if (c.type !== 'advance')
+      note(
+        r.message,
+        r.ok,
+        (c.type === 'tap' || c.type === 'scan') && r.booking ? (/ausgegeben/.test(r.message) ? 1 : 2) : 0,
+      );
     syncClock();
     if (c.type === 'advance') tick();
     storageError = '';

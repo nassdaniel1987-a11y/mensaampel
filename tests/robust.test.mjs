@@ -162,9 +162,16 @@ test('Erinnerung: Pause oder Entlastung länger als eingestellt', async () => {
 test('Halten: Fortschrittsring am Dial', async () => {
   const x = await setup();
   const arcs = l => l.filter(i => i[0] === 'a');
-  assert.equal(arcs(x.dial({ holdMs: 0 })).length, 0);
+  assert.ok(!arcs(x.dial({ holdMs: 0 })).some(i => i[3] === 102), 'ohne Halten kein Haltering');
   const half = x.dial({ holdMs: 1500 });
-  assert.ok(arcs(half).length >= 1);
+  assert.deepEqual(
+    arcs(half).map(i => i.slice(3, 7)),
+    [
+      [102, 114, 0, 360],
+      [102, 114, 270, 450],
+    ],
+    'halber Ring nach 1,5 s',
+  );
   assert.ok(shown(half).includes('Halten …'));
   assert.ok(shown(x.dial({ holdMs: 3200 })).includes('Jetzt loslassen'));
   assert.ok(shown(x.dial({ holdMs: 10500 })).includes('Loslassen: Zugang neu'));

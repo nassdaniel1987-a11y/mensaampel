@@ -204,13 +204,17 @@ test('Dial-Anzeige: groß, farbig, alles passt in die runde Anzeige', async () =
     return list;
   };
   let list = check(x.dial());
-  assert.deepEqual(list[0], ['g', 0x1d08, 0x0ac5, 1], 'grüner Verlauf');
+  assert.deepEqual(list[0], ['g', 0x1407, 0x0162, 1], 'grüner Verlauf');
   assert.ok(
     list.some(i => i[0] === 't' && i[3] === 5 && i[5] === '3'),
     'große Zahl: Startgruppe',
   );
   assert.ok(shown(list).includes('Startgruppe'));
-  assert.ok(shown(list).includes('K 48 · M 0'));
+  assert.ok(shown(list).includes('Küche 48 · Mensa 0'));
+  assert.ok(
+    list.some(i => i[0] === 'a' && i[5] === 312 && i[6] === 588),
+    'Ring am Rand: Spur mit Lücke oben',
+  );
   assert.ok(
     list.some(i => i[0] === 't' && i[5] === 'ENTLASTEN' && i[2] === 202),
     'Knopf unten',
@@ -220,19 +224,31 @@ test('Dial-Anzeige: groß, farbig, alles passt in die runde Anzeige', async () =
   );
   assert.ok(shown(list).includes('Einlass pausiert.'), 'erster Satz groß');
   assert.ok(list.some(i => i[0] === 't' && i[3] === 1 && i[5].startsWith('Nur Rückgaben') && i[5].endsWith('…')));
+  assert.equal(list.filter(i => i[0] === 'a').length, 6, 'abgelehnt: Ring in sechs Stücken');
+  assert.equal(list.filter(i => i[0] === 'l').length, 2, 'Kreuz');
+  // Card issued and returned: own screens with the card number.
+  const issued = check(x.dial({ feedback: 'K12 ausgegeben. Ein Platz reserviert.', feedbackKind: 1 }));
+  assert.deepEqual(issued[0], ['g', 0x1407, 0x0162, 1]);
+  assert.ok(issued.some(i => i[0] === 't' && i[3] === 4 && i[5] === 'K12'));
+  assert.ok(shown(issued).includes('Guten Appetit!'));
+  const back = check(x.dial({ feedback: 'K12 zurückgenommen. Ein Platz frei.', feedbackKind: 2 }));
+  assert.deepEqual(back[0], ['g', 0x0bad, 0x0165, 1], 'türkis');
+  assert.ok(shown(back).includes('K12 zurück, danke!'));
+  assert.ok(shown(back).includes('Ein Platz frei.'));
+  const info = check(x.dial({ feedback: 'Einlass geöffnet.', feedbackOk: true }));
   assert.ok(
-    list.some(i => i[0] === 'c' && i[4] === 0xffff),
-    'Symbol in weißer Scheibe',
+    info.some(i => i[0] === 'c' && i[4] === 0xffff),
+    'sonstige Meldung: Symbol in weißer Scheibe',
   );
-  assert.deepEqual(x.dial({ blocked: true })[0], ['g', 0xea28, 0x90c3, 1]);
+  assert.deepEqual(x.dial({ blocked: true })[0], ['g', 0xb8e3, 0x4041, 1]);
   assert.ok(shown(x.dial({ hint: 'Leser prüfen!' })).includes('Leser prüfen!'));
   x.group();
   list = check(x.dial());
-  assert.equal(list[0][1], 0xea28);
+  assert.equal(list[0][1], 0xb8e3);
   const arcs = list.filter(i => i[0] === 'a');
   assert.equal(arcs.length, 2, 'Spur und Fortschritt');
-  assert.deepEqual(arcs[0].slice(1, 7), [120, 120, 110, 118, 0, 360]);
-  assert.deepEqual(arcs[1].slice(1, 7), [120, 120, 110, 118, 270, 630]);
+  assert.deepEqual(arcs[0].slice(1, 7), [120, 120, 105, 114, 312, 588]);
+  assert.deepEqual(arcs[1].slice(1, 7), [120, 120, 105, 114, 312, 588]);
   assert.ok(shown(list).includes('1:00 nächste Gruppe'));
   x.wait(45000);
   assert.deepEqual(
@@ -241,8 +257,8 @@ test('Dial-Anzeige: groß, farbig, alles passt in die runde Anzeige', async () =
       .filter(i => i[0] === 'a')
       .map(i => i.slice(5, 7)),
     [
-      [0, 360],
-      [270, 360],
+      [312, 588],
+      [312, 381],
     ],
   );
   x.cmd({ type: 'relief' });
@@ -277,7 +293,11 @@ test('PC-Dienst: Zeitgeber gibt Gruppe frei, speichert und meldet am Dial', asyn
     assert.equal(app.state().flow.clockValid, true);
     t({ type: 'tap', uid: 'sim:K01' });
     assert.equal(app.state().signal.reason, 'batch');
-    assert.ok(app.state().dial.some(i => i[5] === 'K01 ausgegeben.'));
+    assert.ok(
+      app.state().dial.some(i => i[5] === 'K01'),
+      'Karte ausgegeben: Nummer groß',
+    );
+    assert.ok(shown(app.state().dial).includes('Guten Appetit!'));
     t({ type: 'advance', seconds: 10 });
     assert.equal(app.state().signal.reason, 'free');
     assert.ok(shown(app.state().dial).includes('Nächste Gruppe automatisch'));

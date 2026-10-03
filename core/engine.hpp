@@ -334,18 +334,31 @@ public:
   // Dial screen plus, while the button is held, a progress ring (3 s: confirm/WLAN, 10 s: access reset).
   Json dialScreen(long long now, const DialExtras &x) const {
     using namespace dial;
-    auto list = dialBase(now, x);
+    // Holding the button (0.21): its own dark screen with a thick progress ring towards 3 s (then towards 10 s).
     if (x.holdMs >= 400 && x.screen != "reset" && x.screen != "update") {
       bool longHold = x.holdMs >= 3000;
-      list.push_back(rect(22, 161, 196, 22, 11, shade(dark, 6)));
-      list.push_back(text(120, 172, 1, white,
-                          x.holdMs >= 10000 ? "Loslassen: Zugang neu"
-                          : longHold        ? "Jetzt loslassen"
-                                            : "Halten …"));
-      ring(list, longHold ? std::min(1.0, (x.holdMs - 3000) / 7000.0) : x.holdMs / 3000.0, longHold ? orange : white,
-           shade(dark, 6));
+      Json list = Json::array();
+      list.push_back(gradient(toneDark));
+      list.push_back(band(102, 114, 0, 360, shade(white, 13)));
+      double share = longHold ? std::min(1.0, (x.holdMs - 3000) / 7000.0) : x.holdMs / 3000.0;
+      if (share > 0)
+        list.push_back(
+            band(102, 114, 270, 270 + std::max(1, int(std::lround(360 * share))), longHold ? orange : white));
+      // Symbol: arrow down in a ring.
+      list.push_back(circle(120, 74, 17, white));
+      list.push_back(circle(120, 74, 14, dark));
+      list.push_back(line(120, 65, 120, 80, 3, white));
+      list.push_back(line(114, 74, 120, 81, 3, white));
+      list.push_back(line(126, 74, 120, 81, 3, white));
+      std::string main = x.holdMs >= 10000 ? "Loslassen: Zugang neu" : longHold ? "Jetzt loslassen" : "Halten …";
+      int size = raster::textWidth(main, 2) <= 190 ? 2 : 1;
+      list.push_back(text(120, 120, size, white, main));
+      list.push_back(
+          text(120, 148, 1, slate,
+               longHold ? (x.holdMs >= 10000 ? "Zugang zurücksetzen" : "10 s: Zugang neu") : "nach 3 Sek. loslassen"));
+      return list;
     }
-    return list;
+    return dialBase(now, x);
   }
   // Dial screen (design 0.13, "big number + symbol"): the whole screen glows in the signal colour (radial gradient),
   // a small symbol, one big number, a label, one info line and the touch button "ENTLASTEN" at the bottom.
@@ -353,7 +366,8 @@ public:
   Json dialBase(long long now, const DialExtras &x) const {
     using namespace dial;
     Json list = Json::array();
-    auto key = [&](int color, const std::string &t) { list.push_back(text(120, 26, 1, color, fit(t, 1, 150))); };
+    // Key hint at the top, inside the gap of the edge gauge.
+    auto key = [&](int color, const std::string &t) { list.push_back(text(120, 26, 1, color, fit(t, 1, 128))); };
     // Info line: plain text, or a darker pill for hints that need attention.
     auto infoLine = [&](const std::string &t, int color) {
       if (!t.empty()) list.push_back(text(120, 172, 1, color, fit(t, 1, 184)));
@@ -380,20 +394,19 @@ public:
       return list;
     }
     if (x.screen == "check") {
+      // Start check (design 0.21): ring in four quarters coloured by the four checks, rows "name ... state".
       list.push_back(gradient(toneDark));
-      list.push_back(text(120, 44, 2, white, "START-CHECK"));
+      auto stateColor = [](int st) { return st == 0 ? checkGreen : st == 1 ? checkAmber : red; };
+      for (size_t i = 0; i < 4; i++) {
+        int st = i < x.checks.size() ? x.checks[i].second : 1;
+        list.push_back(band(106, 112, 270 + int(i) * 90 + 4, 270 + int(i + 1) * 90 - 4, stateColor(st)));
+      }
+      list.push_back(text(120, 52, 2, checkCyan, "START-CHECK"));
       for (size_t i = 0; i < x.checks.size() && i < 4; i++) {
-        int y = 74 + int(i) * 27, state = x.checks[i].second;
-        std::string name = fit(x.checks[i].first, 2, 130);
-        int w = 28 + raster::textWidth(name, 2), left = 120 - w / 2;
-        int color = state == 0 ? okText : state == 1 ? warnText : red;
-        if (state == 0)
-          iconCheck(list, left + 8, y, 8, 4, color);
-        else if (state == 1)
-          iconAlert(list, left + 8, y, 7, color);
-        else
-          iconCross(list, left + 8, y, 7, 4, color);
-        list.push_back(text(left + 28 + raster::textWidth(name, 2) / 2, y, 2, white, name));
+        int y = 84 + int(i) * 24, st = x.checks[i].second;
+        std::string name = fit(x.checks[i].first, 2, 96), state = st == 0 ? "OK" : st == 1 ? "wartet" : "Fehler";
+        list.push_back(text(52 + raster::textWidth(name, 2) / 2, y, 2, white, name));
+        list.push_back(text(188 - raster::textWidth(state, 1) / 2, y, 1, stateColor(st), state));
       }
       if (!x.hint.empty()) list.push_back(text(120, 186, 1, warnText, fit(x.hint, 1, span(186, 1))));
       return list;
@@ -447,12 +460,15 @@ public:
       auto items = menuItems();
       int n = items.size(), sel = menuSel % n;
       list.push_back(gradient(toneDark));
-      key(grey, "Taste: ausführen");
+      // Tick ring with a blue pointer for the position of the selection.
+      segments(list, 109, 113, 48, 4, shade(white, 12));
+      list.push_back(band(105, 114, 270 + sel * 360 / n, 270 + (sel + 1) * 360 / n, accentBlue));
+      key(slate, "Taste: ausführen");
       list.push_back(text(120, 52, 2, white, "BETREUUNG"));
-      list.push_back(text(120, 80, 1, grey, items[(sel + n - 1) % n].second));
-      list.push_back(rect(30, 90, 180, 30, 15, panel));
-      list.push_back(text(120, 105, 2, yellow, items[sel].second));
-      list.push_back(text(120, 132, 1, grey, items[(sel + 1) % n].second));
+      list.push_back(text(120, 80, 1, slate, items[(sel + n - 1) % n].second));
+      list.push_back(rect(30, 90, 180, 30, 15, accentBlue));
+      list.push_back(text(120, 105, 2, white, fit(items[sel].second, 2, 172)));
+      list.push_back(text(120, 132, 1, slate, items[(sel + 1) % n].second));
       infoLine("Drehen: Auswahl", grey);
       pillButton(white, dark, "OK");
       return list;
@@ -504,29 +520,82 @@ public:
       pillButton(white, dark, mensaEdit ? "FREIGEBEN" : "SPERREN");
       return list;
     }
-    const Tone &tone = g ? toneGreen : y ? toneAmber : toneRed;
-    const int fg = tone.text, buttonText = g ? green : y ? dark : red, pill = shade(tone.edge, 8);
+    bool locked = lockUntil > now && !lockLabel.empty();
+    // Card feedback (design 0.21): issued = green with a double ring, returned = teal, refused = red segment ring.
+    int kind = x.feedback.empty() || locked ? -1 : !x.feedbackOk ? 3 : x.feedbackKind;
+    const Tone &tone = kind == 1   ? toneGreen
+                       : kind == 2 ? toneTeal
+                       : kind == 3 ? toneRed
+                       : g         ? toneGreen
+                       : y         ? toneAmber
+                                   : toneRed;
+    const int fg = tone.text, buttonText = tone.centre, pill = shade(tone.edge, 8), track = mix(tone.centre, white, 4);
     long long left = flow.releaseIn(now);
-    int next = flow.target(now), free = available(0) + available(1);
+    int next = flow.target(now), free = available(0) + available(1), seatsOpen = 0;
+    for (int r = 0; r < 2; r++)
+      if (rooms[r].open) seatsOpen += rooms[r].limit;
     list.push_back(gradient(tone));
     bool countdown =
         flow.waiting && flow.autoOn && left >= 0 && !flow.relief && !paused && ready && !measuringGroup && !x.blocked;
-    if (countdown) ring(list, flow.releaseShare(now), fg, shade(tone.edge, 6));
-    key(fg, !ready || dayWaiting(now) ? "Taste 3 s halten"
-            : flow.relief || paused   ? "Taste: weiter"
-            : flow.waiting            ? "Taste: freigeben"
-                                      : "Taste: Pause");
-    const std::string seats = "K " + std::to_string(available(0)) + " · M " + std::to_string(available(1));
+    // The edge: countdown while a group waits, otherwise the share of free seats (only on the plain main screen).
+    if (kind < 0 && countdown)
+      gauge(list, flow.releaseShare(now), white, track);
+    else if (kind < 0 && ready && !x.blocked && !flow.relief && !paused && !flow.waiting && seatsOpen > 0)
+      gauge(list, double(free) / seatsOpen, white, track);
+    // The card feedback screens have a closed ring at the top: no key hint there.
+    if (kind < 0)
+      key(fg, !ready || dayWaiting(now) ? "Taste 3 s halten"
+              : flow.relief || paused   ? "Taste: weiter"
+              : flow.waiting            ? "Taste: freigeben"
+                                        : "Taste: Pause");
+    const std::string seats = "Küche " + std::to_string(available(0)) + " · Mensa " + std::to_string(available(1));
     std::string sub;
-    bool locked = lockUntil > now && !lockLabel.empty();
     if (locked) {
       // Card still in its cooldown: seconds left as the big number.
       iconAlert(list, 120, 44, 9, fg);
       big(fg, std::to_string((lockUntil - now + 999) / 1000));
       label(fg, lockLabel + " gesperrt");
       sub = "Sekunden warten";
+    } else if (kind == 1 || kind == 2 || kind == 3) {
+      // First sentence and the card number in front of it ("K12 ausgegeben. ..." / "K12 zurückgenommen. ...").
+      std::string first = x.feedback, rest;
+      size_t dot = x.feedback.find(". ");
+      if (dot != std::string::npos) {
+        first = x.feedback.substr(0, dot + 1);
+        rest = x.feedback.substr(dot + 2);
+      }
+      std::string card = first.substr(0, first.find(' '));
+      bool isCard = card.size() >= 2 && card.size() <= 4 && (card[0] == 'K' || card[0] == 'M');
+      if (kind == 1) {
+        list.push_back(band(107, 111, 0, 360, white));
+        list.push_back(band(101, 103, 0, 360, mix(tone.centre, white, 6)));
+        iconCheck(list, 120, 60, 16, 8, white);
+        if (isCard) {
+          list.push_back(text(120, 108, 4, white, card));
+          list.push_back(text(120, 150, 2, fg, "Guten Appetit!"));
+        } else
+          list.push_back(text(120, 112, 2, fg, fit(first, 2, 196)));
+      } else if (kind == 2) {
+        list.push_back(band(108, 113, 0, 360, white));
+        segments(list, 97, 99, 40, 4, mix(tone.centre, white, 5));
+        list.push_back(circle(120, 62, 18, mix(tone.centre, white, 4)));
+        iconCheck(list, 120, 62, 9, 4, white);
+        if (isCard) {
+          list.push_back(text(120, 108, 2, white, card + " zurück,"));
+          list.push_back(text(120, 132, 2, white, "danke!"));
+        } else
+          list.push_back(text(120, 116, 2, white, fit(first, 2, 196)));
+        if (!rest.empty()) list.push_back(text(120, 160, 1, fg, fit(rest, 1, 180)));
+      } else {
+        segments(list, 106, 114, 6, 12, white);
+        iconCross(list, 120, 62, 15, 8, white);
+        auto top = wrap(first, {196, 186}, 2);
+        for (size_t i = 0; i < top.size() && i < 2; i++)
+          list.push_back(text(120, i ? 134 : 110, 2, fg, top[i]));
+        if (!rest.empty() && top.size() < 2) list.push_back(text(120, 138, 1, fg, fit(rest, 1, 196)));
+      }
     } else if (!x.feedback.empty()) {
-      // Booking feedback as a short full-screen moment: symbol in a white disc and the message.
+      // Other feedback (e.g. "Einlass pausiert."): symbol in a white disc and the message.
       list.push_back(circle(120, 80, 32, white));
       if (x.feedbackOk)
         iconCheck(list, 120, 80, 15, 7, tone.edge);
@@ -558,29 +627,22 @@ public:
       label(fg, "Pause");
       sub = "Rückgaben möglich";
     } else if (flow.waiting && countdown) {
-      iconPause(list, 120, 47, 8, fg);
       big(fg, std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") + std::to_string(left % 60));
       label(fg, "nächste Gruppe");
-      sub = std::to_string(free) + " frei: " + seats;
+      sub = seats;
     } else if (flow.waiting) {
       iconPause(list, 120, 90, 22, fg);
       label(fg, measuringGroup ? "Messung läuft" : "Gruppe voll");
-      sub = std::to_string(free) + " frei: " + seats;
+      sub = seats;
     } else if (flow.batch && flow.issued == 0 && flow.autoOn) {
-      iconCheck(list, 120, 47, 10, 6, fg);
       big(fg, std::to_string(std::min(next, free)));
       label(fg, flow.startDue(now) ? "Startgruppe" : "nächste Gruppe");
-      sub = "(" + std::to_string(free) + " frei: " + seats + ")";
+      sub = seats;
     } else if (flow.batch) {
-      iconCheck(list, 120, 47, 10, 6, fg);
       big(fg, std::to_string(groupRemaining(now)));
       label(fg, "noch diese Gruppe");
-      sub = "(" + std::to_string(free) + " frei: " + seats + ")";
+      sub = seats;
     } else {
-      if (y)
-        iconAlert(list, 120, 44, 9, fg);
-      else if (free > 0)
-        iconCheck(list, 120, 47, 10, 6, fg);
       big(fg, std::to_string(free));
       label(fg, free == 0 ? "Kein Platz" : free == 1 ? "Platz frei" : "Plätze frei");
       sub = seats;
@@ -608,7 +670,7 @@ public:
     if (flow.relief)
       pillButton(shade(tone.edge, 8), white, "ENTLASTUNG");
     else
-      pillButton(fg == white ? white : dark, fg == white ? buttonText : yellow, "ENTLASTEN");
+      pillButton(white, buttonText, "ENTLASTEN");
     return list;
   }
   // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory); withFlow =

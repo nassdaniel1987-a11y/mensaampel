@@ -10,10 +10,18 @@ import {
   Unlock,
   Search,
   Plus,
-  Pencil,
+  Minus,
   ClipboardList,
+  Download,
+  Zap,
+  Hand,
+  WifiOff,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+  Utensils,
+  DoorOpen,
 } from 'lucide-react';
-import { Signal } from './Signal';
 import { Modal } from './Modal';
 import { Backup } from './Backup';
 import { ForecastCard } from './Insights';
@@ -37,30 +45,20 @@ export function Management({
   restore?: (file: File) => Promise<boolean>;
 }) {
   const [modal, setModal] = useState<'day' | 'settings' | 'enroll' | 'recover' | RoomId | Card | null>(null),
-    [query, setQuery] = useState(''),
-    [filter, setFilter] = useState(''),
-    [page, setPage] = useState(0),
     [soundChoice, setSoundChoice] = useState<number | null>(null);
-  const cards = s.cards.filter(
-    c => (!filter || c.room === filter) && `${c.label} ${c.uid}`.toLowerCase().includes(query.toLowerCase()),
-  );
-  const pages = Math.max(1, Math.ceil(cards.length / 8)),
-    actualPage = Math.min(page, pages - 1);
   async function apply(cmd: Parameters<Send>[0]) {
     if (await send(cmd)) setModal(null);
   }
   const blocked = busy || !connected;
+  const notices = [
+    (s.signal.mensaHint ?? -1) > 0,
+    !!s.dayWaiting,
+    !!s.lostCards?.length,
+    !!s.outCards?.length,
+    s.cards.some(c => (c.missed ?? 0) >= 2 || (c.quick ?? 0) >= 3),
+  ].filter(Boolean).length;
   return (
     <>
-      <div className="intro">
-        <div>
-          <h1>Alles im Blick</h1>
-          <p>Plätze verwalten und den Einlass steuern.</p>
-        </div>
-        <button className="quiet" onClick={() => setModal('settings')}>
-          <Settings size={18} /> Einstellungen
-        </button>
-      </div>
       {!s.ready && (
         <div className="banner">
           <div>
@@ -81,106 +79,88 @@ export function Management({
           {s.recoveryRequired && <button onClick={() => setModal('recover')}>Grundbestand wiederherstellen</button>}
         </div>
       )}
-      {(s.signal.mensaHint ?? -1) > 0 && (
-        <div className="banner" role="status">
-          <div>
-            <strong>Küche voll – Mensa öffnen?</strong>
-            <p>
-              Vorschlag: {s.signal.mensaHint} Plätze
-              {s.signal.mensaBasis
-                ? ` – so viele wurden an den letzten ${s.signal.mensaBasis === 1 ? 'gleichen Wochentag' : `${s.signal.mensaBasis} gleichen Wochentagen`} höchstens gebraucht (aufgerundet).`
-                : ' – noch ohne Erfahrungswerte, daher ein Startwert.'}{' '}
-              Am Dial geht es auch: Ring drehen, Taste.
-            </p>
-          </div>
-          <button
-            disabled={blocked}
-            onClick={() =>
-              send({ type: 'room', room: 'M', capacity: s.rooms.M.capacity, limit: s.signal.mensaHint, open: true })
-            }
-          >
-            <Unlock size={18} /> Mensa mit {s.signal.mensaHint} Plätzen öffnen
-          </button>
-        </div>
-      )}
+      <StatusHero
+        state={s}
+        send={send}
+        connected={connected}
+        blocked={blocked}
+        onSettings={() => setModal('settings')}
+      />
+      <div className="room-cards">
+        {(['K', 'M'] as RoomId[]).map(r => (
+          <RoomCard key={r} room={r} state={s} send={send} blocked={blocked} onEdit={() => setModal(r)} />
+        ))}
+      </div>
       <ForecastCard state={s} />
-      <div className="dashboard">
-        <div className="main-column">
-          <div className="rooms">
-            {(['K', 'M'] as RoomId[]).map(r => {
-              const x = s.rooms[r];
-              return (
-                <section className="room" key={r} aria-label={name(r)}>
-                  <div className="room-title">
-                    <h2>{name(r)}</h2>
-                    <button className="text-button" onClick={() => setModal(r)} aria-label={`${name(r)} bearbeiten`}>
-                      <Settings size={17} /> Anpassen
-                    </button>
-                  </div>
-                  <div className="room-body">
-                    <div>
-                      {x.open ? (
-                        <>
-                          <strong className="big-count">{x.free}</strong>
-                          <span>Plätze frei</span>
-                        </>
-                      ) : (
-                        <>
-                          <strong className="locked-text">Gesperrt</strong>
-                          <span>Keine neuen Ausgaben.</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="room-meter">
-                      <div className="meter-label">
-                        <span>
-                          {x.occupied} von {x.limit} belegt
-                        </span>
-                        <span>{x.limit ? Math.round((x.occupied / x.limit) * 100) : 0} %</span>
-                      </div>
-                      <progress value={x.occupied} max={x.limit || 1} />
-                      <small>
-                        {x.limit} von {x.capacity} Plätzen vorgesehen
-                      </small>
-                      {!x.open && (
-                        <button
-                          className="outline"
-                          disabled={blocked}
-                          onClick={() => send({ type: 'room', room: r, ...x, open: true })}
-                        >
-                          <Unlock size={17} />
-                          {name(r)} freigeben
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              );
-            })}
+      {notices > 0 && (
+        <section className="notices" aria-label="Meldungen und Vorschläge">
+          <div className="notices-head">
+            <h2>Meldungen & Vorschläge</h2>
+            <span>
+              {notices} {notices === 1 ? 'offene Meldung' : 'offene Meldungen'}
+            </span>
           </div>
-          <div className="action-row">
-            <button className="outline" disabled={blocked || !s.undo} onClick={() => send({ type: 'undo' })}>
-              <Undo2 size={17} /> Letzte Buchung rückgängig
-            </button>
-            <button className="outline" onClick={() => setModal('day')} disabled={blocked}>
-              <CalendarDays size={17} /> Neuer Essenstag
-            </button>
-          </div>
-          {s.dayWaiting && (
-            <div className="banner" role="status">
-              <div>
+          <div className="notice-grid">
+            {(s.signal.mensaHint ?? -1) > 0 && (
+              <article className="notice-card suggest">
+                <span className="notice-kind">Vorschlag</span>
+                <strong>Küche voll – Mensa öffnen?</strong>
+                <p>
+                  {s.signal.mensaHint} Plätze
+                  {s.signal.mensaBasis
+                    ? ` – so viele wurden an den letzten ${s.signal.mensaBasis === 1 ? 'gleichen Wochentag' : `${s.signal.mensaBasis} gleichen Wochentagen`} höchstens gebraucht.`
+                    : ' – noch ohne Erfahrungswerte, daher ein Startwert.'}{' '}
+                  Am Dial: Ring drehen, Taste.
+                </p>
+                <button
+                  disabled={blocked}
+                  onClick={() =>
+                    send({
+                      type: 'room',
+                      room: 'M',
+                      capacity: s.rooms.M.capacity,
+                      limit: s.signal.mensaHint,
+                      open: true,
+                    })
+                  }
+                >
+                  <Unlock size={18} /> Mensa mit {s.signal.mensaHint} Plätzen öffnen
+                </button>
+              </article>
+            )}
+            {s.dayWaiting && (
+              <article className="notice-card">
+                <span className="notice-kind">Neuer Essenstag</span>
                 <strong>Neuer Essenstag wartet</strong>
                 <p>
                   Es sind noch Karten draußen. Nach dem Einsammeln am Dial die Taste 3 Sekunden halten oder hier „Neuer
                   Essenstag“ wählen. Fehlende Karten werden dann gesperrt, bis sie wieder auftauchen.
                 </p>
-              </div>
-            </div>
-          )}
-          {!!s.lostCards?.length && (
-            <div className="banner" role="status">
-              <div>
-                <strong>Gesperrte (verlorene) Karten: {s.lostCards.length}</strong>
+                <button className="outline" disabled={blocked} onClick={() => setModal('day')}>
+                  <CalendarDays size={17} /> Neuer Essenstag
+                </button>
+              </article>
+            )}
+            {!!s.outCards?.length && (
+              <article className={`notice-card ${s.cardsMissing ? 'warn' : ''}`}>
+                <span className="notice-kind">{s.cardsMissing ? 'Auffälligkeit' : 'Noch draußen'}</span>
+                <strong>
+                  {s.cardsMissing
+                    ? `${s.outCards.length} ${s.outCards.length === 1 ? 'Karte fehlt' : 'Karten fehlen'} vermutlich`
+                    : `Noch nicht zurückgegeben: ${s.outCards.length}`}
+                </strong>
+                <p>{s.outCards.join(', ')}</p>
+                {s.cardsMissing && (
+                  <p className="hint">
+                    Seit 20 Minuten kein Scan mehr. Karten einsammeln oder im Platzraster korrigieren.
+                  </p>
+                )}
+              </article>
+            )}
+            {!!s.lostCards?.length && (
+              <article className="notice-card warn">
+                <span className="notice-kind">Gesperrt</span>
+                <strong>Verlorene Karten: {s.lostCards.length}</strong>
                 <p>Taucht eine Karte wieder auf, einfach ans Dial halten – oder hier freigeben:</p>
                 <div className="action-row lost-cards">
                   {s.lostCards.map(label => {
@@ -199,238 +179,102 @@ export function Management({
                     );
                   })}
                 </div>
-              </div>
-            </div>
-          )}
-          {!!s.outCards?.length && (
-            <div className={`banner ${s.cardsMissing ? 'error' : ''}`} role="status">
-              <div>
-                <strong>
-                  {s.cardsMissing
-                    ? `${s.outCards.length} Karten fehlen vermutlich`
-                    : `Noch nicht zurückgegeben: ${s.outCards.length}`}
-                </strong>
-                <p>{s.outCards.join(', ')}</p>
-                {s.cardsMissing && (
-                  <p className="hint">
-                    Seit 20 Minuten kein Scan mehr. Karten einsammeln oder unter „Bearbeiten“ korrigieren.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-          <Hints state={s} send={send} blocked={blocked} />
-          <section className="cards-section series-section">
-            <h2>Karten am Stück einlernen</h2>
-            {s.series?.active ? (
-              <div className="measurement-live" role="status">
-                <strong>{s.series.label} ans Dial halten</strong>
-                <p>
-                  {s.series.room === 'K' ? 'Küche' : 'Mensa'}: {s.series.done} von {s.series.total} Nummern haben eine
-                  Karte. Am Dial: Taste = Nummer überspringen, 3 s halten = Ende.
-                </p>
-                <button className="outline" disabled={blocked} onClick={() => send({ type: 'seriesStop' })}>
-                  Einlernen beenden
-                </button>
-              </div>
-            ) : (
-              <>
-                <p>
-                  Karten nacheinander ans Dial halten – jede bekommt automatisch die nächste freie Nummer. Der Einlass
-                  wird dabei pausiert, gebucht wird nichts.
-                </p>
-                <div className="action-row">
-                  <button disabled={blocked} onClick={() => send({ type: 'seriesStart', room: 'K' })}>
-                    Küche K01–K{String(s.rooms.K.capacity).padStart(2, '0')} einlernen
-                  </button>
-                  <button
-                    className="outline"
-                    disabled={blocked}
-                    onClick={() => send({ type: 'seriesStart', room: 'M' })}
-                  >
-                    Mensa einlernen
-                  </button>
-                </div>
-                <p className="hint">
-                  Nur Nummern ohne echte Karte werden belegt. In der PC-Simulation mit „Unbekannte Karte testen“
-                  ausprobieren.
-                </p>
-                {s.cards.some(c => !c.uid.startsWith('sim:')) && (
-                  <p className="hint">
-                    Nach dem Einlernen eine <b>Sicherung herunterladen</b> (Einstellungen bzw. Gerät → Sicherung). Ohne
-                    Sicherung müssten nach einem Defekt alle Karten neu eingelernt werden.
-                  </p>
-                )}
-              </>
+              </article>
             )}
-          </section>
-          <section className="cards-section">
-            <div className="section-heading">
-              <h2>
-                Platzkarten <span className="count-label">{s.cards.length}</span>
-              </h2>
-              {!s.device && (
-                <button className="outline" onClick={() => setModal('enroll')}>
-                  <Plus size={17} /> Karte einlernen
-                </button>
-              )}
-            </div>
-            <div className="table-controls">
-              <label className="search">
-                <Search size={18} />
-                <input
-                  aria-label="Karte suchen"
-                  placeholder="Karte suchen …"
-                  value={query}
-                  onChange={e => {
-                    setQuery(e.target.value);
-                    setPage(0);
-                  }}
-                />
-              </label>
-              <div className="filters">
-                {[
-                  ['', 'Alle'],
-                  ['K', 'Küche'],
-                  ['M', 'Mensa'],
-                ].map(([v, t]) => (
-                  <button
-                    key={v}
-                    className={filter === v ? 'active' : ''}
-                    onClick={() => {
-                      setFilter(v);
-                      setPage(0);
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Karten-Nr.</th>
-                    <th>Bereich</th>
-                    <th>Status</th>
-                    <th>
-                      <span className="sr-only">Aktionen</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cards.slice(actualPage * 8, actualPage * 8 + 8).map(c => (
-                    <tr key={c.uid}>
-                      <td>
-                        <strong>{c.label}</strong>
-                      </td>
-                      <td>{name(c.room)}</td>
-                      <td>
-                        <span
-                          className={`card-state ${c.lost ? 'lost' : c.out ? 'out' : !s.rooms[c.room].open ? 'closed' : 'available'}`}
-                        >
-                          <i />
-                          {s.device && c.uid.startsWith('sim:')
-                            ? 'Nicht zugeordnet'
-                            : c.lost
-                              ? c.out
-                                ? 'Verloren · belegt'
-                                : 'Verloren'
-                              : c.out
-                                ? 'Ausgegeben'
-                                : !s.rooms[c.room].open
-                                  ? 'Raum gesperrt'
-                                  : 'Verfügbar'}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="row-edit" aria-label={`${c.label} bearbeiten`} onClick={() => setModal(c)}>
-                          <Pencil size={14} />
-                          <span>Bearbeiten</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {!cards.length && (
-                    <tr>
-                      <td colSpan={4}>Keine passende Karte gefunden.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="pagination">
-              <span>
-                {cards.length} Karten · Seite {actualPage + 1} von {pages}
-              </span>
-              <div>
-                <button className="quiet" disabled={actualPage === 0} onClick={() => setPage(actualPage - 1)}>
-                  Zurück
-                </button>
-                <button className="quiet" disabled={actualPage === pages - 1} onClick={() => setPage(actualPage + 1)}>
-                  Weiter
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-        <aside>
-          <div className="signal-panel">
-            <Signal state={s} connected={connected} />
-            <button
-              className="pause-button"
-              disabled={blocked}
-              onClick={() => send({ type: 'pause', paused: !s.paused })}
-            >
-              {s.paused ? <Play /> : <Pause />}
-              {s.paused
-                ? s.flow?.waiting && s.manualPaused === false && !s.flow.relief
-                  ? 'Nächste Gruppe freigeben'
-                  : 'Einlass fortsetzen'
-                : 'Einlass pausieren'}
+            <Hints state={s} send={send} blocked={blocked} />
+          </div>
+        </section>
+      )}
+      <SeatGrid state={s} onPick={c => setModal(c)} onEnroll={s.device ? undefined : () => setModal('enroll')} />
+      <section className="cards-section series-section">
+        <h2>Karten am Stück einlernen</h2>
+        {s.series?.active ? (
+          <div className="measurement-live" role="status">
+            <strong>{s.series.label} ans Dial halten</strong>
+            <p>
+              {s.series.room === 'K' ? 'Küche' : 'Mensa'}: {s.series.done} von {s.series.total} Nummern haben eine
+              Karte. Am Dial: Taste = Nummer überspringen, 3 s halten = Ende.
+            </p>
+            <button className="outline" disabled={blocked} onClick={() => send({ type: 'seriesStop' })}>
+              Einlernen beenden
             </button>
-            {s.flow?.auto.on && (
+          </div>
+        ) : (
+          <>
+            <p>
+              Karten nacheinander ans Dial halten – jede bekommt automatisch die nächste freie Nummer. Der Einlass wird
+              dabei pausiert, gebucht wird nichts.
+            </p>
+            <div className="action-row">
+              <button disabled={blocked} onClick={() => send({ type: 'seriesStart', room: 'K' })}>
+                Küche K01–K{String(s.rooms.K.capacity).padStart(2, '0')} einlernen
+              </button>
+              <button className="outline" disabled={blocked} onClick={() => send({ type: 'seriesStart', room: 'M' })}>
+                Mensa einlernen
+              </button>
+            </div>
+            <p className="hint">
+              Nur Nummern ohne echte Karte werden belegt. In der PC-Simulation mit „Unbekannte Karte testen“
+              ausprobieren.
+            </p>
+            {s.cards.some(c => !c.uid.startsWith('sim:')) && (
               <p className="hint">
-                Automatik an
-                {s.flow.waiting && s.flow.auto.releaseIn >= 0
-                  ? ` · nächste Gruppe in ${Math.floor(s.flow.auto.releaseIn / 60)}:${String(s.flow.auto.releaseIn % 60).padStart(2, '0')} min`
-                  : ''}
+                Nach dem Einlernen eine <b>Sicherung herunterladen</b> (unten bzw. Gerät → Sicherung). Ohne Sicherung
+                müssten nach einem Defekt alle Karten neu eingelernt werden.
               </p>
             )}
+          </>
+        )}
+      </section>
+      <section className="day-actions">
+        <div>
+          <strong>Essenstag {s.day}</strong>
+          <span>{s.undo ? 'Die letzte Buchung lässt sich zurücknehmen.' : 'Alles gespeichert.'}</span>
+        </div>
+        <div className="action-row">
+          <button className="outline" disabled={blocked || !s.undo} onClick={() => send({ type: 'undo' })}>
+            <Undo2 size={17} /> Letzte Buchung rückgängig
+          </button>
+          {backup && (
+            <button className="outline" disabled={busy} onClick={() => void backup()}>
+              <Download size={17} /> Sicherung herunterladen
+            </button>
+          )}
+          <button className="outline" onClick={() => setModal('day')} disabled={blocked}>
+            <CalendarDays size={17} /> Neuer Essenstag
+          </button>
+        </div>
+      </section>
+      <section className="events">
+        <h2>Letzte Vorgänge</h2>
+        {!s.events.length ? (
+          <div className="empty">
+            <ClipboardList />
+            <p>Noch keine Buchungen.</p>
+            <small>Hier erscheinen Ausgaben, Rückgaben und Änderungen.</small>
           </div>
-          <section className="events">
-            <h2>Letzte Vorgänge</h2>
-            {!s.events.length ? (
-              <div className="empty">
-                <ClipboardList />
-                <p>Noch keine Buchungen.</p>
-                <small>Hier erscheinen Ausgaben, Rückgaben und Änderungen.</small>
-              </div>
-            ) : (
-              <ol>
-                {s.events
-                  .slice(-10)
-                  .reverse()
-                  .map((e, i) => (
-                    <li key={`${e.at}-${i}`}>
-                      <time>
-                        {s.device
-                          ? '+' + new Date(e.at).toISOString().slice(11, 19)
-                          : new Date(e.at).toLocaleTimeString('de-DE', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })}
-                      </time>
-                      <span>{e.message}</span>
-                    </li>
-                  ))}
-              </ol>
-            )}
-          </section>
-        </aside>
-      </div>
+        ) : (
+          <ol>
+            {s.events
+              .slice(-10)
+              .reverse()
+              .map((e, i) => (
+                <li key={`${e.at}-${i}`}>
+                  <time>
+                    {s.device
+                      ? '+' + new Date(e.at).toISOString().slice(11, 19)
+                      : new Date(e.at).toLocaleTimeString('de-DE', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                  </time>
+                  <span>{e.message}</span>
+                </li>
+              ))}
+          </ol>
+        )}
+      </section>
       {modal && (
         <Modal
           title={
@@ -750,11 +594,10 @@ function Hints({ state: s, send, blocked }: { state: State; send: Send; blocked:
     .sort((a, b) => a.label.localeCompare(b.label));
   if (!list.length) return null;
   return (
-    <section className="cards-section hints-section">
-      <h2>Hinweise</h2>
-      <p className="hint">
-        Auffällige Kartennummern. Nach dem Klären (z. B. Gespräch, Karte getauscht) „Erledigt“ tippen.
-      </p>
+    <article className="notice-card warn hints-section">
+      <span className="notice-kind">Hinweise zu Karten</span>
+      <strong>Auffällige Kartennummern</strong>
+      <p className="hint">Nach dem Klären (z. B. Gespräch, Karte getauscht) „Erledigt“ tippen.</p>
       <ul className="hint-list">
         {list.map(c => (
           <li key={c.label}>
@@ -770,6 +613,295 @@ function Hints({ state: s, send, blocked }: { state: State; send: Send; blocked:
           </li>
         ))}
       </ul>
+    </article>
+  );
+}
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+/** Status card at the top of "Betrieb" (design 0.21): state in colour, symbol and words, the two main actions. */
+function StatusHero({
+  state: s,
+  send,
+  connected,
+  blocked,
+  onSettings,
+}: {
+  state: State;
+  send: Send;
+  connected: boolean;
+  blocked: boolean;
+  onSettings: () => void;
+}) {
+  const reason = !connected ? 'offline' : s.signal.reason,
+    f = s.flow,
+    releaseIn = f?.waiting && f.auto.on && f.auto.releaseIn >= 0 ? f.auto.releaseIn : -1,
+    groupWaiting = !!(s.paused && f?.waiting && s.manualPaused === false && !f.relief);
+  const [tone, title] =
+    reason === 'free'
+      ? ['green', 'Grün · Einlass offen']
+      : reason === 'low'
+        ? ['yellow', 'Gelb · nur noch wenige Plätze']
+        : reason === 'full'
+          ? ['red', 'Rot · alle Plätze belegt']
+          : reason === 'batch'
+            ? ['red', releaseIn >= 0 ? `Rot · Gruppe voll, nächste in ${clock(releaseIn)}` : 'Rot · Gruppe voll']
+            : reason === 'paused'
+              ? ['red', 'Pause · Einlass angehalten']
+              : reason === 'relief'
+                ? ['red', 'Entlastung · nur Rückgaben']
+                : reason === 'confirm'
+                  ? ['grey', 'Bestand prüfen']
+                  : reason === 'offline'
+                    ? ['grey', 'Keine Verbindung']
+                    : ['grey', 'Gerät nicht bereit'];
+  const free = s.signal.free ?? 0,
+    left = s.signal.groupLeft ?? -1,
+    sub = [
+      `${free} ${free === 1 ? 'Platz' : 'Plätze'} frei`,
+      left > 0 ? `noch ${left} in dieser Gruppe` : '',
+      f?.auto.on ? 'Automatik an' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  const Icon = tone === 'green' ? Check : tone === 'yellow' ? AlertTriangle : reason === 'offline' ? WifiOff : Hand;
+  return (
+    <section className={`status-hero ${tone}`} aria-label="Status">
+      <div className="status-main">
+        <span className="status-icon" aria-hidden="true">
+          <Icon />
+        </span>
+        <div>
+          <h1>{title}</h1>
+          <p>{sub}</p>
+        </div>
+      </div>
+      <div className="status-actions">
+        {groupWaiting ? (
+          <button className="big" disabled={blocked} onClick={() => send({ type: 'pause', paused: false })}>
+            <Zap /> Gruppe jetzt freigeben
+          </button>
+        ) : s.paused ? (
+          <button className="big" disabled={blocked} onClick={() => send({ type: 'pause', paused: false })}>
+            <Play /> Einlass fortsetzen
+          </button>
+        ) : (
+          <button className="big secondary" disabled={blocked} onClick={() => send({ type: 'pause', paused: true })}>
+            <Pause /> Pausieren
+          </button>
+        )}
+        <button className="icon-button" aria-label="Einstellungen" onClick={onSettings}>
+          <Settings />
+        </button>
+      </div>
+    </section>
+  );
+}
+/** Room card (design 0.21): big occupancy, free seats, bar and quick release steps. */
+function RoomCard({
+  room: r,
+  state: s,
+  send,
+  blocked,
+  onEdit,
+}: {
+  room: RoomId;
+  state: State;
+  send: Send;
+  blocked: boolean;
+  onEdit: () => void;
+}) {
+  const x = s.rooms[r],
+    step = r === 'K' ? 1 : 5,
+    share = x.limit ? Math.round((x.occupied / x.limit) * 100) : 0;
+  const setLimit = (limit: number) =>
+    send({
+      type: 'room',
+      room: r,
+      capacity: x.capacity,
+      limit: Math.max(x.occupied, Math.min(x.capacity, limit)),
+      open: x.open,
+    });
+  return (
+    <section className={`room-card ${r === 'K' ? 'kitchen' : 'mensa'} ${x.open ? '' : 'closed'}`} aria-label={name(r)}>
+      <div className="room-card-head">
+        <span className="room-icon" aria-hidden="true">
+          {r === 'K' ? <Utensils /> : <DoorOpen />}
+        </span>
+        <div>
+          <h2>{name(r)}</h2>
+          <small>{x.capacity} Plätze vorhanden</small>
+        </div>
+        <button
+          className={`state-pill ${x.open ? 'open' : ''}`}
+          disabled={blocked}
+          onClick={() => send({ type: 'room', room: r, capacity: x.capacity, limit: x.limit, open: !x.open })}
+          aria-label={x.open ? `${name(r)} sperren` : `${name(r)} freigeben`}
+        >
+          <i /> {x.open ? 'Offen' : 'Gesperrt'}
+        </button>
+      </div>
+      <div className="room-count">
+        <strong>{x.occupied}</strong>
+        <span>/ {x.limit}</span>
+        <em className="free-pill">{x.open ? `${x.free} frei` : 'keine Ausgabe'}</em>
+      </div>
+      <div className="room-bar" role="img" aria-label={`${share} Prozent belegt`}>
+        <i style={{ width: `${Math.min(100, share)}%` }} />
+      </div>
+      <div className="room-bar-legend">
+        <span>Belegung {share} %</span>
+        <button className="text-button" onClick={onEdit}>
+          <Settings size={15} /> Anpassen
+        </button>
+      </div>
+      <div className="room-limit">
+        <span>Freigegeben</span>
+        <div>
+          <button
+            className="round"
+            aria-label={`${name(r)}: ${step} Plätze weniger`}
+            disabled={blocked || x.limit - step < x.occupied}
+            onClick={() => setLimit(x.limit - step)}
+          >
+            {step > 1 ? `− ${step}` : <Minus />}
+          </button>
+          <b>{x.limit}</b>
+          <button
+            className="round"
+            aria-label={`${name(r)}: ${step} Plätze mehr`}
+            disabled={blocked || x.limit >= x.capacity}
+            onClick={() => setLimit(x.limit + step)}
+          >
+            {step > 1 ? `+ ${step}` : <Plus />}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+type SeatFilter = 'all' | 'out' | 'free' | 'special';
+const special = (c: Card) => c.lost || (c.missed ?? 0) >= 2 || (c.quick ?? 0) >= 3;
+/** All seats as tiles (design 0.21), collapsible, with filters; a tile opens the card. */
+function SeatGrid({ state: s, onPick, onEnroll }: { state: State; onPick: (c: Card) => void; onEnroll?: () => void }) {
+  const [open, setOpen] = useState(false),
+    [filter, setFilter] = useState<SeatFilter>('all'),
+    [query, setQuery] = useState('');
+  const unassigned = (c: Card) => !!s.device && c.uid.startsWith('sim:');
+  const counts = {
+    out: s.cards.filter(c => c.out).length,
+    free: s.cards.filter(c => !c.out && !c.lost).length,
+    special: s.cards.filter(special).length,
+  };
+  const shown = s.cards.filter(
+    c =>
+      (filter === 'all' ||
+        (filter === 'out' && c.out) ||
+        (filter === 'free' && !c.out && !c.lost) ||
+        (filter === 'special' && special(c))) &&
+      c.label.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  return (
+    <section className="seat-grid">
+      <div className="seat-grid-head">
+        <button className="seat-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <span className="round-icon">{open ? <ChevronDown /> : <ChevronRight />}</span>
+          <span>
+            <strong>Alle {s.cards.length} Plätze anzeigen</strong>
+            <small>Tippen für Status und Korrektur einer Karte</small>
+          </span>
+        </button>
+        {open && (
+          <div className="chips" role="group" aria-label="Filter">
+            {(
+              [
+                ['all', 'Alle'],
+                ['out', `Belegt (${counts.out})`],
+                ['free', `Frei (${counts.free})`],
+                ['special', `Auffällig (${counts.special})`],
+              ] as [SeatFilter, string][]
+            ).map(([v, t]) => (
+              <button key={v} className={filter === v ? 'active' : ''} onClick={() => setFilter(v)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {open && (
+        <>
+          <div className="table-controls">
+            <label className="search">
+              <Search size={18} />
+              <input
+                aria-label="Karte suchen"
+                placeholder="Nummer suchen …"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+              />
+            </label>
+            {onEnroll && (
+              <button className="outline" onClick={onEnroll}>
+                <Plus size={17} /> Karte einlernen
+              </button>
+            )}
+          </div>
+          {(['K', 'M'] as RoomId[]).map(r => {
+            const list = shown.filter(c => c.room === r);
+            if (!list.length) return null;
+            const all = s.cards.filter(c => c.room === r);
+            return (
+              <div key={r} className="seat-room">
+                <h3>
+                  <i className={r === 'K' ? 'kitchen' : 'mensa'} /> {name(r)} ({all[0]?.label}–
+                  {all[all.length - 1]?.label}) · {all.filter(c => c.out).length} belegt, {s.rooms[r].free} frei
+                  {!s.rooms[r].open && ' · gesperrt'}
+                </h3>
+                <div className="tiles">
+                  {list.map(c => (
+                    <button
+                      key={c.uid}
+                      className={`tile ${c.out ? `out ${r === 'K' ? 'kitchen' : 'mensa'}` : ''} ${special(c) ? 'special' : ''} ${unassigned(c) ? 'unassigned' : ''} ${!s.rooms[r].open && !c.out ? 'closed' : ''}`}
+                      title={
+                        unassigned(c)
+                          ? 'Nicht zugeordnet'
+                          : c.lost
+                            ? 'Verloren'
+                            : c.out
+                              ? 'Ausgegeben'
+                              : !s.rooms[r].open
+                                ? 'Raum gesperrt'
+                                : 'Verfügbar'
+                      }
+                      onClick={() => onPick(c)}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {!shown.length && <p className="hint">Keine passende Karte gefunden.</p>}
+          <div className="legend">
+            <span>
+              <i className="tile out kitchen" /> Belegt (Küche)
+            </span>
+            <span>
+              <i className="tile out mensa" /> Belegt (Mensa)
+            </span>
+            <span>
+              <i className="tile" /> Frei
+            </span>
+            <span>
+              <i className="tile special" /> Auffällig / verloren
+            </span>
+            {s.device && (
+              <span>
+                <i className="tile unassigned" /> Ohne Karte
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

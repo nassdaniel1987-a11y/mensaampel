@@ -54,6 +54,7 @@ extern "C" const char *mensa_call(const char *input) {
       x.hint = q.value("hint", std::string());
       x.feedback = q.value("feedback", std::string());
       x.feedbackOk = q.value("feedbackOk", true);
+      x.feedbackKind = q.value("feedbackKind", 0);
       x.screen = q.value("screen", std::string());
       x.ssid = q.value("ssid", std::string());
       x.wifi = q.value("wifi", std::string());

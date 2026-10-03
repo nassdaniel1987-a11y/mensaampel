@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Radio, KeyRound, Wifi, Download, RefreshCw } from 'lucide-react';
+import { Radio, KeyRound, Wifi, Download, RefreshCw, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { FirmwareUpdate } from './FirmwareUpdate';
 import type { State, Send, Info } from './types';
 import { Backup } from './Backup';
@@ -83,13 +83,15 @@ export function DevicePanel({
     : s.cards.find(c => c.uid.startsWith('sim:'))?.uid || s.cards[0]?.uid || '';
   return (
     <>
-      <div className="intro">
-        <div>
-          <h1>{d.configured ? 'Gerät einrichten' : 'Willkommen an der Mensaampel'}</h1>
-          <p>WLAN, Kartenleser und echte Platzkarten an einem Ort.</p>
+      {!d.configured && (
+        <div className="intro">
+          <div>
+            <h1>{d.configured ? 'Gerät einrichten' : 'Willkommen an der Mensaampel'}</h1>
+            <p>WLAN, Kartenleser und echte Platzkarten an einem Ort.</p>
+          </div>
+          <span className="simulation-label">Geräteversion · Vorabtest</span>
         </div>
-        <span className="simulation-label">Geräteversion · Vorabtest</span>
-      </div>
+      )}
       {!d.configured && (
         <div className="banner">
           <p>
@@ -98,6 +100,7 @@ export function DevicePanel({
           </p>
         </div>
       )}
+      {d.configured && <Overview device={d} diag={diag} backup={backup} disabled={disabled} />}
       <div className="device-grid">
         <section className="device-section">
           <h2>
@@ -382,7 +385,6 @@ export function DevicePanel({
             </form>
           </details>
         </section>
-        <Health device={d} diag={diag} />
         <section className="device-section">
           <h2>Sicherung und Prüfung</h2>
           <p>Die Sicherung enthält Karten und Belegungen, aber keine WLAN- oder Betreuungskennwörter.</p>
@@ -448,28 +450,103 @@ export function DevicePanel({
   );
 }
 const levelText = ['In Ordnung', 'Beobachten', 'Handeln'];
-// Health since the Dial was switched on (usually one lunch): one dot per area and what to do.
-function Health({ device, diag }: { device: NonNullable<State['device']>; diag?: { failures: number } }) {
-  const rows = healthRows(device, diag);
-  if (!rows.length) return null;
-  const worst = healthLevel(rows);
+const uptime = (ms: number) => {
+  const m = Math.floor(ms / 60000);
+  return m < 60 ? `${m} Min.` : `${Math.floor(m / 60)} Std. ${m % 60} Min.`;
+};
+// "Gerät" overview (design 0.21): health since power-on as cards on the left, device details on the right.
+function Overview({
+  device: d,
+  diag,
+  backup,
+  disabled,
+}: {
+  device: NonNullable<State['device']>;
+  diag?: { failures: number };
+  backup: () => Promise<void>;
+  disabled: boolean;
+}) {
+  const rows = healthRows(d, diag),
+    worst = healthLevel(rows);
+  const routerMode = d.wifiMode === 'router';
+  const details: [string, string][] = [
+    ['Version', d.version],
+    ['WLAN', routerMode ? `Router „${d.routerSsid}“` : `eigenes WLAN „${d.ssid}“`],
+    ['Adresse', `http://${routerMode ? d.routerIp : '192.168.4.1'}`],
+    ['Läuft seit', uptime(d.uptime)],
+    ['Kartenleser', d.readerActive === 'external' ? 'extern (Port A)' : 'intern'],
+    ['Freier Speicher', `${Math.round(d.freeHeap / 1024)} KB`],
+    [
+      'Ampel draußen',
+      d.ampelAgo === undefined || d.ampelAgo < 0
+        ? 'noch nicht verbunden'
+        : d.ampelAgo <= 10
+          ? 'verbunden'
+          : `getrennt seit ${ago(d.ampelAgo)}`,
+    ],
+  ];
   return (
-    <section className="device-section health-section">
-      <h2>Gesundheit heute</h2>
-      <p className={`health-head level-${worst}`}>
-        <span className="health-dot" /> {levelText[worst]} · seit dem Einschalten
-      </p>
-      <ul className="health-list">
-        {rows.map(r => (
-          <li key={r.name} className={`level-${r.level}`}>
-            <span className="health-dot" aria-label={levelText[r.level]} />
-            <span>
-              <strong>{r.name}</strong> · {r.value}
-              <small>{r.todo}</small>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div className="device-overview">
+      <section className="overview-head">
+        <div>
+          <span className="notice-kind">Gerätestatus</span>
+          <h1>Dial · {levelText[worst]}</h1>
+          <p>Gesundheit seit dem Einschalten und die wichtigsten Angaben zum Gerät.</p>
+        </div>
+        <div className="action-row">
+          <button className="outline" disabled={disabled} onClick={() => void backup()}>
+            <Download size={18} /> Sicherung herunterladen
+          </button>
+          <button
+            className="outline"
+            onClick={() => document.getElementById('geraetetest')?.scrollIntoView({ behavior: 'smooth' })}
+          >
+            Zum Gerätetest
+          </button>
+        </div>
+      </section>
+      <div className="overview-grid">
+        <section className="health-cards" aria-label="Gesundheit heute">
+          <div className="notices-head">
+            <h2>Gesundheit heute</h2>
+            <span>{rows.length} Bereiche</span>
+          </div>
+          {rows.map(r => {
+            const Icon = r.level === 0 ? CheckCircle2 : r.level === 1 ? AlertTriangle : XCircle;
+            return (
+              <article key={r.name} className={`health-card level-${r.level}`}>
+                <span className="health-icon" aria-hidden="true">
+                  <Icon />
+                </span>
+                <div>
+                  <h3>
+                    {r.name} <em>{levelText[r.level]}</em>
+                  </h3>
+                  <p className="health-value">{r.value}</p>
+                  <p>{r.todo}</p>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+        <aside className="device-details" aria-label="Geräte-Details">
+          <h2>Geräte-Details</h2>
+          <dl>
+            {details.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {d.resetReason && (
+            <p className="hint">
+              Letzter Start: {d.resetReason}
+              {d.lastCrumb ? ` · zuletzt: ${d.lastCrumb}` : ''}
+            </p>
+          )}
+        </aside>
+      </div>
+    </div>
   );
 }

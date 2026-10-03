@@ -68,5 +68,8 @@ test('Start-Check: alle Zustände werden gezeichnet', async () => {
   const texts = list.filter(i => i[0] === 't').map(i => i[5]);
   for (const t of ['START-CHECK', 'Leser', 'Uhr', 'Speicher', 'Router', 'Router fehlt'])
     assert.ok(texts.includes(t), t);
-  assert.ok(list.filter(i => i[0] === 'l').length >= 6, 'Haken und Kreuze');
+  const quarters = list.filter(i => i[0] === 'a').map(i => i[7]);
+  assert.equal(quarters.length, 4, 'Ring in vier Vierteln');
+  assert.equal(new Set(quarters).size, 3, 'grün, orange, rot nach Zustand');
+  for (const t of ['OK', 'wartet', 'Fehler']) assert.ok(texts.includes(t), t);
 });

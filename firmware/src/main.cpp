@@ -114,6 +114,7 @@ int testReads = 0;
 long testTurn = 0;
 uint64_t testAt = 0;
 bool feedbackOk = true;
+int feedbackKind = 0; // 1 card issued, 2 card returned (own Dial screens), 0 other
 uint64_t feedbackAt = 0, drawAt = 0;
 uint64_t nowMs() {
   return uint64_t(esp_timer_get_time() / 1000);
@@ -309,6 +310,7 @@ void playTick(uint64_t now) {
 void note(const std::string &text, bool ok, int event = -1) {
   feedback = text;
   feedbackOk = ok;
+  feedbackKind = event == mensa::sound::Issue ? 1 : event == mensa::sound::Return ? 2 : 0;
   feedbackAt = nowMs();
   play(event >= 0 ? event : ok ? mensa::sound::Info : mensa::sound::Error);
 }
@@ -1329,6 +1331,7 @@ bool buildScreen(Json &list) {
     if (feedbackAt && now - feedbackAt < 3500) {
       x.feedback = feedback;
       x.feedbackOk = feedbackOk;
+      x.feedbackKind = feedbackKind;
     }
   }
   if (M5.BtnA.isPressed() && configValid)

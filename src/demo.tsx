@@ -69,7 +69,7 @@ async function start() {
           <span className="brand">Mensaampel</span>
           <nav aria-label="Ansicht">
             <button className={view === 'management' ? 'selected' : ''} onClick={() => navigate('management')}>
-              Betreuung
+              Betrieb
             </button>
             <button className={view === 'simulation' ? 'selected' : ''} onClick={() => navigate('simulation')}>
               Simulation

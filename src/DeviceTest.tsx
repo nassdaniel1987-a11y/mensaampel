@@ -56,7 +56,7 @@ export function DeviceTest({ state: s, send, disabled }: { state: State; send: S
   };
   const done = checks.filter((_, i) => results[i]?.status).length;
   return (
-    <section className="flow-section device-test">
+    <section className="flow-section device-test" id="geraetetest">
       <div className="section-heading">
         <h2>
           <ClipboardCheck size={20} /> Gerätetest

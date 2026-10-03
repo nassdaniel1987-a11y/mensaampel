@@ -388,6 +388,15 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.21.0
+
+- **Neues Aussehen nach den Google-Stitch-Entwürfen** (nur die Gestaltung, die Bedienung bleibt gleich):
+  - **Dial:** tiefere Farbverläufe; ein Ring am Rand zeigt, wie viele Plätze frei sind (bzw. den Countdown). Eigene Bilder für „Karte ausgegeben“ (große Kartennummer, „Guten Appetit!“), „Karte zurück“ (türkis, „danke!“) und abgelehnte Karten (rot, Ring in Stücken). Menü mit blauer Auswahl, Start-Check mit vier farbigen Viertelringen, „Taste halten“ als eigener dunkler Bildschirm mit dickem Ring. Der Knopf „ENTLASTEN“ unten bleibt an derselben Stelle.
+  - **Betreuung → Betrieb:** oben eine Statuskarte (Farbe, Symbol, Satz) mit den großen Knöpfen „Pausieren“ / „Gruppe jetzt freigeben“; darunter Küche und Mensa mit großer Zahl, Balken und Plus/Minus für die freigegebenen Plätze (Mensa in 5er-Schritten); „Heute erwartet“ als Leiste; „Meldungen & Vorschläge“ als Karten; alle Plätze als einklappbares Raster mit Filtern (Alle/Belegt/Frei/Auffällig) – Tippen auf eine Kachel öffnet die Karte.
+  - **Gerät:** „Gesundheit heute“ als Karten mit Symbol, Zustand und einem Satz, was zu tun ist; rechts die Geräte-Details (Version, WLAN, Adresse, Laufzeit, Leser, Speicher, Ampel).
+  - **Ampel:** Farben ans Dial angeglichen, heller Ring um das Symbol.
+- Nur gebaut und mit Tests geprüft – am Gerät bitte einmal alle Bildschirme ansehen (Karte ausgeben/zurück, Menü, Taste halten, Start-Check).
+
 ## Neu in 0.20.0
 
 - **Ausreißer zählen nur begrenzt:** Eine Gruppe, die an der Ausgabe aufgehalten wurde oder ungewöhnlich schnell durch war, verändert die gelernte Freigabezeit höchstens bis zum 1,6-Fachen (bzw. 1,6-Tel) des bisherigen Werts. Eine vergessene Karte zählt bei der Verweildauer höchstens doppelt so lang wie üblich. So verstellt ein einzelner schlechter Tag die Automatik nicht mehr. Greift der Schutz erst, wenn ein Wert schon auf mindestens 3 Gruppen bzw. 5 Rückgaben beruht.
