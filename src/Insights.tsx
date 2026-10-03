@@ -1,6 +1,16 @@
 import { useState } from 'react';
-import { CalendarClock, Lightbulb, Check, ShieldCheck } from 'lucide-react';
-import { forecast, coach, simulate, waitText, weekdays, confidence, confidenceLevels } from './insights.mjs';
+import { CalendarClock, Lightbulb, Check, ShieldCheck, NotebookPen } from 'lucide-react';
+import {
+  forecast,
+  coach,
+  simulate,
+  waitText,
+  weekdays,
+  confidence,
+  confidenceLevels,
+  parseDiary,
+  diaryLines,
+} from './insights.mjs';
 import type { State, Send, FlowState } from './types';
 // Weekday of the running serving day (report), otherwise from the clock.
 const todayWeekday = (f: FlowState) => (f.today[1] >= 0 ? f.today[1] : f.clockValid ? f.weekday : -1);
@@ -193,6 +203,47 @@ export function Confidence({ state: s }: { state: State }) {
           aus {c.stay.n} Rückgaben gelernt (für „nächster Platz frei in …“ an der Ampel, ab 5).
         </li>
       </ul>
+    </section>
+  );
+}
+
+/** Lern-Tagebuch: what the learning changed on the last serving days (lines from the Dial, sentences here). */
+export function Diary({ state: s }: { state: State }) {
+  const [all, setAll] = useState(false);
+  const days = diaryLines(parseDiary(s.flow?.diary));
+  return (
+    <section className="flow-section diary" aria-label="Lern-Tagebuch">
+      <h2>
+        <NotebookPen /> Lern-Tagebuch
+      </h2>
+      {days.length === 0 ? (
+        <p className="hint">
+          Noch nichts gelernt. Nach dem ersten Mittag mit Gruppen oder Kartenrückgaben steht hier, was sich geändert
+          hat.
+        </p>
+      ) : (
+        <>
+          {(all ? days : days.slice(0, 3)).map(d => (
+            <div key={d.day} className="diary-day">
+              <strong>{d.title}</strong>
+              <ul>
+                {d.lines.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {days.length > 3 && (
+            <button className="outline" onClick={() => setAll(!all)}>
+              {all ? 'Nur die letzten 3 Mittage' : `Alle ${days.length} Mittage anzeigen`}
+            </button>
+          )}
+        </>
+      )}
+      <p className="hint">
+        Ungewöhnliche Werte (eine Gruppe, die an der Ausgabe aufgehalten wurde, eine vergessene Karte) zählen nur
+        begrenzt, damit ein einzelner schlechter Tag die Automatik nicht verstellt.
+      </p>
     </section>
   );
 }

@@ -235,3 +235,72 @@ export function confidence(flow) {
     stay: { n: flow.stayN ?? 0, level: stayLevel(flow.stayN ?? 0) },
   };
 }
+
+// Learning diary (0.20, core/flow.hpp Flow::diary): the Dial keeps compact lines "day,weekday,kind,key,before,after,
+// count;..."; the tablet writes the sentences. Kinds: 0 seconds per child of a time window (tenths; before -1 = new),
+// 1 overall, 2 group size (key -1 = overall), 3 start group, 4 card stay (seconds), 5 unusual group softened,
+// 6 unusual card stay softened, 7 learning reset. key = weekday * 48 + half hour.
+/** @param {string | undefined} text */
+export function parseDiary(text) {
+  if (!text) return [];
+  return text
+    .split(';')
+    .map(l => l.split(',').map(Number))
+    .filter(l => l.length === 7 && l.every(Number.isFinite))
+    .map(([day, weekday, kind, key, before, after, count]) => ({ day, weekday, kind, key, before, after, count }));
+}
+const tenths = t => `${Math.floor(t / 10)},${Math.abs(t) % 10} s`;
+const minutes = s => `${Math.round(s / 60)} Min.`;
+const window = key => {
+  const half = key % 48,
+    end = half + 1;
+  return `${weekdays[Math.floor(key / 48)]} ${Math.floor(half / 2)}:${half % 2 ? '30' : '00'}–${Math.floor(end / 2)}:${end % 2 ? '30' : '00'}`;
+};
+const times = n => (n > 1 ? ` (${n}×)` : '');
+function diarySentence(l) {
+  const place = l.key >= 0 ? `${window(l.key)}: ` : '';
+  switch (l.kind) {
+    case 0:
+      return l.before < 0
+        ? `${place}neu gelernt ${tenths(l.after)} pro Kind`
+        : `${place}${tenths(l.before)} → ${tenths(l.after)} pro Kind (${l.count} ${l.count === 1 ? 'Gruppe' : 'Gruppen'})`;
+    case 1:
+      return `Alle Zeitfenster zusammen: ${tenths(l.before)} → ${tenths(l.after)} pro Kind`;
+    case 2:
+      return `${place || 'Allgemein: '}Gruppengröße ${l.before} → ${l.after} Kinder`;
+    case 3:
+      return `Startgruppe: ${l.before} → ${l.after} Kinder`;
+    case 4:
+      return l.before > 0
+        ? `Karten bleiben im Schnitt ${minutes(l.before).replace(' Min.', '')} → ${minutes(l.after)} (${l.count} Rückgaben)`
+        : `Karten bleiben im Schnitt etwa ${minutes(l.after)} (erste Rückgaben)`;
+    case 5:
+      return `${place}ungewöhnlich ${l.before < l.after ? 'schnelle' : 'langsame'} Gruppe (${tenths(l.before)} pro Kind) – zählt nur als ${tenths(l.after)}${times(l.count)}`;
+    case 6:
+      return `Karte war ungewöhnlich ${l.before > l.after ? 'lange' : 'kurz'} weg (${minutes(l.before)}) – zählt nur als ${minutes(l.after)}${times(l.count)}`;
+    case 7:
+      return 'Gelerntes wurde zurückgesetzt.';
+    default:
+      return '';
+  }
+}
+/**
+ * Diary grouped by serving day, newest first.
+ * @param {{ day: number, weekday: number, kind: number, key: number, before: number, after: number, count: number }[]} lines
+ */
+export function diaryLines(lines) {
+  const days = [];
+  for (const l of lines) {
+    let d = days.find(x => x.day === l.day);
+    if (!d) days.push((d = { day: l.day, weekday: l.weekday, lines: [] }));
+    const text = diarySentence(l);
+    if (text) d.lines.push(text);
+  }
+  return days
+    .sort((a, b) => b.day - a.day)
+    .map(d => ({
+      day: d.day,
+      title: `Mittag ${d.day}${d.weekday >= 0 ? ` (${weekdays[d.weekday]})` : ''}`,
+      lines: d.lines,
+    }));
+}

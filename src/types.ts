@@ -180,6 +180,7 @@ export type FlowState = {
   autoGlobal: number;
   autoGlobalN: number;
   autoSlots: [number, number, number, number, number][];
+  diary?: string;
   releaseAt: number;
   autoReleased: boolean;
   autoFaster: number;

@@ -1295,6 +1295,7 @@ private:
         }
         if (l) {
           flow.forgetLearned();
+          flow.diary.clear(); // test data: the diary starts empty as well
           add("Gelerntes");
         }
         if (f) {

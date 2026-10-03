@@ -4,6 +4,7 @@ import { mergeCards } from './state-merge.mjs';
 import { needsReload } from './version-check.mjs';
 import { VERSION } from './version.mjs';
 import { uploadInPieces } from './firmware-upload.mjs';
+import { healAction } from './self-heal.mjs';
 export function useMensa() {
   const [state, setState] = useState<State | null>(null),
     [info, setInfo] = useState<Info | null>(null),
@@ -30,7 +31,10 @@ export function useMensa() {
   };
   useEffect(() => {
     let alive = true,
-      inFlight = false;
+      inFlight = false,
+      // Self-healing of the Ampel page (src/self-heal.mjs): last answer and last polling round.
+      seenAt = Date.now(),
+      loopAt = Date.now();
     const abort = new AbortController();
     // Device: calmer polling, longer patience; one immediate retry after a failed request.
     const read = async (retry = false): Promise<void> => {
@@ -96,6 +100,7 @@ export function useMensa() {
           setDiag(d => ({ ...d, lastMs: Date.now() - started }));
           setAuthRequired(false);
           setLastSeen(Date.now());
+          seenAt = Date.now();
           if (!publicView) syncClock(s);
         }
       } catch {
@@ -132,10 +137,13 @@ export function useMensa() {
         }),
       }).catch(() => {});
     };
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const loop = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined,
+      chain = 0;
+    // A restarted loop (self-healing) replaces the old one: a late old round does not start a second chain.
+    const loop = async (id = ++chain) => {
+      loopAt = Date.now();
       await read();
-      if (alive) timer = setTimeout(loop, !publicView && isDevice() ? 1500 : 700);
+      if (alive && id === chain) timer = setTimeout(() => loop(id), !publicView && isDevice() ? 1500 : 700);
     };
     void loop();
     // A tab that becomes visible again asks at once instead of waiting for its throttled background timer.
@@ -144,7 +152,41 @@ export function useMensa() {
     };
     document.addEventListener('visibilitychange', visible);
     const clock = setInterval(() => setTick(Date.now()), 250);
+    let probing = false;
+    const heal = publicView
+      ? setInterval(async () => {
+          let lastHeal: number | null = null;
+          try {
+            lastHeal = Number(sessionStorage.getItem('mensa-healed-at')) || null;
+          } catch {
+            /* without storage the pause is not kept across a reload */
+          }
+          const action = healAction({ now: Date.now(), lastSeen: seenAt, lastLoop: loopAt, lastHeal });
+          if (action === 'restart') {
+            clearTimeout(timer);
+            void loop();
+          } else if (action === 'probe' && !probing) {
+            probing = true;
+            try {
+              const r = await fetch('/api/signal', { cache: 'no-store', signal: AbortSignal.timeout(3000) });
+              if (r.ok && alive) {
+                try {
+                  sessionStorage.setItem('mensa-healed-at', String(Date.now()));
+                } catch {
+                  /* see above */
+                }
+                location.reload();
+              }
+            } catch {
+              /* Dial not reachable: keep showing red, no reload */
+            } finally {
+              probing = false;
+            }
+          }
+        }, 5000)
+      : undefined;
     return () => {
+      clearInterval(heal);
       document.removeEventListener('visibilitychange', visible);
       alive = false;
       abort.abort();

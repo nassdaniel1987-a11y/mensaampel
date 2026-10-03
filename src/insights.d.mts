@@ -63,3 +63,14 @@ export function confidence(flow: {
   stayN?: number;
   history: number[][];
 }): Confidence;
+export type DiaryLine = {
+  day: number;
+  weekday: number;
+  kind: number;
+  key: number;
+  before: number;
+  after: number;
+  count: number;
+};
+export function parseDiary(text: string | undefined): DiaryLine[];
+export function diaryLines(lines: DiaryLine[]): { day: number; title: string; lines: string[] }[];

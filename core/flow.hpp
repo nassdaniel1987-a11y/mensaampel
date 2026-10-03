@@ -57,6 +57,33 @@ struct Flow {
   std::array<std::array<std::array<int, 2>, staySlots>, 7> stay{};
   int stayAvg = 0, stayN = 0;
   std::array<int, 6> stayUndo{-1, 0, 0, 0, 0, 0}; // weekday, slot, average, count, global average, global count
+  // Learning diary (0.20): what the learning changed, one line per serving day and value (the last 40 lines; the tablet
+  // writes the sentences; stored as one text "d,w,k,key,b,a,n;..."). Line: day, weekday, kind, key, before, after,
+  // count. key = weekday * 48 + half hour for time windows, -1 otherwise. Kinds: 0 seconds per child of a time window
+  // (tenths; before -1 = new), 1 seconds per child overall, 2 group size of a time window (key -1: overall), 3 start
+  // group, 4 card stay overall (seconds), 5 unusual group time softened (before = observed, after = used), 6 unusual
+  // card stay softened, 7 learning reset.
+  static constexpr int diaryLimit = 40;
+  enum DiaryKind { SlotPace, GlobalPace, GroupSize, StartGroup, StayAverage, PaceOutlier, StayOutlier, Reset };
+  std::vector<std::array<int, 7>> diary;
+  void diaryNote(int kind, int key, int before, int after) {
+    if (before == after && kind != PaceOutlier && kind != StayOutlier && kind != Reset) return;
+    for (auto &d : diary)
+      if (d[0] == today[0] && d[2] == kind && d[3] == key) {
+        d[5] = after;
+        d[6] = std::min(d[6] + 1, 9999);
+        return;
+      }
+    if (int(diary.size()) >= diaryLimit) diary.erase(diary.begin());
+    diary.push_back({today[0], today[1], kind, key, before, after, 1});
+  }
+  // Outlier protection (0.20): once a value rests on enough observations, one unusual observation (a group held up at
+  // the servery, a card forgotten in a pocket) moves it only as far as `factor` times the learned value (or that value
+  // divided by it).
+  static int tame(int observed, int learned, int n, int minimum, double factor) {
+    if (n < minimum || learned <= 0) return observed;
+    return std::clamp(observed, int(std::lround(learned / factor)), int(std::lround(learned * factor)));
+  }
   // Learned release times and group sizes back to the start values.
   void forgetLearned() {
     stay = {};
@@ -70,6 +97,7 @@ struct Flow {
     autoSlower = 0;
     startLearned = 0;
     sizeGlobal = 0;
+    diaryNote(Reset, -1, 0, 0);
   }
   void clearTrial() {
     trialDelay = 0;
@@ -176,11 +204,14 @@ struct Flow {
   }
   void resize(long long at, int delta, bool start) {
     if (start) {
-      startLearned = std::clamp(startTarget() + delta, 1, 48);
+      int before = startTarget();
+      startLearned = std::clamp(before + delta, 1, 48);
+      diaryNote(StartGroup, -1, before, startLearned);
       return;
     }
-    int v = std::clamp(normalSize(at) + delta, lowSize(), highSize()), s = slotOf(at);
+    int before = normalSize(at), v = std::clamp(before + delta, lowSize(), highSize()), s = slotOf(at);
     sizeGlobal = v;
+    diaryNote(GroupSize, s < 0 ? -1 : weekday * 48 + s, before, v);
     if (s < 0) return;
     for (auto &x : autoSlots)
       if (x[0] == weekday && x[1] == s) {
@@ -209,6 +240,9 @@ struct Flow {
     if (seconds < stayShort || seconds > stayLong) return;
     int s = staySlot(issuedAt), wd = weekday;
     stayUndo = {s >= 0 ? wd : -1, std::max(s, 0), 0, 0, stayAvg, stayN};
+    int used = tame(seconds, stayAvg, stayN, 5, 2.0);
+    if (used != seconds) diaryNote(StayOutlier, -1, seconds, used);
+    seconds = used;
     if (s >= 0) {
       auto &x = stay[wd][s];
       stayUndo[2] = x[0];
@@ -216,8 +250,10 @@ struct Flow {
       x[0] = average(x[0], x[1], seconds);
       x[1] = std::min(x[1] + 1, 9999);
     }
+    int before = stayAvg;
     stayAvg = average(stayAvg, stayN, seconds);
     stayN = std::min(stayN + 1, 9999);
+    diaryNote(StayAverage, -1, before, stayAvg);
     if (s < 0) stayUndo[0] = -2; // only the global value changed
   }
   // Expected stay for a card issued at `issuedAt`: matching half hour with at least five returns, otherwise all; -1
@@ -250,24 +286,47 @@ struct Flow {
   // A measurement may replace the start value; a single button press (prior>0) only moves the current value.
   void learn(int wd, int s, int obs, int prior = 0) {
     obs = std::clamp(obs, autoMin, autoMax);
+    bool inSlot = s >= 0 && s <= 47 && wd >= 0 && wd <= 6;
+    int key = inSlot ? wd * 48 + s : -1;
+    std::array<int, 5> *slot = nullptr;
+    if (inSlot)
+      for (auto &x : autoSlots)
+        if (x[0] == wd && x[1] == s) slot = &x;
+    // An unusual group time (servery held up, a child dawdling) counts only up to 1.6 times the learned value.
+    int used = slot && (*slot)[3] >= 3 ? tame(obs, (*slot)[2], (*slot)[3], 3, 1.6)
+                                       : tame(obs, autoGlobal, autoGlobalN, 3, 1.6);
+    if (used != obs) diaryNote(PaceOutlier, key, obs, used);
+    obs = used;
+    int before = autoGlobal;
     autoGlobal = autoGlobalN || !prior ? blend(autoGlobal, autoGlobalN, obs) : blend(prior, 1, obs);
     autoGlobalN = std::min(autoGlobalN + 1, 9999);
-    if (s < 0 || s > 47 || wd < 0 || wd > 6) return;
-    for (auto &x : autoSlots)
-      if (x[0] == wd && x[1] == s) {
-        x[2] = blend(x[2], x[3], obs);
-        x[3] = std::min(x[3] + 1, 9999);
-        return;
-      }
-    if (int(autoSlots.size()) < autoSlotLimit) autoSlots.push_back({wd, s, obs, 1, 0});
+    diaryNote(GlobalPace, -1, before, autoGlobal);
+    if (!inSlot) return;
+    if (slot) {
+      before = (*slot)[2];
+      (*slot)[2] = blend((*slot)[2], (*slot)[3], obs);
+      (*slot)[3] = std::min((*slot)[3] + 1, 9999);
+      diaryNote(SlotPace, key, before, (*slot)[2]);
+      return;
+    }
+    if (int(autoSlots.size()) < autoSlotLimit) {
+      autoSlots.push_back({wd, s, obs, 1, 0});
+      diaryNote(SlotPace, key, -1, obs);
+    }
   }
   void scale(long long at, double factor) {
     int level = 0, base = perChild(at, &level), s = slotOf(at);
     auto adjust = [&](int v) { return std::clamp(int(std::lround(v * factor)), autoMin, autoMax); };
     if (level == 2)
       for (auto &x : autoSlots)
-        if (x[0] == weekday && x[1] == s) x[2] = adjust(x[2]);
-    autoGlobal = adjust(autoGlobalN ? autoGlobal : base);
+        if (x[0] == weekday && x[1] == s) {
+          int before = x[2];
+          x[2] = adjust(x[2]);
+          diaryNote(SlotPace, weekday * 48 + s, before, x[2]);
+        }
+    int before = autoGlobalN ? autoGlobal : base;
+    autoGlobal = adjust(before);
+    diaryNote(GlobalPace, -1, before, autoGlobal);
     if (!autoGlobalN) autoGlobalN = 1;
   }
   // Pace: the next group follows after (its size x seconds per child) from the first child of this group, so the start
@@ -414,6 +473,15 @@ struct Flow {
     J days = J::array();
     for (auto &d : history)
       days.push_back(d);
+    // As one text "d,w,k,key,b,a,n;..." : a single JSON value instead of 280 (the Dial has no PSRAM).
+    std::string notes;
+    for (auto &d : diary) {
+      if (!notes.empty()) notes += ';';
+      for (int k = 0; k < 7; k++) {
+        if (k) notes += ',';
+        notes += std::to_string(d[k]);
+      }
+    }
     // Learned stays as one flat list (average, count per weekday and half hour): much smaller as a JSON tree than
     // nested lists, and empty while nothing was learned.
     J stays = J::array();
@@ -447,6 +515,7 @@ struct Flow {
            {"releaseSpan", releaseSpan},
            {"today", today},
            {"history", days},
+           {"diary", notes},
            {"autoOn", autoOn},
            {"autoStart", autoStart},
            {"autoGlobal", autoGlobal},
@@ -651,6 +720,32 @@ struct Flow {
       check(v.at("history").is_array() && v["history"].size() <= 60, "Zu viele Tagesberichte.");
       for (auto &d : v["history"])
         n.history.push_back(day(d));
+    }
+    if (v.contains("diary")) {
+      check(v["diary"].is_string(), "Ungültiges Lern-Tagebuch.");
+      const std::string &text = v["diary"].get_ref<const std::string &>();
+      check(text.size() <= size_t(diaryLimit) * 7 * 8, "Ungültiges Lern-Tagebuch.");
+      std::array<int, 7> line{};
+      int k = 0;
+      size_t i = 0;
+      while (i < text.size()) {
+        size_t end = text.find_first_of(",;", i);
+        if (end == std::string::npos) end = text.size();
+        std::string part = text.substr(i, end - i);
+        check(!part.empty() && part.size() <= 7 && part.find_first_not_of("-0123456789") == std::string::npos,
+              "Ungültiges Lern-Tagebuch.");
+        long long x = std::stoll(part);
+        check(x >= -1 && x <= 1000000 && k < 7, "Ungültiges Lern-Tagebuch.");
+        line[k++] = int(x);
+        char sep = end < text.size() ? text[end] : ';';
+        check((sep == ',') == (k < 7), "Ungültiges Lern-Tagebuch.");
+        if (k == 7) {
+          n.diary.push_back(line);
+          k = 0;
+        }
+        i = end + 1;
+      }
+      check(k == 0 && n.diary.size() <= size_t(diaryLimit), "Ungültiges Lern-Tagebuch.");
     }
     if (v.contains("stay")) {
       n.stayN = integer(v, "stayN", 0, 9999);

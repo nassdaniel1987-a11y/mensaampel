@@ -97,6 +97,11 @@ int main() {
     }
     j["flow"]["stayAvg"] = 1500;
     j["flow"]["stayN"] = 9999;
+    // Full learning diary (0.20): 40 lines with large values.
+    std::string diary;
+    for (int i = 0; i < 40; i++)
+      diary += (i ? ";" : "") + std::to_string(100000 + i) + ",3," + std::to_string(i % 8) + ",335,999999,999999,9999";
+    j["flow"]["diary"] = diary;
     e.restore(j, true);
   }
   saveText(e); // the Dial knows the size of its last save

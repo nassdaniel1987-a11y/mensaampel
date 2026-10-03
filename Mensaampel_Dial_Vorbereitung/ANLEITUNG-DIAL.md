@@ -184,6 +184,8 @@ Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial �
 | Im Ruhemodus Ring drehen bzw. Taste drücken | Dial wird hell, sonst passiert nichts (keine Pause, keine Mensa-Einstellung) | ☐ |
 | Im Ruhemodus eine Kinderkarte auflegen | Dial wird hell und bucht die Karte wie gewohnt | ☐ |
 | Mensa fast voll (≥ 85 % der freigegebenen Plätze belegt) | Ampel bei Grün zusätzlich „bitte leise reingehen“ | ☐ |
+| Nach einem Mittag (0.20): Einlass & Messungen → Lern-Tagebuch | Einträge zum Mittag in verständlichen Sätzen | ☐ |
+| Ampel-Tablet: Dial kurz ausschalten (1 Minute), wieder ein | Ampel rot ohne Fehlerseite, danach von selbst wieder grün | ☐ |
 | Mindestens ein kompletter Mittag als Probelauf | WLAN, Scans, Stromversorgung und Speicher stabil | ☐ |
 
 Offene Hardwaremessungen: Lesefeld und Reichweite, Reaktionszeit beim Speichern, tatsächliche Speicherreserven mit allen 112 Karten, gleichzeitiger WLAN-/RFID-Betrieb und Stromausfallverhalten. Softwaretests ersetzen diese Prüfung nicht.
@@ -385,6 +387,13 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ruhemodus:** Wird das Dial eine Weile nicht benutzt und ist **keine Karte draußen**, wird es dunkel und leise (Standard 20 Minuten; einstellen unter Einstellungen → „Ruhemodus“, auch „aus“). Eine **Karte** weckt es und wird sofort gebucht. **Ring, Taste oder Berühren** wecken es nur – es passiert dabei nichts anderes. Die Ampel draußen und die Tablets laufen unverändert weiter. Nicht im Ruhemodus: solange der Bestand nicht bestätigt ist, ein Menü, das Einlernen oder ein Countdown läuft.
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
+
+## Neu in 0.20.0
+
+- **Ausreißer zählen nur begrenzt:** Eine Gruppe, die an der Ausgabe aufgehalten wurde oder ungewöhnlich schnell durch war, verändert die gelernte Freigabezeit höchstens bis zum 1,6-Fachen (bzw. 1,6-Tel) des bisherigen Werts. Eine vergessene Karte zählt bei der Verweildauer höchstens doppelt so lang wie üblich. So verstellt ein einzelner schlechter Tag die Automatik nicht mehr. Greift der Schutz erst, wenn ein Wert schon auf mindestens 3 Gruppen bzw. 5 Rückgaben beruht.
+- **Lern-Tagebuch** (Einlass & Messungen, unter „Wie sicher ist das Gelernte?“): je Mittag in ganzen Sätzen, was die Automatik geändert hat, z. B. „Dienstag 12:00–12:30: 18,0 s → 16,0 s pro Kind (4 Gruppen)“ oder „Karte war ungewöhnlich lange weg (85 Min.) – zählt nur als 40 Min.“. Das Dial hebt die letzten 40 Einträge auf; jedes Tablet sieht dasselbe.
+- **Ampel-Tablet heilt sich selbst:** Bekommt die Ampelseite 30 Sekunden lang keine Antwort, obwohl das Dial erreichbar ist, lädt sie sich selbst neu (höchstens alle 5 Minuten). Ist das Dial aus, bleibt sie rot stehen und lädt nicht neu – sonst stünde nur eine Fehlerseite des Browsers da.
+- Nur gebaut und mit Tests geprüft.
 
 ## Neu in 0.19.1
 

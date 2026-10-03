@@ -1,2 +1,2 @@
 // Version shown by the PC service and the offline demo; must match firmware/src/version.hpp (checked by a test).
-export const VERSION = '0.19.1-preview';
+export const VERSION = '0.20.0-preview';
