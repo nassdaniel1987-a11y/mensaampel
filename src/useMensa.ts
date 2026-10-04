@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { State, Command, Info } from './types';
-import { mergeCards } from './state-merge.mjs';
+import { mergeCards, mergePeaks } from './state-merge.mjs';
 import { needsReload } from './version-check.mjs';
 import { VERSION } from './version.mjs';
 import { uploadInPieces } from './firmware-upload.mjs';
@@ -24,10 +24,13 @@ export function useMensa() {
   const cards = useRef<{ cards: State['cards']; rev: number } | null>(null),
     [diag, setDiag] = useState({ lastMs: 0, failures: 0 });
   const isDevice = () => infoRef.current?.mode === 'device';
+  const peaks = useRef<{ peaks: string; rev: number } | null>(null);
   const apply = (s: State) => {
     const m = mergeCards(cards.current, s);
     cards.current = m.cache;
-    return m.state as State;
+    const p = mergePeaks(peaks.current, m.state);
+    peaks.current = p.cache;
+    return p.state as State;
   };
   useEffect(() => {
     let alive = true,
@@ -54,7 +57,11 @@ export function useMensa() {
         }
         const t = new Date(),
           clock = [t.getFullYear(), t.getMonth() + 1, t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()];
-        const since = isDevice() && cards.current && cards.current.rev > 0 ? '?cards=' + cards.current.rev : '';
+        const params = [
+          isDevice() && cards.current && cards.current.rev > 0 ? 'cards=' + cards.current.rev : '',
+          isDevice() && peaks.current && peaks.current.rev >= 0 ? 'peaks=' + peaks.current.rev : '',
+        ].filter(Boolean);
+        const since = params.length ? '?' + params.join('&') : '';
         const path = publicView
           ? '/api/signal' + (needClock.current ? '?clock=' + encodeURIComponent(JSON.stringify(clock)) : '')
           : '/api/state' + since;
@@ -66,6 +73,7 @@ export function useMensa() {
         if (r.status === 401) {
           if (alive) {
             cards.current = null;
+            peaks.current = null;
             setAuthRequired(true);
             setState(null);
           }
@@ -218,6 +226,7 @@ export function useMensa() {
       const result = await r.json();
       if (r.status === 401) {
         cards.current = null;
+        peaks.current = null;
         setAuthRequired(true);
       }
       if (!r.ok) throw Error(result.message || 'Keine Verbindung.');
@@ -250,6 +259,7 @@ export function useMensa() {
       if (!r.ok) throw Error(result.message);
       token.current = result.token;
       cards.current = null;
+      peaks.current = null;
       sessionStorage.setItem('mensa-device-session', result.token);
       setAuthRequired(false);
       setNotice(null);
@@ -263,6 +273,7 @@ export function useMensa() {
     await fetch('/api/logout', { method: 'POST', headers: { 'X-Mensa-Token': token.current } }).catch(() => {});
     token.current = '';
     cards.current = null;
+    peaks.current = null;
     sessionStorage.removeItem('mensa-device-session');
     setState(null);
     setAuthRequired(true);
@@ -356,6 +367,7 @@ export function useMensa() {
             infoRef.current = i;
             setInfo(i);
             cards.current = null;
+            peaks.current = null;
             setNotice({ ok: true, text: `Update fertig: Version ${i.version}. Bitte neu anmelden.` });
             return true;
           }

@@ -10,18 +10,21 @@ import './style.css';
 import { FlowPanel } from './FlowPanel';
 import { Login, DevicePanel } from './DevicePanel';
 import { Help } from './Help';
+import { Statistics } from './DayCourse';
 function App() {
   const model = useMensa();
   const [tab, setTab] = useState(
     location.hash === '#messungen'
       ? 'flow'
-      : location.hash === '#simulation'
-        ? 'simulation'
-        : location.hash === '#geraet'
-          ? 'device'
-          : location.hash === '#hilfe'
-            ? 'help'
-            : 'management',
+      : location.hash === '#statistik'
+        ? 'stats'
+        : location.hash === '#simulation'
+          ? 'simulation'
+          : location.hash === '#geraet'
+            ? 'device'
+            : location.hash === '#hilfe'
+              ? 'help'
+              : 'management',
   );
   const device = model.info?.mode === 'device';
   if (location.pathname === '/ampel') return <Signal state={model.state} connected={model.connected} full />;
@@ -82,6 +85,15 @@ function App() {
             Einlass & Messungen
           </button>
           <button
+            className={tab === 'stats' ? 'selected' : ''}
+            onClick={() => {
+              setTab('stats');
+              location.hash = 'statistik';
+            }}
+          >
+            Statistik
+          </button>
+          <button
             className={tab === 'help' ? 'selected' : ''}
             onClick={() => {
               setTab('help');
@@ -134,6 +146,8 @@ function App() {
               <DevicePanel {...model} state={model.state} />
             ) : tab === 'flow' ? (
               <FlowPanel {...model} state={model.state} />
+            ) : tab === 'stats' ? (
+              <Statistics state={model.state} />
             ) : tab === 'management' || device ? (
               <Management {...model} state={model.state} />
             ) : (

@@ -25,6 +25,7 @@ import {
 import { Modal } from './Modal';
 import { Backup } from './Backup';
 import { ForecastCard } from './Insights';
+import { Timeline } from './DayCourse';
 import type { State, Send, Card, RoomId } from './types';
 const name = (r: RoomId) => (r === 'K' ? 'Küche' : 'Mensa');
 export function Management({
@@ -86,6 +87,7 @@ export function Management({
         blocked={blocked}
         onSettings={() => setModal('settings')}
       />
+      <Timeline state={s} />
       <div className="room-cards">
         {(['K', 'M'] as RoomId[]).map(r => (
           <RoomCard key={r} room={r} state={s} send={send} blocked={blocked} onEdit={() => setModal(r)} />

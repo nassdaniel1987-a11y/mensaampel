@@ -77,6 +77,86 @@ struct Flow {
     if (int(diary.size()) >= diaryLimit) diary.erase(diary.begin());
     diary.push_back({today[0], today[1], kind, key, before, after, 1});
   }
+  // Course of the day (0.23), for the tablet's timeline, forecast curve and heat map; all kept as short texts (the
+  // Dial has no PSRAM). curve: most cards out per 10 minutes from 10:00 to 15:59 (-1: no booking yet in that slot;
+  // slots between two bookings keep the count of that time). events: what happened to the groups today (the last 40),
+  // line minute, kind, a, b. peaks: per closed serving day the most cards out per half hour from 10:00 (12 values),
+  // the last 60 days like the reports.
+  static constexpr int curveFrom = 600, curveStep = 10, curveSlots = 36, peakSlots = 12, eventLimit = 40;
+  enum EventKind {
+    GroupOpen,    // first child of a group: a = planned size, b = 1 start group
+    GroupFull,    // group complete: a = children, b = seconds until the automatic release (-1: by hand)
+    AutoRelease,  // a = seconds since the first child, b = learned tenths of a second per child
+    EarlyRelease, // released by hand during the countdown: a = seconds before the planned time
+    HandRelease,  // released by hand without a countdown
+    ReliefStart,  // a = 1 when it counted as "released too early"
+    ReliefEnd,    // a = seconds of relief (-1 unknown)
+    HandPause,    // entrance paused by hand
+    OutlierTamed, // a = observed tenths per child, b = tenths used for learning
+  };
+  using Curve = std::array<signed char, curveSlots>;
+  using Peaks = std::array<signed char, peakSlots>;
+  static Curve emptyCurve() {
+    Curve c;
+    c.fill(-1);
+    return c;
+  }
+  Curve curve = emptyCurve();
+  std::vector<std::array<int, 4>> events;
+  std::vector<std::pair<int, Peaks>> peaks;
+  void event(long long now, int kind, int a = 0, int b = 0) {
+    if (!clockReady(now)) return;
+    if (int(events.size()) >= eventLimit) events.erase(events.begin());
+    events.push_back({currentMinute(now) % 1440, kind, a, b});
+  }
+  // A booking changed the number of cards out from `before` to `after`.
+  void trace(long long now, int before, int after) {
+    if (!clockReady(now)) return;
+    int s = (currentMinute(now) % 1440 - curveFrom) / curveStep;
+    if (currentMinute(now) % 1440 < curveFrom || s >= curveSlots) return;
+    if (curve[s] < 0) {
+      int last = s - 1;
+      while (last >= 0 && curve[last] < 0)
+        last--;
+      if (last >= 0)
+        for (int i = last + 1; i < s; i++)
+          curve[i] = static_cast<signed char>(std::clamp(before, 0, 127));
+      curve[s] = static_cast<signed char>(std::clamp(before, 0, 127));
+    }
+    curve[s] = static_cast<signed char>(std::clamp(std::max(int(curve[s]), after), 0, 127));
+  }
+  // The peaks change once a day: the status carries them only when the tablet's copy is older (peaksRev).
+  std::string peaksText() const {
+    std::string t;
+    for (auto &p : peaks) {
+      if (!t.empty()) t += ';';
+      t += std::to_string(p.first);
+      for (auto v : p.second)
+        t += "," + std::to_string(v);
+    }
+    return t;
+  }
+  // From the top level of a stored snapshot ("peaks", next to the cards); restore() keeps them.
+  void restorePeaks(const J &v) {
+    std::vector<std::pair<int, Peaks>> list;
+    for (auto &p : rowsOf(v, "peaks", 1 + peakSlots, 60, -1, 1000000, "Ungültige Spitzenwerte.")) {
+      Peaks h;
+      for (int i = 0; i < peakSlots; i++) {
+        check(p[i + 1] <= 127, "Ungültige Spitzenwerte.");
+        h[i] = static_cast<signed char>(p[i + 1]);
+      }
+      list.push_back({p[0], h});
+    }
+    peaks = std::move(list);
+  }
+  int peaksRev() const { return peaks.empty() ? 0 : (peaks.back().first % 100000) * 64 + int(peaks.size()); }
+  Peaks dayPeaks() const {
+    Peaks p;
+    p.fill(-1);
+    for (int i = 0; i < curveSlots; i++)
+      if (curve[i] >= 0) p[i / 3] = std::max(p[i / 3], curve[i]);
+    return p;
+  }
   // Outlier protection (0.20): once a value rests on enough observations, one unusual observation (a group held up at
   // the servery, a card forgotten in a pocket) moves it only as far as `factor` times the learned value (or that value
   // divided by it).
@@ -109,6 +189,34 @@ struct Flow {
 
   static void check(bool yes, const char *text) {
     if (!yes) throw std::runtime_error(text);
+  }
+  // Rows of `width` integers in [low, high] from a text "a,b;c,d" (as written by snapshot()); at most `rows` rows.
+  static std::vector<std::vector<int>> rowsOf(const J &v, const char *key, size_t width, size_t rows, long long low,
+                                              long long high, const char *error) {
+    std::vector<std::vector<int>> out;
+    check(v.at(key).is_string(), error);
+    const std::string &text = v[key].get_ref<const std::string &>();
+    check(text.size() <= rows * width * 8, error);
+    std::vector<int> row;
+    size_t i = 0;
+    while (i < text.size()) {
+      size_t end = text.find_first_of(",;", i);
+      if (end == std::string::npos) end = text.size();
+      std::string part = text.substr(i, end - i);
+      check(!part.empty() && part.size() <= 7 && part.find_first_not_of("-0123456789") == std::string::npos, error);
+      long long x = std::stoll(part);
+      check(x >= low && x <= high && row.size() < width, error);
+      row.push_back(int(x));
+      char sep = end < text.size() ? text[end] : ';';
+      check((sep == ',') == (row.size() < width), error);
+      if (row.size() == width) {
+        out.push_back(row);
+        row.clear();
+      }
+      i = end + 1;
+    }
+    check(row.empty() && out.size() <= rows, error);
+    return out;
   }
   static int integer(const J &j, const char *key, int low, int high) {
     check(j.contains(key) && j[key].is_number_integer(), "Ganze Zahl erforderlich.");
@@ -225,6 +333,10 @@ struct Flow {
     today[12] = perChild(-1);
     if (history.size() == 60) history.erase(history.begin());
     history.push_back(today);
+    if (peaks.size() == 60) peaks.erase(peaks.begin());
+    peaks.push_back({today[0], dayPeaks()});
+    curve = emptyCurve();
+    events.clear();
     today = newDay(nextDay, nextWeekday);
   }
   // Half hour (0..7 from 11:00) of a moment on the monotonic clock, -1 without a valid clock.
@@ -284,6 +396,8 @@ struct Flow {
   }
   static int blend(int old, int n, int obs) { return n ? int(std::lround(old * 0.7 + obs * 0.3)) : obs; }
   // A measurement may replace the start value; a single button press (prior>0) only moves the current value.
+  // Last softened observation (observed, used), for the day's course; -1 none.
+  std::array<int, 2> tamed{-1, -1};
   void learn(int wd, int s, int obs, int prior = 0) {
     obs = std::clamp(obs, autoMin, autoMax);
     bool inSlot = s >= 0 && s <= 47 && wd >= 0 && wd <= 6;
@@ -295,7 +409,10 @@ struct Flow {
     // An unusual group time (servery held up, a child dawdling) counts only up to 1.6 times the learned value.
     int used = slot && (*slot)[3] >= 3 ? tame(obs, (*slot)[2], (*slot)[3], 3, 1.6)
                                        : tame(obs, autoGlobal, autoGlobalN, 3, 1.6);
-    if (used != obs) diaryNote(PaceOutlier, key, obs, used);
+    if (used != obs) {
+      diaryNote(PaceOutlier, key, obs, used);
+      tamed = {obs, used};
+    }
     obs = used;
     int before = autoGlobal;
     autoGlobal = autoGlobalN || !prior ? blend(autoGlobal, autoGlobalN, obs) : blend(prior, 1, obs);
@@ -347,7 +464,8 @@ struct Flow {
     return waiting && releaseAt >= 0 ? std::max(0LL, (releaseAt - now + 999) / 1000) : -1;
   }
   // No complaint since the previous automatic release: try a little faster.
-  void autoRelease() {
+  void autoRelease(long long now) {
+    if (waiting) event(now, AutoRelease, groupAt >= 0 ? int((now - groupAt) / 1000) : -1, perChild(groupAt));
     if (autoReleased && !autoComplaint) scale(groupAt, 0.97);
     lastGroupStart = groupIsStart;
     next();
@@ -357,8 +475,14 @@ struct Flow {
   }
   // Button pressed during the countdown: the servery was ready earlier.
   void manualRelease(long long now) {
+    if (waiting) {
+      bool early = autoOn && releaseAt > now;
+      event(now, early ? EarlyRelease : HandRelease, early ? int((releaseAt - now) / 1000) : 0);
+    }
     if (autoOn && waiting && !relief && releaseAt > now && groupAt >= 0 && issued > 0) {
+      tamed = {-1, -1};
       learn(weekday, slotOf(groupAt), int((now - groupAt) / 100 / normalSize(groupAt)), perChild(groupAt));
+      if (tamed[0] >= 0) event(now, OutlierTamed, tamed[0], tamed[1]);
       resize(groupAt, 1, groupIsStart);
       autoFaster++;
       today[6]++;
@@ -369,6 +493,7 @@ struct Flow {
   // Relief after an automatic release: that release came too early.
   void complaint(long long now) {
     today[8]++;
+    event(now, ReliefStart, autoOn && autoReleased && !autoComplaint ? 1 : 0);
     if (autoOn && autoReleased && !autoComplaint) {
       long long at = groupAt >= 0 ? groupAt : now;
       scale(at, 1.2);
@@ -396,6 +521,7 @@ struct Flow {
         groupIsStart = autoOn && startDue(now);
         groupAt = now;
         groupQueue = queue;
+        event(now, GroupOpen, groupTarget, groupIsStart ? 1 : 0);
       }
       issued++;
       lastAdmission = now;
@@ -404,6 +530,7 @@ struct Flow {
         waiting = true;
         today[4]++;
         if (autoOn) schedule(now);
+        event(now, GroupFull, issued, autoOn ? int((releaseAt - now) / 1000) : -1);
         auto e = status(now).at("estimate");
         if (clockReady(now) && e.at("count").get<int>() >= 3) {
           trialCount = e["count"];
@@ -441,8 +568,10 @@ struct Flow {
         releaseAt = releaseFrom = releaseWall = -1;
         releaseSpan = 0;
         if (today[4] > 0) today[4]--;
+        if (!events.empty() && events.back()[1] == GroupFull) events.pop_back();
       }
       if (--issued == 0) {
+        if (!events.empty() && events.back()[1] == GroupOpen) events.pop_back();
         groupAt = -1;
         groupTarget = 0;
         groupIsStart = false;
@@ -482,6 +611,12 @@ struct Flow {
         notes += std::to_string(d[k]);
       }
     }
+    std::string course, happened;
+    for (int i = 0; i < curveSlots; i++)
+      course += (i ? "," : "") + std::to_string(curve[i]);
+    for (auto &e : events)
+      happened += (happened.empty() ? "" : ";") + std::to_string(e[0]) + "," + std::to_string(e[1]) + "," +
+                  std::to_string(e[2]) + "," + std::to_string(e[3]);
     // Learned stays as one flat list (average, count per weekday and half hour): much smaller as a JSON tree than
     // nested lists, and empty while nothing was learned.
     J stays = J::array();
@@ -516,6 +651,8 @@ struct Flow {
            {"today", today},
            {"history", days},
            {"diary", notes},
+           {"curve", course},
+           {"dayEvents", happened},
            {"autoOn", autoOn},
            {"autoStart", autoStart},
            {"autoGlobal", autoGlobal},
@@ -747,6 +884,16 @@ struct Flow {
       }
       check(k == 0 && n.diary.size() <= size_t(diaryLimit), "Ungültiges Lern-Tagebuch.");
     }
+    if (v.contains("curve")) {
+      auto c = rowsOf(v, "curve", curveSlots, 1, -1, 127, "Ungültiger Tagesverlauf.");
+      if (!c.empty())
+        for (int i = 0; i < curveSlots; i++)
+          n.curve[i] = static_cast<signed char>(c[0][i]);
+      for (auto &e : rowsOf(v, "dayEvents", 4, eventLimit, -1, 1000000, "Ungültige Tagesereignisse.")) {
+        check(e[0] >= 0 && e[0] < 1440 && e[1] >= GroupOpen && e[1] <= OutlierTamed, "Ungültige Tagesereignisse.");
+        n.events.push_back({e[0], e[1], e[2], e[3]});
+      }
+    }
     if (v.contains("stay")) {
       n.stayN = integer(v, "stayN", 0, 9999);
       n.stayAvg = n.stayN ? integer(v, "stayAvg", stayShort, stayLong) : integer(v, "stayAvg", 0, 0);
@@ -759,6 +906,7 @@ struct Flow {
             count ? integer(r, "a", stayShort, stayLong) : integer(r, "a", 0, 0), count};
       }
     }
+    n.peaks = std::move(peaks);
     *this = std::move(n);
   }
   J status(long long now) const {
@@ -917,7 +1065,11 @@ struct Flow {
             "Messung muss zwischen einer Sekunde und 60 Minuten dauern; sonst bitte verwerfen.");
       if (samples.size() == 120) samples.erase(samples.begin());
       samples.push_back({kind, measureQueue, measureWeekday, measureMinute, measureSize, int(seconds)});
-      if (kind == 1) learn(measureWeekday, measureMinute / 30, int(seconds) * 10 / measureSize);
+      if (kind == 1) {
+        tamed = {-1, -1};
+        learn(measureWeekday, measureMinute / 30, int(seconds) * 10 / measureSize);
+        if (tamed[0] >= 0) event(now, OutlierTamed, tamed[0], tamed[1]);
+      }
       cancel();
       message = "Messung gespeichert. Der Einlass bleibt unverändert.";
     } else if (type == "measurementDeleteLast") {

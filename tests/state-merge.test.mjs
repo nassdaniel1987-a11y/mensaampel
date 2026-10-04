@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeCards } from '../src/state-merge.mjs';
+import { mergeCards, mergePeaks } from '../src/state-merge.mjs';
 
 test('Kartenliste: Dial lässt unveränderte Karten weg, Tablet setzt sie ein', () => {
   const cards = [{ label: 'K1' }];
@@ -17,4 +17,15 @@ test('Kartenliste: Dial lässt unveränderte Karten weg, Tablet setzt sie ein', 
   const fresh = [{ label: 'K2' }];
   assert.equal(mergeCards(m.cache, { cardsRev: 6, cards: fresh }).state.cards, fresh);
   assert.deepEqual(mergeCards(null, { cards: fresh }).cache, { cards: fresh, rev: 0 });
+});
+
+test('Spitzenwerte (0.23): nur bei Änderung gesendet, Tablet setzt sie ein', () => {
+  let m = mergePeaks(null, { peaksRev: 9, peaks: '1,2' });
+  assert.deepEqual(m.cache, { peaks: '1,2', rev: 9 });
+  m = mergePeaks(m.cache, { peaksRev: 9 });
+  assert.equal(m.state.peaks, '1,2');
+  m = mergePeaks(m.cache, { peaksRev: 10 });
+  assert.equal(m.state.peaks, '1,2');
+  assert.equal(m.cache.rev, -1);
+  assert.equal(mergePeaks(null, { peaksRev: 3 }).state.peaks, '');
 });

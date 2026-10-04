@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DayCharts } from './Charts';
+import { Decisions, ForecastChart } from './DayCourse';
 import { Coach, Confidence, Diary } from './Insights';
 import type { State, Send, FlowState } from './types';
 const queues = ['Keine Schlange', 'Kurze Schlange', 'Lange Schlange'],
@@ -106,6 +107,8 @@ export function FlowPanel({
           <p>Kleine Gruppen einlassen, Abläufe messen und Erfahrungen vergleichen.</p>
         </div>
       </div>
+      <ForecastChart state={s} />
+      <Decisions state={s} />
       <div className="flow-grid">
         <section className="flow-section">
           <h2>Automatik</h2>

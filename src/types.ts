@@ -69,6 +69,9 @@ export type Device = {
 export type Info = { mode: 'pc' | 'device'; configured?: boolean; nonce?: string; version?: string };
 export type State = {
   cardsRev?: number;
+  /** Half-hour peaks of the last 60 days (0.23), "day,p0..p11;..." from 10:00. */
+  peaks?: string;
+  peaksRev?: number;
   volume?: number;
   sound?: number;
   remind?: number;
@@ -181,6 +184,9 @@ export type FlowState = {
   autoGlobalN: number;
   autoSlots: [number, number, number, number, number][];
   diary?: string;
+  /** Course of the day (0.23): most cards out per 10 minutes from 10:00 (-1 none), and group events. */
+  curve?: string;
+  dayEvents?: string;
   releaseAt: number;
   autoReleased: boolean;
   autoFaster: number;

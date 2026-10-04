@@ -388,6 +388,40 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.23.0
+
+Neue Dashboard-Seiten am Betreuungs-Tablet, nach dem Entwurf aus Claude Design:
+
+- **Betrieb → Mittags-Zeitleiste:** Ein Balken über den Mittag zeigt jede Gruppe.
+  - **Grün:** Die Gruppe war schon dran.
+  - **Gelb:** Diese Gruppe ist gerade drin.
+  - **Gestrichelt:** So erwartet die Automatik die nächsten Gruppen.
+  - Die Linie „jetzt“ zeigt die aktuelle Uhrzeit.
+
+  Darunter stehen drei Kästen:
+  - **Nächste Gruppe:** zum Beispiel „in ca. 4 Min.“ oder „noch 3 Kinder“.
+  - **Im Vergleich:** Minuten pro Gruppe, verglichen mit dem gleichen Wochentag sonst.
+  - **Voraussichtlich fertig:** wann sonst die letzte Ausgabe ist.
+- **Einlass & Messungen → Vorhersage und Wirklichkeit:** Eine Kurve zeigt die belegten Plätze.
+  - **Grün:** was heute wirklich passiert.
+  - **Gestrichelt:** die Vorhersage aus den letzten vier gleichen Wochentagen.
+  - **Grau:** der übliche Bereich.
+
+  Darunter steht ein Satz, ob es voller oder ruhiger ist als sonst.
+- **Einlass & Messungen → Was die Automatik heute entschieden hat:** jede Freigabe, jedes Entlasten und jeder Ausreißer beim Lernen. Jeder Eintrag hat eine Uhrzeit und einen Grund in einfachen Worten, das Neueste steht oben.
+- **Neuer Reiter „Statistik“ → Wann ist es am vollsten?:** ein Wärmebild nach Wochentag und halber Stunde.
+  - Jedes Feld zeigt, wie viele Kinder im Schnitt gleichzeitig drin waren. Je dunkler, desto voller.
+  - Wählbar sind die letzten 4 Wochen, 8 Wochen oder alle gespeicherten 60 Tage.
+  - Darunter stehen „Am vollsten“ und „Am ruhigsten“.
+- **Was das Dial dafür speichert:** nur Zahlen.
+  - die Belegung je 10 Minuten (heute);
+  - die Gruppen-Ereignisse von heute;
+  - je Essenstag die höchste Belegung pro halbe Stunde (60 Tage).
+
+  Keine Karten, keine Namen. Die Sicherung enthält diese Zahlen mit.
+- **Wann sich die Seiten füllen:** Vorhersage und Wärmebild füllen sich erst ab dem ersten Essenstag mit dieser Version. Vorher steht dort ein Hinweis. „Testdaten löschen → Tagesberichte“ löscht diese Zahlen mit.
+- **Prüfstand:** Bisher ist das nur gebaut und mit einem simulierten Mittag geprüft. Bitte beim nächsten echten Mittag ansehen.
+
 ## Neu in 0.22.1
 
 - **Dial zeichnet schneller:** Der Ring am Rand (seit 0.21.0) brauchte beim Zeichnen viel Rechenzeit. Jetzt ist ein Bild etwa doppelt so schnell fertig, bei genau gleichem Aussehen. Das soll Countdown-Ring und Drehen am Ring flüssiger machen. Bisher nur gebaut und am PC gemessen. Bitte nach dem Update unter Gerät → Gesundheit die Werte „Bild zeichnen“ und „Flüssige Animation“ ansehen.

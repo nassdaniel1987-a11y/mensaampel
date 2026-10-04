@@ -54,7 +54,9 @@ class BookStorage {
     text.pop_back();
     text += ",\"cards\":";
     text += engine.cardsText(0, false);
-    text += "}";
+    text += ",\"peaks\":\"";
+    text += engine.flowState().peaksText();
+    text += "\"}";
     return text;
   }
   // Reads the file back and compares it with what should have been written, in small chunks.

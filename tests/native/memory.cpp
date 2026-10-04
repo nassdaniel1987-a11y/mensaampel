@@ -42,7 +42,9 @@ static std::string saveText(const mensa::Engine &e) {
   t.pop_back();
   t += ",\"cards\":";
   t += e.cardsText(0, false);
-  t += "}";
+  t += ",\"peaks\":\"";
+  t += e.flowState().peaksText();
+  t += "\"}";
   lastSize = t.size();
   return t;
 }
@@ -50,7 +52,7 @@ static std::string stateText(const mensa::Engine &e, long long now, bool cards) 
   std::string b = e.status(now, false).dump();
   b.pop_back();
   b += ",\"cardsRev\":7";
-  if (cards) b += ",\"cards\":" + e.cardsText(now);
+  if (cards) b += ",\"cards\":" + e.cardsText(now) + ",\"peaks\":\"" + e.flowState().peaksText() + "\"";
   return b + "}";
 }
 int main() {
@@ -102,6 +104,20 @@ int main() {
     for (int i = 0; i < 40; i++)
       diary += (i ? ";" : "") + std::to_string(100000 + i) + ",3," + std::to_string(i % 8) + ",335,999999,999999,9999";
     j["flow"]["diary"] = diary;
+    // Full course of the day (0.23): every 10-minute slot, 40 group events, peaks for 60 days.
+    std::string curve, events, peaks;
+    for (int i = 0; i < 36; i++)
+      curve += (i ? "," : "") + std::to_string(100 + i % 10);
+    for (int i = 0; i < 40; i++)
+      events += (i ? ";" : "") + std::to_string(700 + i) + "," + std::to_string(i % 9) + ",999999,999999";
+    for (int d = 0; d < 60; d++) {
+      peaks += (d ? ";" : "") + std::to_string(100000 + d);
+      for (int i = 0; i < 12; i++)
+        peaks += "," + std::to_string(100 + i);
+    }
+    j["flow"]["curve"] = curve;
+    j["flow"]["dayEvents"] = events;
+    j["peaks"] = peaks;
     e.restore(j, true);
   }
   saveText(e); // the Dial knows the size of its last save

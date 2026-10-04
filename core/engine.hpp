@@ -693,10 +693,11 @@ public:
               {"events", Json::array()}};
     for (int r = 0; r < 2; r++)
       v["rooms"][roomName(r)] = {{"capacity", rooms[r].capacity}, {"limit", rooms[r].limit}, {"open", rooms[r].open}};
-    if (withCards)
+    if (withCards) {
       for (const auto &c : cards)
         v["cards"].push_back(asJson(c));
-    else
+      v["peaks"] = flow.peaksText(); // without cards the caller appends both as text (firmware storage)
+    } else
       v.erase("cards");
     for (const auto &e : events)
       v["events"].push_back({{"at", e.at}, {"message", e.message}});
@@ -745,6 +746,8 @@ public:
     for (int r = 0; r < 2; r++)
       require(next.occupied(r) <= next.rooms[r].limit, "Belegung über der Kapazität.");
     if (v.contains("flow")) next.flow.restore(v["flow"]);
+    next.flow.peaks.clear();
+    if (v.contains("peaks")) next.flow.restorePeaks(v);
     if (v.contains("staff")) {
       require(v["staff"].is_array() && v["staff"].size() <= 5, "Ungültige Betreuerkarten.");
       for (auto &u : v["staff"]) {
@@ -826,6 +829,8 @@ public:
     v["paused"] = isPaused();
     v["manualPaused"] = paused;
     v["flow"] = flow.status(now);
+    v["peaksRev"] = flow.peaksRev();
+    if (withCards) v["peaks"] = flow.peaksText(); // the Dial adds them itself only when changed (firmware stateBody)
     v["flow"]["today"][11] = outCards();
     v["flow"]["today"][12] = flow.perChild(-1);
     Json missing = Json::array();
@@ -862,9 +867,11 @@ public:
       if (c.out) missing += (missing.empty() ? "" : ", ") + c.label;
     if (!missing.empty()) log("Nicht zurückgegeben, als verloren gesperrt: " + missing, now);
     bool empty = automatic && missing.empty() && flow.today[2] == 0;
-    if (empty)
+    if (empty) {
       flow.today[1] = flow.clockReady(now) ? flow.weekday : -1;
-    else {
+      flow.curve = Flow::emptyCurve();
+      flow.events.clear();
+    } else {
       flow.closeDay(outCards(), day + 1, flow.clockReady(now) ? flow.weekday : -1);
       day++;
     }
@@ -1011,8 +1018,10 @@ private:
           }
           undo = c;
           hasUndo = true;
+          int outBefore = outCards();
           c.out = !c.out;
           c.last = now;
+          flow.trace(now, outBefore, outCards());
           if (c.out) {
             if (flow.armed && !flow.clockReady(now)) flow.cancel();
             flow.admission(uid, now);
@@ -1063,7 +1072,7 @@ private:
           flow.schedule(now);
           return {{"ok", true}, {"changed", true}, {"message", ""}};
         } else {
-          flow.autoRelease();
+          flow.autoRelease(now);
           message = "Nächste Gruppe automatisch freigegeben.";
         }
       } else if (action == "dialTurn" && menuOpen(now)) {
@@ -1218,12 +1227,14 @@ private:
                     ? "Ausgabe entlasten beendet: " + std::to_string((now - flow.reliefAt) / 1000) + " Sekunden."
                     : "Ausgabe entlasten beendet; Dauer nach Neustart unbekannt.",
                 now);
+            flow.event(now, Flow::ReliefEnd, flow.reliefAt >= 0 ? int((now - flow.reliefAt) / 1000) : -1);
             flow.relief = false;
             flow.reliefAt = -1;
           }
           flow.manualRelease(now);
           flow.next();
         }
+        if (requested && !paused) flow.event(now, Flow::HandPause);
         paused = requested;
         message = paused ? "Einlass pausiert. Rückgaben bleiben möglich." : "Einlasspause beendet.";
       } else if (action == "room") {
@@ -1340,6 +1351,9 @@ private:
         auto add = [&](const char *what) { done += (done.empty() ? "" : ", ") + std::string(what); };
         if (h) {
           flow.history.clear();
+          flow.peaks.clear();
+          flow.events.clear();
+          flow.curve = Flow::emptyCurve();
           flow.today = Flow::newDay(1, flow.clockReady(now) ? flow.weekday : -1);
           day = 1;
           add("Tagesberichte");

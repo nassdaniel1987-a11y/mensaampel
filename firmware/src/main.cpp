@@ -464,12 +464,14 @@ Json state(bool withCards = true) {
   return s;
 }
 // The state as text; the JSON tree is freed before the answer is sent.
-// sinceRev: the tablet's card revision; unchanged cards are left out (it keeps its copy).
-std::string stateBody(uint32_t sinceRev = 0) {
+// sinceRev: the tablet's card revision; unchanged cards are left out (it keeps its copy). Likewise the half-hour peaks
+// of the last 60 days (peaksRev, they change once a day).
+std::string stateBody(uint32_t sinceRev = 0, long sincePeaks = -1) {
   std::string body = state(false).dump();
   body.pop_back();
   body += ",\"cardsRev\":" + std::to_string(dataRev);
   if (sinceRev != dataRev) body += ",\"cards\":" + engine.cardsText(nowMs());
+  if (sincePeaks != engine.flowState().peaksRev()) body += ",\"peaks\":\"" + engine.flowState().peaksText() + "\"";
   return body + "}";
 }
 // Answer object plus the current state, joined as text so that both trees never exist at the same time.
@@ -584,7 +586,8 @@ std::string backupText() {
       std::string("{\"format\":\"mensa-device-backup-1\",\"reader\":") + Json(config.reader).dump() + ",\"state\":";
   std::string snap = engine.snapshot(false).dump();
   snap.pop_back();
-  body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + "}}";
+  body += snap + ",\"cards\":" + engine.cardsText(nowMs(), false) + ",\"peaks\":\"" + engine.flowState().peaksText() +
+          "\"}}";
   return body;
 }
 // Check interface on the USB cable (scripts/device-check.py): lines "@mensa <command>", answer "@mensa-reply {json}".
@@ -1125,7 +1128,8 @@ void configureWeb() {
            try {
              mark("Status");
              uint32_t since = web.hasArg("cards") ? uint32_t(strtoul(web.arg("cards").c_str(), nullptr, 10)) : 0;
-             std::string body = stateBody(since);
+             long peaks = web.hasArg("peaks") ? strtol(web.arg("peaks").c_str(), nullptr, 10) : -1;
+             std::string body = stateBody(since, peaks);
              replyBody(200, body);
            } catch (...) { reply(503, result(false, "Status konnte nicht erstellt werden.")); }
          }));

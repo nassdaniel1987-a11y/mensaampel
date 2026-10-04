@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FlowPanel } from './FlowPanel';
 import { Help } from './Help';
+import { Statistics } from './DayCourse';
 import { Management } from './Management';
 import { Simulation } from './Simulation';
 import { Signal } from './Signal';
@@ -77,6 +78,9 @@ async function start() {
             <button className={view === 'flow' ? 'selected' : ''} onClick={() => navigate('flow')}>
               Einlass & Messungen
             </button>
+            <button className={view === 'stats' ? 'selected' : ''} onClick={() => navigate('stats')}>
+              Statistik
+            </button>
             <button className={view === 'signal' ? 'selected' : ''} onClick={() => navigate('signal')}>
               Große Ampel
             </button>
@@ -136,6 +140,8 @@ async function start() {
               <Help />
             ) : view === 'flow' ? (
               <FlowPanel state={state} send={send} busy={false} connected={connected} />
+            ) : view === 'stats' ? (
+              <Statistics state={state} />
             ) : view === 'management' ? (
               <Management state={state} send={send} busy={false} connected={connected} notice={notice} />
             ) : (
