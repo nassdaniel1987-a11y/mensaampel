@@ -167,6 +167,51 @@ inline void ring(nlohmann::json &list, double share, int color, int track) {
   int end = 270 + int(std::lround(360 * std::min(share, 1.0)));
   list.push_back(nlohmann::json::array({"a", 120, 120, 110, 118, 270, std::max(end, 271), color}));
 }
+// 0.24 (Claude Design "Kugel mit Kranz", mix of drafts B and C): bright gradients like the Ampel at the door, a white
+// disc in the middle with the number in the tone's ink, and a wreath of fields along the edge, one per child of the
+// group. Amber keeps dark text like the Ampel.
+struct Look {
+  Tone tone;
+  int ink; // text and symbols on the white disc
+};
+constexpr Look lookGreen{{0x15D0, 0x0267, white}, 0x03CA}, lookRed{{0xF1EB, 0x78E3, white}, 0xB887},
+    lookAmber{{0xFDE4, 0xB281, 0x18C2}, 0x18C2}, lookTeal{{0x15D4, 0x1269, white}, 0x0BAD};
+constexpr int glow = 0xFE88; // the field of the child that just got its card
+// Disc and wreath geometry. The wreath runs up the left side (140..228 degrees) and down the right side (312..400),
+// clockwise from the lower left: the top stays free for the key hint, the bottom for the ENTLASTEN button.
+constexpr int discY = 102, discR = 66, wreathInner = 101, wreathOuter = 111, wreathMax = 8, wreathSide = 88;
+// Ring part with transparency (alpha 0..16), e.g. the darker fields of the wreath.
+inline nlohmann::json bandAlpha(int r0, int r1, int a0, int a1, int color, int alpha) {
+  return nlohmann::json::array({"a", 120, 120, r0, r1, a0, a1, color, alpha});
+}
+// Position 0..176 along the wreath -> angle.
+inline int wreathAngle(int t) {
+  return t < wreathSide ? 140 + t : 312 + (t - wreathSide);
+}
+// Wreath: one field per child (left side first, then right); field i gets colour and alpha (16 = solid).
+inline void wreath(nlohmann::json &list, const std::vector<std::pair<int, int>> &fields) {
+  int n = int(fields.size());
+  if (n <= 0) return;
+  const int gap = 10, cap = 3; // round ends reach about 3 degrees beyond each end
+  int left = (n + 1) / 2;
+  for (int i = 0; i < n; i++) {
+    bool first = i < left;
+    int count = first ? left : n - left, k = first ? i : i - left;
+    int each = (wreathSide - gap * (count - 1)) / count, a0 = (first ? 140 : 312) + k * (each + gap) + cap,
+        a1 = a0 + each - 2 * cap;
+    list.push_back(bandAlpha(wreathInner, wreathOuter, a0, std::max(a1, a0 + 1), fields[i].first, fields[i].second));
+  }
+}
+// Continuous wreath (countdown, large groups, free seats): darker track on both sides, white share from the lower left.
+inline void wreathShare(nlohmann::json &list, double share, int color) {
+  for (int from : {140, 312})
+    list.push_back(bandAlpha(wreathInner, wreathOuter, from + 3, from + wreathSide - 3, black, 4));
+  int t = int(std::lround(2 * wreathSide * std::clamp(share, 0.0, 1.0)));
+  if (t <= 0) return;
+  int l = std::min(t, wreathSide), r = t - wreathSide;
+  list.push_back(band(wreathInner, wreathOuter, 143, std::max(144, 140 + l - 3), color));
+  if (r > 0) list.push_back(band(wreathInner, wreathOuter, 315, std::max(316, 312 + r - 3), color));
+}
 } // namespace dial
 // Device-specific additions supplied by firmware or simulation host.
 // screen: "" main screen, "check" start check after power-on, "credentials" WLAN data, "reset" access reset question,

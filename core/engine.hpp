@@ -369,13 +369,19 @@ public:
     // Key hint at the top, inside the gap of the edge gauge.
     auto key = [&](int color, const std::string &t) { list.push_back(text(120, 26, 1, color, fit(t, 1, 128))); };
     // Info line: plain text, or a darker pill for hints that need attention.
+    // Info line of the other screens (menu, editing, update).
     auto infoLine = [&](const std::string &t, int color) {
       if (!t.empty()) list.push_back(text(120, 172, 1, color, fit(t, 1, 184)));
     };
+    // Main screen (0.24): one line between the disc and the button (y 176); hints in a darker pill over the wreath.
+    bool edge = false; // a wreath along the edge narrows the line below the disc
+    auto belowDisc = [&](const std::string &t, int color) {
+      if (!t.empty()) list.push_back(text(120, 176, 1, color, fit(t, 1, edge ? 168 : span(176, 1))));
+    };
     auto hintPill = [&](const std::string &t, int pill) {
       if (t.empty()) return;
-      list.push_back(rect(22, 161, 196, 22, 11, pill));
-      list.push_back(text(120, 172, 1, white, fit(t, 1, 186)));
+      list.push_back(rect(24, 166, 192, 20, 10, pill));
+      list.push_back(text(120, 176, 1, white, fit(t, 1, std::min(184, span(176, 1)))));
     };
     auto pillButton = [&](int color, int textColor, const std::string &t) {
       list.push_back(rect(52, 188, 136, 28, 14, color));
@@ -521,15 +527,16 @@ public:
       return list;
     }
     bool locked = lockUntil > now && !lockLabel.empty();
-    // Card feedback (design 0.21): issued = green with a double ring, returned = teal, refused = red segment ring.
+    // Card feedback: issued = green, returned = teal, refused = red (design 0.24 "Kugel mit Kranz").
     int kind = x.feedback.empty() || locked ? -1 : !x.feedbackOk ? 3 : x.feedbackKind;
-    const Tone &tone = kind == 1   ? toneGreen
-                       : kind == 2 ? toneTeal
-                       : kind == 3 ? toneRed
-                       : g         ? toneGreen
-                       : y         ? toneAmber
-                                   : toneRed;
-    const int fg = tone.text, buttonText = tone.centre, pill = shade(tone.edge, 8), track = mix(tone.centre, white, 4);
+    const Look &look = kind == 1   ? lookGreen
+                       : kind == 2 ? lookTeal
+                       : kind == 3 ? lookRed
+                       : g         ? lookGreen
+                       : y         ? lookAmber
+                                   : lookRed;
+    const Tone &tone = look.tone;
+    const int fg = tone.text, ink = look.ink, pill = shade(tone.edge, 8);
     long long left = flow.releaseIn(now);
     int next = flow.target(now), free = available(0) + available(1), seatsOpen = 0;
     for (int r = 0; r < 2; r++)
@@ -537,114 +544,138 @@ public:
     list.push_back(gradient(tone));
     bool countdown =
         flow.waiting && flow.autoOn && left >= 0 && !flow.relief && !paused && ready && !measuringGroup && !x.blocked;
-    // The edge: countdown while a group waits, otherwise the share of free seats (only on the plain main screen).
-    if (kind < 0 && countdown)
-      gauge(list, flow.releaseShare(now), white, track);
-    else if (kind < 0 && ready && !x.blocked && !flow.relief && !paused && !flow.waiting && seatsOpen > 0)
-      gauge(list, double(free) / seatsOpen, white, track);
-    // The card feedback screens have a closed ring at the top: no key hint there.
+    // The wreath along the edge: one field per child of the group (up to 12), dark = already in, white = may still
+    // come, the field of the child that just got its card glows; a running countdown or larger groups as one ring.
+    int group = flow.batch ? (flow.issued > 0 ? flow.groupTarget : next) : 0,
+        in = flow.waiting ? group : std::min(flow.issued, group);
+    bool fields = group >= 1 && group <= wreathMax && ready && !x.blocked && !flow.relief && !paused;
+    // (Refused cards and other messages: no wreath, so that the line below the disc can take a longer sentence.)
+    edge = true;
+    if (countdown && kind < 0)
+      wreathShare(list, flow.releaseShare(now), white);
+    else if (fields && (kind < 0 || kind == 1 || kind == 2)) {
+      std::vector<std::pair<int, int>> f;
+      for (int i = 0; i < group; i++)
+        f.push_back(kind == 1 && i == in - 1 ? std::make_pair(glow, 16)
+                    : i < in                 ? std::make_pair(int(black), 4)
+                                             : std::make_pair(int(white), 16));
+      wreath(list, f);
+    } else if (group > wreathMax && ready && !x.blocked && !flow.relief && !paused && kind < 0)
+      wreathShare(list, double(group - in) / group, white);
+    else if (!flow.batch && kind < 0 && ready && !x.blocked && !flow.relief && !paused && seatsOpen > 0)
+      wreathShare(list, double(free) / seatsOpen, white);
+    else
+      edge = false;
+    // Key hint at the top (feedback screens: what happened).
     if (kind < 0)
       key(fg, !ready || dayWaiting(now) ? "Taste 3 s halten"
               : flow.relief || paused   ? "Taste: weiter"
               : flow.waiting            ? "Taste: freigeben"
                                         : "Taste: Pause");
+    else if (kind >= 1)
+      key(fg, kind == 1 ? "Ausgegeben" : kind == 2 ? "Zurückgegeben" : "Nicht gebucht");
+    // The white disc with number or symbol in the tone's ink; one line below it (info, hint or a short sentence).
+    list.push_back(circle(120, discY, discR, white));
+    // Text in the disc, as wide as the disc allows at that height; numbers too wide for their size get the next
+    // smaller one (e.g. a countdown of 12:30).
+    auto discWidth = [&](int y, int size) {
+      // Big digits are measured at their middle (their rounded tops stay inside), small text at its full height.
+      int dy = std::abs(y - discY) + (size >= 4 ? 0 : 6), margin = size >= 4 ? 6 : 10;
+      return dy < discR ? 2 * int(std::sqrt(double(discR * discR - dy * dy))) - margin : 0;
+    };
+    auto inDisc = [&](int y, int size, const std::string &t) {
+      while (size > 3 && raster::textWidth(t, size) > discWidth(y, size))
+        size--;
+      list.push_back(text(120, y, size, ink, fit(t, size, std::max(40, discWidth(y, size)))));
+    };
+    auto number = [&](const std::string &n, const std::string &what) {
+      inDisc(94, 5, n);
+      inDisc(136, 1, what);
+    };
+    auto symbolLabel = [&](const std::string &what) { inDisc(132, 1, what); };
     const std::string seats = "Küche " + std::to_string(available(0)) + " · Mensa " + std::to_string(available(1));
     std::string sub;
+    // First sentence and the rest of a message ("K12 ausgegeben. Ein Platz reserviert.").
+    std::string first = x.feedback, rest;
+    size_t dot = x.feedback.find(". ");
+    if (dot != std::string::npos) {
+      first = x.feedback.substr(0, dot + 1);
+      rest = x.feedback.substr(dot + 2);
+    }
+    // A message in the disc under a symbol: the whole message in up to three lines; if it does not fit, the first
+    // sentence there and the rest on the line below the disc. Shorter messages sit lower (centred with the symbol).
+    auto sentence = [&](auto symbol) {
+      std::vector<int> widths;
+      for (int i = 0; i < 3; i++)
+        widths.push_back(discWidth(90 + i * 18, 1));
+      auto lines = wrap(x.feedback, widths, 1);
+      bool whole = !lines.empty() && lines.back().find("…") == std::string::npos;
+      if (!whole) lines = wrap(first, widths, 1);
+      int n = int(std::min<size_t>(lines.size(), 3)), top = n <= 1 ? 112 : n == 2 ? 102 : 90;
+      symbol(top - 34);
+      for (int i = 0; i < n; i++)
+        list.push_back(text(120, top + i * 18, 1, ink, lines[i]));
+      return whole ? std::string() : rest;
+    };
     if (locked) {
       // Card still in its cooldown: seconds left as the big number.
-      iconAlert(list, 120, 44, 9, fg);
-      big(fg, std::to_string((lockUntil - now + 999) / 1000));
-      label(fg, lockLabel + " gesperrt");
-      sub = "Sekunden warten";
+      number(std::to_string((lockUntil - now + 999) / 1000), "Sek. warten");
+      sub = lockLabel + " gesperrt";
     } else if (kind == 1 || kind == 2 || kind == 3) {
-      // First sentence and the card number in front of it ("K12 ausgegeben. ..." / "K12 zurückgenommen. ...").
-      std::string first = x.feedback, rest;
-      size_t dot = x.feedback.find(". ");
-      if (dot != std::string::npos) {
-        first = x.feedback.substr(0, dot + 1);
-        rest = x.feedback.substr(dot + 2);
-      }
       std::string card = first.substr(0, first.find(' '));
       bool isCard = card.size() >= 2 && card.size() <= 4 && (card[0] == 'K' || card[0] == 'M');
-      if (kind == 1) {
-        list.push_back(band(107, 111, 0, 360, white));
-        list.push_back(band(101, 103, 0, 360, mix(tone.centre, white, 6)));
-        iconCheck(list, 120, 60, 16, 8, white);
-        if (isCard) {
-          list.push_back(text(120, 108, 4, white, card));
-          list.push_back(text(120, 150, 2, fg, "Guten Appetit!"));
-        } else
-          list.push_back(text(120, 112, 2, fg, fit(first, 2, 196)));
-      } else if (kind == 2) {
-        list.push_back(band(108, 113, 0, 360, white));
-        segments(list, 97, 99, 40, 4, mix(tone.centre, white, 5));
-        list.push_back(circle(120, 62, 18, mix(tone.centre, white, 4)));
-        iconCheck(list, 120, 62, 9, 4, white);
-        if (isCard) {
-          list.push_back(text(120, 108, 2, white, card + " zurück,"));
-          list.push_back(text(120, 132, 2, white, "danke!"));
-        } else
-          list.push_back(text(120, 116, 2, white, fit(first, 2, 196)));
-        if (!rest.empty()) list.push_back(text(120, 160, 1, fg, fit(rest, 1, 180)));
+      if (kind == 3) {
+        sub = sentence([&](int y) { iconCross(list, 120, y, 12, 7, ink); });
       } else {
-        segments(list, 106, 114, 6, 12, white);
-        iconCross(list, 120, 62, 15, 8, white);
-        auto top = wrap(first, {196, 186}, 2);
-        for (size_t i = 0; i < top.size() && i < 2; i++)
-          list.push_back(text(120, i ? 134 : 110, 2, fg, top[i]));
-        if (!rest.empty() && top.size() < 2) list.push_back(text(120, 138, 1, fg, fit(rest, 1, 196)));
+        if (isCard) {
+          iconCheck(list, 120, 62, 12, 6, ink);
+          inDisc(102, 4, card);
+          if (kind == 1) {
+            if (fields) inDisc(140, 1, flow.waiting ? "Gruppe voll" : "noch " + std::to_string(group - in) + " frei");
+          } else
+            inDisc(140, 1, "danke!");
+          sub = kind == 1 ? "Guten Appetit!" : rest;
+        } else
+          sub = sentence([&](int y) { iconCheck(list, 120, y, 12, 6, ink); });
       }
     } else if (!x.feedback.empty()) {
-      // Other feedback (e.g. "Einlass pausiert."): symbol in a white disc and the message.
-      list.push_back(circle(120, 80, 32, white));
-      if (x.feedbackOk)
-        iconCheck(list, 120, 80, 15, 7, tone.edge);
-      else
-        iconAlert(list, 120, 76, 14, tone.edge);
-      // First sentence large, the rest small below it.
-      std::string first = x.feedback, rest;
-      size_t dot = x.feedback.find(". ");
-      if (dot != std::string::npos) {
-        first = x.feedback.substr(0, dot + 1);
-        rest = x.feedback.substr(dot + 2);
-      }
-      auto top = wrap(first, {200, 190}, 2);
-      for (size_t i = 0; i < top.size() && i < 2; i++)
-        list.push_back(text(120, i ? 152 : 130, 2, fg, top[i]));
-      if (!rest.empty() && top.size() < 2) list.push_back(text(120, 156, 1, fg, fit(rest, 1, 216)));
+      // Other feedback (e.g. "Einlass pausiert."): symbol and the first sentence in the disc, the rest below.
+      sub = sentence([&](int y) {
+        if (x.feedbackOk)
+          iconCheck(list, 120, y, 12, 6, ink);
+        else
+          iconAlert(list, 120, y - 2, 11, ink);
+      });
     } else if (x.blocked) {
-      iconCross(list, 120, 88, 22, 9, fg);
-      label(fg, "Störung");
+      iconCross(list, 120, 86, 20, 9, ink);
+      symbolLabel("Störung");
     } else if (!ready) {
-      iconAlert(list, 120, 84, 22, fg);
-      label(fg, "Bestand prüfen");
+      iconAlert(list, 120, 82, 20, ink);
+      symbolLabel("Bestand prüfen");
     } else if (flow.relief) {
-      iconPause(list, 120, 90, 22, fg);
-      label(fg, "Entlastung");
+      iconPause(list, 120, 88, 20, ink);
+      symbolLabel("Entlastung");
       sub = "Rückgaben möglich";
     } else if (paused) {
-      iconPause(list, 120, 90, 22, fg);
-      label(fg, "Pause");
+      iconPause(list, 120, 88, 20, ink);
+      symbolLabel("Pause");
       sub = "Rückgaben möglich";
     } else if (flow.waiting && countdown) {
-      big(fg, std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") + std::to_string(left % 60));
-      label(fg, "nächste Gruppe");
+      inDisc(98, 4, std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") + std::to_string(left % 60));
+      inDisc(134, 1, "bis Freigabe");
       sub = seats;
     } else if (flow.waiting) {
-      iconPause(list, 120, 90, 22, fg);
-      label(fg, measuringGroup ? "Messung läuft" : "Gruppe voll");
+      iconPause(list, 120, 88, 20, ink);
+      symbolLabel(measuringGroup ? "Messung läuft" : "Gruppe voll");
       sub = seats;
     } else if (flow.batch && flow.issued == 0 && flow.autoOn) {
-      big(fg, std::to_string(std::min(next, free)));
-      label(fg, flow.startDue(now) ? "Startgruppe" : "nächste Gruppe");
+      number(std::to_string(std::min(next, free)), flow.startDue(now) ? "Startgruppe" : "neue Gruppe");
       sub = seats;
     } else if (flow.batch) {
-      big(fg, std::to_string(groupRemaining(now)));
-      label(fg, "noch diese Gruppe");
+      number(std::to_string(groupRemaining(now)), "noch frei");
       sub = seats;
     } else {
-      big(fg, std::to_string(free));
-      label(fg, free == 0 ? "Kein Platz" : free == 1 ? "Platz frei" : "Plätze frei");
+      number(std::to_string(free), free == 0 ? "Kein Platz" : free == 1 ? "Platz frei" : "Plätze frei");
       sub = seats;
     }
     if (x.feedback.empty() || locked) {
@@ -665,12 +696,13 @@ public:
       if (!hint.empty())
         hintPill(hint, pill);
       else
-        infoLine(sub, fg);
-    }
+        belowDisc(sub, fg);
+    } else
+      belowDisc(sub, fg);
     if (flow.relief)
       pillButton(shade(tone.edge, 8), white, "ENTLASTUNG");
     else
-      pillButton(white, buttonText, "ENTLASTEN");
+      pillButton(white, kind < 0 ? tone.edge : ink, "ENTLASTEN");
     return list;
   }
   // withCards = false leaves out the card list (the Dial sends it as text via cardsText to save memory); withFlow =

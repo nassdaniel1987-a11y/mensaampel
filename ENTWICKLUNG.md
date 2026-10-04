@@ -292,6 +292,34 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Dial (`core/dial.hpp`, `core/engine.hpp`):** neue Töne (Grün `#15803d→#052e16` usw., Bernstein jetzt mit weißer Schrift, neu Türkis für Rückgaben), Hilfen `band`, `gauge` (Ring 105–114 px, Lücke oben 312°…588° für den Tastenhinweis, runde Enden als Kreise), `segments`, `mix`. Hauptbildschirm: Ring = freie Plätze / freigegebene Plätze bzw. Countdown; kleine Symbole über der großen Zahl entfallen; Unterzeile „Küche n · Mensa m“. Rückmeldung nach Art (`DialExtras::feedbackKind`: 1 ausgegeben, 2 zurück; Firmware aus dem Klang-Ereignis, PC-Dienst/Demo aus der Meldung): Doppelring + Haken + Nummer groß + „Guten Appetit!“, türkis „K12 zurück, danke!“, abgelehnt rot mit Ring in 6 Stücken und Kreuz; sonstige Meldungen wie bisher. Menü mit Strichring, blauem Zeiger und blauer Auswahl-Pille. Start-Check mit vier Vierteln in Zustandsfarbe und „OK/wartet/Fehler“. Halten: eigener Bildschirm, Ring 102–114 px. Rasterer unverändert (Pixelgleichheit Dial ↔ Browser bleibt).
 - **Tablet:** neue Farbschicht am Ende von `src/style.css` (Tokens, Pillen-Knöpfe ohne Rahmen, Kopfzeile mit Verbindungs-Pille und Pillen-Reitern; Reiter „Betreuung“ heißt jetzt „Betrieb“). `Management.tsx`: `StatusHero`, `RoomCard` (Plus/Minus über den Befehl `room`, nie unter die Belegung), Meldungen als `notice-card`, `SeatGrid` statt Seitentabelle, Tagesaktionen. `DevicePanel.tsx`: `Overview` (Gesundheit als Karten, Geräte-Details), Einrichtungs-Überschrift nur noch vor der Einrichtung. Ampel nur farblich angeglichen.
 
+## Version 0.24.0-preview: Dial „Kugel mit Kranz“
+
+**Entwurf:** Claude-Design-Seite „Mensaampel – Dial-Entwürfe“, Reihe D (Mischung aus B „Ampel-Kugel“ und C „Plätze-Kranz“), vom Nutzer gewählt.
+
+**`core/dial.hpp`:**
+- Farben `Look` (Verlauf und Tinte auf der Scheibe): `lookGreen`, `lookRed`, `lookAmber` (dunkle Schrift wie die Ampel) und `lookTeal`, dazu `glow`.
+- Geometrie: Scheibe `discY` 102 / `discR` 66, Kranz `wreathInner`/`wreathOuter` 101–111.
+- Der Kranz läuft links (140–228°) und rechts (312–400°). Oben bleibt Platz für den Tasten-Hinweis, unten für ENTLASTEN.
+- `bandAlpha` (Ring mit Transparenz, vom Rasterer schon unterstützt), `wreath` (ein Feld je Kind, höchstens 8), `wreathShare` (durchgehend).
+
+**`core/engine.hpp` `dialBase`:**
+- weiße Scheibe mit Zahl oder Symbol in der Tinte;
+- Texte in der Scheibe nach Scheibenbreite (`inDisc`): Zahlen, die zu breit sind, bekommen die kleinere Schrift;
+- Meldungen in bis zu drei Zeilen in der Scheibe, sonst der erste Satz in der Scheibe und der Rest darunter (`sentence`);
+- Zeile unter der Scheibe bei y = 176, Hinweise als Pille.
+
+**Zustände:**
+- Felder: dunkel = schon drin (Schwarz mit Alpha 4), weiß = frei, gelb = das Kind, das gerade gebucht wurde.
+- Countdown: der Kranz als durchgehender Ring.
+- Bei Pause, Entlastung, abgelehnter Karte und sonstigen Meldungen: kein Kranz.
+
+**Unverändert:**
+- Menü, Einlernen, Mensa- und Lautstärke-Einstellung, Start-Check, Halten und Update.
+- Der Rasterer selbst und damit die Pixelgleichheit mit dem Browser.
+- Die Tippfläche von ENTLASTEN.
+
+**Tests:** angepasst (`auto`, `robust`).
+
 ## Version 0.23.0-preview: Tagesverlauf (Zeitleiste, Vorhersage, Automatik erklärt, Wärmebild)
 
 **Entwurf:** Claude-Design-Seite „Mensaampel – Dashboard-Seiten“ mit den vom Nutzer gewählten Ideen 1, 5, 6 und 7.

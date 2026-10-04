@@ -388,6 +388,24 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.24.0
+
+- **Neues Aussehen des Dials: „Kugel mit Kranz“.** Das ist die Mischung der Claude-Design-Entwürfe B und C, so vom Nutzer gewählt.
+  - **Hintergrund:** Er leuchtet in der Ampelfarbe wie die Ampel an der Tür, also grün, gelb oder rot.
+  - **Weiße Kugel in der Mitte:** Dort stehen die große Zahl oder ein Symbol und ein kurzes Wort, zum Beispiel „4 · noch frei“.
+- **Der Kranz am Rand:** Jedes Kind der laufenden Gruppe hat ein eigenes Feld, links und rechts verteilt.
+  - **Weiß:** Dieses Kind darf noch rein.
+  - **Dunkel:** schon drin.
+  - **Gelb:** Hier hat gerade ein Kind seine Karte bekommen.
+  - Oben bleibt Platz für den Tasten-Hinweis, unten für „ENTLASTEN“.
+  - Bei Gruppen über 8 Kindern und ohne Gruppen ist der Kranz ein durchgehender Ring.
+- **Countdown:** Der Kranz läuft als Uhr ab. In der Kugel steht die Zeit mit „bis Freigabe“.
+- **Karte ausgegeben:** Haken und Kartennummer in der Kugel, darunter „noch 3 frei“ und „Guten Appetit!“.
+- **Karte zurück:** türkis mit „danke!“.
+- **Abgelehnt:** rot mit Kreuz, die Meldung steht in der Kugel.
+- **Unverändert:** Die Taste „ENTLASTEN“ bleibt an derselben Stelle. Menü, Einlernen, Start-Check und „Taste halten“ behalten ihr dunkles Aussehen.
+- **Prüfstand:** Bisher ist das nur gebaut und in der Simulation geprüft. Bitte am Dial ansehen: Ist alles gut lesbar? Wie flüssig läuft der Countdown? Die Messwerte stehen unter Gerät → Gesundheit.
+
 ## Neu in 0.23.0
 
 Neue Dashboard-Seiten am Betreuungs-Tablet, nach dem Entwurf aus Claude Design:
