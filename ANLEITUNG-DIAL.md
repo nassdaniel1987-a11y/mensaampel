@@ -388,6 +388,10 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.22.1
+
+- **Dial zeichnet schneller:** Der Ring am Rand (seit 0.21.0) brauchte beim Zeichnen viel Rechenzeit. Jetzt ist ein Bild etwa doppelt so schnell fertig, bei genau gleichem Aussehen. Das soll Countdown-Ring und Drehen am Ring flüssiger machen. Bisher nur gebaut und am PC gemessen. Bitte nach dem Update unter Gerät → Gesundheit die Werte „Bild zeichnen“ und „Flüssige Animation“ ansehen.
+
 ## Neu in 0.22.0
 
 - **Neue Ampelseite für die Kinder** (Entwurf aus Claude Design, vom Nutzer gewählt): große leuchtende Kugel mit Symbol (Haken, Ausrufezeichen, Stopp-Hand, Sanduhr, Uhr), daneben ein großes Wort und höchstens zwei Zeilen; oben eine kleine Mini-Ampel mit Uhrzeit und die freien Plätze als Glas-Pillen; unten die Sprachzeile in einer Glasleiste. Beim Countdown läuft ein dicker weißer Ring um die Kugel, die Zeit steht groß darin. „Bitte leise reingehen“ erscheint als weiße Pille. Neue, rundere Schrift (Plus Jakarta Sans), auf dem Dial gespeichert – kein Internet nötig. Passt quer und hochkant.

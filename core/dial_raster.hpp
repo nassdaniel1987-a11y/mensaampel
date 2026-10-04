@@ -174,19 +174,38 @@ inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint1
   };
   // Exact shortcuts: the round ends stay within radius R1 + 2 (rounded centres), so a box beyond that is empty; a box
   // fully between the radii is full for a whole ring, and for a part of at most 180 degrees (a convex wedge) when all
-  // four corners are inside the wedge.
+  // four corners are inside the wedge (0.17.6).
   long long outer = (R1 + 2) * (R1 + 2), innerFree = R0 > 2 ? (R0 - 2) * (R0 - 2) : -1;
-  auto wedge = [&](long long px, long long py) { return d0x * py - d0y * px >= 0 && px * d1y - py * d1x >= 0; };
+  // 0.22.1: for more than 180 degrees the part is everything outside the open wedge k0 > 0 && k1 > 0 (convex): a box
+  // with all four corners at k0 <= 0 (or all at k1 <= 0) lies fully in that half-plane, so every sample is inside. A
+  // box away from both round ends is empty when all corners lie outside the part (half-plane or open wedge, both
+  // convex).
+  auto k0 = [&](long long px, long long py) { return d1x * py - d1y * px; };
+  auto k1 = [&](long long px, long long py) { return px * d0y - py * d0x; };
+  auto c0 = [&](long long px, long long py) { return d0x * py - d0y * px; };
+  auto c1 = [&](long long px, long long py) { return px * d1y - py * d1x; };
+  auto clearOfEnds = [&](int x, int y) {
+    return box(x, y, e0x, e0y).near2 > cap * cap && box(x, y, e1x, e1y).near2 > cap * cap;
+  };
   auto fast = [&](int x, int y) {
     Box b = box(x, y, ox, oy);
     if (b.near2 > outer || b.far2 < innerFree) return 0;
-    if (b.near2 >= R0 * R0 && b.far2 <= R1 * R1) {
-      if (full) return 16;
-      if (span <= 180) {
-        long long lx = 8LL * x + 1 - ox, hx = lx + 6, ly = 8LL * y + 1 - oy, hy = ly + 6;
-        if (wedge(lx, ly) && wedge(hx, ly) && wedge(lx, hy) && wedge(hx, hy)) return 16;
-      }
+    if (full) {
+      if (b.near2 >= R0 * R0 && b.far2 <= R1 * R1) return 16;
+      return coverage(x, y, inside);
     }
+    long long lx = 8LL * x + 1 - ox, hx = lx + 6, ly = 8LL * y + 1 - oy, hy = ly + 6;
+    // f holds at all four corners (f is linear, so then on the whole box).
+    auto every = [&](auto f, auto ok) { return ok(f(lx, ly)) && ok(f(hx, ly)) && ok(f(lx, hy)) && ok(f(hx, hy)); };
+    auto pos = [](long long v) { return v > 0; };
+    auto neg = [](long long v) { return v < 0; };
+    auto nonNeg = [](long long v) { return v >= 0; };
+    auto nonPos = [](long long v) { return v <= 0; };
+    if (b.near2 >= R0 * R0 && b.far2 <= R1 * R1) {
+      if (span <= 180 ? every(c0, nonNeg) && every(c1, nonNeg) : every(k0, nonPos) || every(k1, nonPos)) return 16;
+    }
+    if (span <= 180 ? every(c0, neg) || every(c1, neg) : every(k0, pos) && every(k1, pos))
+      if (clearOfEnds(x, y)) return 0;
     return coverage(x, y, inside);
   };
   long long lo = (r0 - 2) > 0 ? (r0 - 2) * (r0 - 2) : 0, hi = (r1 + 2) * (r1 + 2);

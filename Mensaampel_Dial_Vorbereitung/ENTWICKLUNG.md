@@ -292,6 +292,15 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Dial (`core/dial.hpp`, `core/engine.hpp`):** neue Töne (Grün `#15803d→#052e16` usw., Bernstein jetzt mit weißer Schrift, neu Türkis für Rückgaben), Hilfen `band`, `gauge` (Ring 105–114 px, Lücke oben 312°…588° für den Tastenhinweis, runde Enden als Kreise), `segments`, `mix`. Hauptbildschirm: Ring = freie Plätze / freigegebene Plätze bzw. Countdown; kleine Symbole über der großen Zahl entfallen; Unterzeile „Küche n · Mensa m“. Rückmeldung nach Art (`DialExtras::feedbackKind`: 1 ausgegeben, 2 zurück; Firmware aus dem Klang-Ereignis, PC-Dienst/Demo aus der Meldung): Doppelring + Haken + Nummer groß + „Guten Appetit!“, türkis „K12 zurück, danke!“, abgelehnt rot mit Ring in 6 Stücken und Kreuz; sonstige Meldungen wie bisher. Menü mit Strichring, blauem Zeiger und blauer Auswahl-Pille. Start-Check mit vier Vierteln in Zustandsfarbe und „OK/wartet/Fehler“. Halten: eigener Bildschirm, Ring 102–114 px. Rasterer unverändert (Pixelgleichheit Dial ↔ Browser bleibt).
 - **Tablet:** neue Farbschicht am Ende von `src/style.css` (Tokens, Pillen-Knöpfe ohne Rahmen, Kopfzeile mit Verbindungs-Pille und Pillen-Reitern; Reiter „Betreuung“ heißt jetzt „Betrieb“). `Management.tsx`: `StatusHero`, `RoomCard` (Plus/Minus über den Befehl `room`, nie unter die Belegung), Meldungen als `notice-card`, `SeatGrid` statt Seitentabelle, Tagesaktionen. `DevicePanel.tsx`: `Overview` (Gesundheit als Karten, Geräte-Details), Einrichtungs-Überschrift nur noch vor der Einrichtung. Ampel nur farblich angeglichen.
 
+## Version 0.22.1-preview: Ring-Zeichnen schneller
+
+- Befund: Der Bench-Test `tests/native-raster-bench.test.mjs` schlug seit dem 0.21-Design fehl. Die Pixel waren gleich, aber das Zeichnen war nur noch 1,17-mal statt mindestens 1,5-mal schneller als die Referenz. Ursache: Der Rand-Ring (`gauge`, 276°) hatte als Teil über 180° keine Abkürzung, deshalb lief jedes Pixel im Ring durch 16 Einzeltests.
+- `core/dial_raster.hpp` `arc()`: exakte Abkürzungen auch für Teile über 180°. Die Außenseite ist der offene konvexe Keil `k0 > 0 && k1 > 0`.
+  - **Voll (16):** Das Kästchen liegt ganz zwischen den Radien und alle vier Ecken haben `k0 ≤ 0` (oder alle `k1 ≤ 0`).
+  - **Leer (0), für jeden Teilring:** Alle Ecken liegen außerhalb des Teils und das Kästchen berührt keines der runden Enden.
+  - Ergebnisgleich: `src/dial-paint.mjs` bleibt unverändert. Der Test vergleicht jetzt zusätzlich zufällige Ringe aller Winkel mit der Referenz.
+- PC-Messung je Bild (Vorschau-Bildschirme): Referenz 1654 µs, vorher 1390 µs, jetzt 687 µs.
+
 ## Version 0.22.0-preview: Ampelseite nach Claude Design
 
 - Entwurf: Claude-Design-Seite „Mensaampel – Ampelseite für Kinder“ (sechs Zustände, moderne Fassung vom Nutzer gewählt).
