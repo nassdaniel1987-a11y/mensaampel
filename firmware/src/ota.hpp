@@ -72,6 +72,21 @@ inline ChunkAction chunk(size_t offset, size_t length, size_t written, size_t to
   if (offset + length <= written) return ChunkAction::Skip;
   return ChunkAction::Reject;
 }
+// Resume (0.24.1): a new start with the same file (size and CRC-32 sent by the tablet) continues an upload that broke
+// off instead of starting over. Without a CRC (tablets before 0.24.1) it always starts over.
+inline bool resumable(bool active, size_t total, uint32_t crc, size_t size, uint32_t newCrc) {
+  return active && newCrc != 0 && crc == newCrc && total == size;
+}
+// CRC-32 (IEEE, as in zip), continued over pieces: crc = crc32(crc, data, n), starting with 0.
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t n) {
+  crc = ~crc;
+  for (size_t i = 0; i < n; i++) {
+    crc ^= data[i];
+    for (int k = 0; k < 8; k++)
+      crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+  }
+  return ~crc;
+}
 // Boot of a freshly installed firmware: tries counts starts without reaching "healthy" (60 s running, web server
 // up). After three such starts the Dial switches back to the previous firmware.
 enum class BootAction { None, Count, Rollback };

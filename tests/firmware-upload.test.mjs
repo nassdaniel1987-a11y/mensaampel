@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uploadInPieces } from '../src/firmware-upload.mjs';
+import { crc32, uploadInPieces } from '../src/firmware-upload.mjs';
 import { readFileSync } from 'node:fs';
 
 // A Dial that writes pieces in order (like firmware/src/ota.hpp chunk()); `drop` decides which calls fail.
@@ -9,7 +9,15 @@ function fakeDial(size, drop = () => false) {
   dial.post = async (path, body, type, header) => {
     dial.calls++;
     if (drop(dial.calls, path)) throw new Error('WLAN weg');
-    if (path === '/api/update/begin') return { ok: true, chunk: 1000, written: 0 };
+    if (path === '/api/update/begin') {
+      // Like the Dial from 0.24.1: the same file (size and CRC) continues, anything else starts over.
+      const { size: s, crc } = JSON.parse(body);
+      if (dial.crc && crc === dial.crc && s === size)
+        return { ok: true, chunk: 1000, written: dial.written, resumed: true };
+      dial.crc = crc;
+      dial.written = 0;
+      return { ok: true, chunk: 1000, written: 0 };
+    }
     if (path.startsWith('/api/update/chunk')) {
       assert.equal(path, '/api/update/chunk', 'Stelle steht im Kopf, nicht in der Adresse');
       const offset = header;
@@ -75,4 +83,25 @@ test('Update in Stücken: Dial liest die Stelle aus dem Kopf X-Update-Offset', (
   assert.match(main, /web\.header\("X-Update-Offset"\)/);
   assert.match(main, /"X-Update-Offset"\}/, 'Kopf wird gesammelt');
   assert.match(hook, /'X-Update-Offset'/);
+});
+
+test('Update: zweiter Versuch mit derselben Datei macht dort weiter, wo der erste aufgehört hat', async () => {
+  const file = bytes(9000);
+  let failing = true;
+  const dial = fakeDial(file.length, (n, path) => failing && path.startsWith('/api/update/chunk') && n > 4);
+  const first = await uploadInPieces(file, dial.post, () => {}, fast());
+  assert.equal(first.ok, false);
+  assert.match(first.message, /dort weiter/);
+  const kept = dial.written;
+  assert.ok(kept > 0 && kept < file.length);
+  failing = false;
+  const seen = [];
+  const second = await uploadInPieces(file, dial.post, p => seen.push(p), fast());
+  assert.equal(second.ok, true, second.message);
+  assert.deepEqual(dial.data, file);
+  assert.equal(seen[0], Math.floor((kept * 100) / file.length), 'beginnt beim alten Stand');
+});
+
+test('CRC-32 wie im Dial (Prüfwert 123456789)', () => {
+  assert.equal(crc32(new TextEncoder().encode('123456789')), 0xcbf43926);
 });

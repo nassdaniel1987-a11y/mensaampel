@@ -13,6 +13,10 @@
 #include "ota.hpp"
 #include "probes.hpp"
 #include "sessions.hpp"
+#include "netupdate.hpp"
+#include "ca_bundle.h"
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <DNSServer.h>
 #include <esp_wifi.h>
 #include <Update.h>
@@ -331,9 +335,11 @@ struct OtaUpload {
   // rest of the last block of every piece.
   static constexpr size_t chunkMax = 11 * HTTP_RAW_BUFLEN;
   std::vector<uint8_t> buf;
+  uint32_t crc = 0; // of the whole file, from the tablet (0.24.1): same file again = continue
   size_t chunkOffset = 0, chunkLength = 0;
   bool chunkTooLong = false, chunkComplete = false;
 } ota;
+std::atomic<bool> netBusy{false}; // online update job running (0.25, see netTask)
 bool blocked() {
   if (ota.active) return true;
   return !configValid || !config.configured || !storage.error.empty() || needsReview || !reader.healthy ||
@@ -938,14 +944,24 @@ void otaStop(const std::string &why) {
 }
 void otaBegin() {
   if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  if (netBusy) return reply(200, result(false, "Das Dial lädt gerade selbst ein Update."));
   if (needsReview || !configValid)
     return reply(200, result(false, "Zuerst Bestand und Einrichtung in Ordnung bringen."));
   size_t size = 0;
+  uint32_t crc = 0;
   try {
-    size = Json::parse(web.arg("plain").c_str()).at("size").get<size_t>();
+    auto j = Json::parse(web.arg("plain").c_str());
+    size = j.at("size").get<size_t>();
+    if (j.contains("crc") && j["crc"].is_number_unsigned()) crc = j["crc"].get<uint32_t>();
   } catch (...) { return reply(400, result(false, "Ungültige Anfrage.")); }
   const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
   if (size < 1024 || !next || size > next->size) return reply(200, result(false, "Datei passt nicht in den Speicher."));
+  // Same file as the upload that broke off: continue where it stopped (0.24.1).
+  if (mensa::ota::resumable(ota.active && Update.isRunning() && !ota.buf.empty(), ota.total, ota.crc, size, crc)) {
+    ota.lastAt = nowMs();
+    return reply(200,
+                 {{"ok", true}, {"chunk", OtaUpload::chunkMax}, {"written", size_t(ota.written)}, {"resumed", true}});
+  }
   if (Update.isRunning()) Update.abort();
   ota = OtaUpload{};
   try {
@@ -956,6 +972,7 @@ void otaBegin() {
     return reply(200, result(false, "Update konnte nicht starten."));
   }
   ota.total = size;
+  ota.crc = crc;
   ota.active = true;
   ota.lastAt = nowMs();
   mark("Update");
@@ -1008,19 +1025,12 @@ void otaChunk() {
   // Reject: the tablet continues from "written".
   reply(200, {{"ok", action != mensa::ota::ChunkAction::Reject}, {"written", size_t(ota.written)}});
 }
-void otaFinish() {
-  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
-  if (!ota.active || !Update.isRunning())
-    return reply(200, result(false, ota.error.empty() ? "Kein Update aktiv." : ota.error));
-  if (ota.written != ota.total) return reply(200, result(false, "Update unvollständig."));
-  if (!ota.scan.found) {
-    otaStop("Keine Mensaampel-Firmware.");
-    return reply(200, result(false, ota.error));
-  }
+// A complete image: check it, boot it next time (the old one stays as fall-back), restart. Caller holds the lock.
+bool otaCommit() {
   const esp_partition_t *running = esp_ota_get_running_partition();
   if (!Update.end(true)) {
     otaStop(std::string("Prüfung fehlgeschlagen: ") + Update.errorString());
-    return reply(200, result(false, ota.error));
+    return false;
   }
   std::vector<uint8_t>().swap(ota.buf);
   Preferences p;
@@ -1034,6 +1044,18 @@ void otaFinish() {
   ota.ok = true;
   restartAt = nowMs() + 1500;
   note("Update fertig. Neustart ...", true);
+  return true;
+}
+void otaFinish() {
+  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  if (!ota.active || !Update.isRunning())
+    return reply(200, result(false, ota.error.empty() ? "Kein Update aktiv." : ota.error));
+  if (ota.written != ota.total) return reply(200, result(false, "Update unvollständig."));
+  if (!ota.scan.found) {
+    otaStop("Keine Mensaampel-Firmware.");
+    return reply(200, result(false, ota.error));
+  }
+  if (!otaCommit()) return reply(200, result(false, ota.error));
   reply(200, {{"ok", true}, {"message", "Update übertragen. Das Dial startet neu."}, {"version", ota.version}});
 }
 // A freshly installed firmware that never runs healthily (three starts) switches back to the previous one.
@@ -1075,6 +1097,280 @@ void otaHealthy(uint64_t now) {
     p.end();
   }
 }
+// Online update (0.25): the Dial joins a WLAN with internet (phone hotspot) for a moment, asks GitHub for the latest
+// release and downloads the update itself (no file over the tablet's WLAN). Runs in its own task; the web handlers only
+// start it and read its state. Only in the Dial's own WLAN mode and only while no card is out (the tablets may lose
+// the connection for a few seconds while the Dial changes its radio channel).
+struct NetJob {
+  std::string phase = "idle"; // idle, scanning, connecting, checking, current, available, downloading, error
+  std::string message, network, tag, latest;
+  std::string networks = "[]"; // last scan as JSON text
+  int progress = 0;
+} net; // under the state lock
+struct NetRequest {
+  std::string what, ssid, password;
+} netRequest;
+std::string netSaved() {
+  Preferences p;
+  std::string ssid;
+  if (p.begin("netupd", true)) {
+    ssid = p.getString("ssid", "").c_str();
+    p.end();
+  }
+  return ssid;
+}
+void netSet(const char *phase, const std::string &message, int progress = 0) {
+  Guard g;
+  net.phase = phase;
+  net.message = message;
+  net.progress = progress;
+}
+// Back to the own WLAN only, on its configured channel.
+void netOwnWlan() {
+  WiFi.disconnect(false);
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4);
+}
+bool netConnect(const std::string &ssid, const std::string &password) {
+  netSet("connecting", "Verbinde mit „" + ssid + "“ …");
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.begin(ssid.c_str(), password.c_str());
+  for (int i = 0; i < 80 && WiFi.status() != WL_CONNECTED; i++)
+    vTaskDelay(pdMS_TO_TICKS(250));
+  if (WiFi.status() == WL_CONNECTED) return true;
+  netOwnWlan();
+  netSet("error", "Keine Verbindung mit „" + ssid + "“. Hotspot an? Passwort richtig?");
+  return false;
+}
+// For error messages: answer code and largest free memory block (a secure connection needs about 40 KB).
+std::string netDetail(int code) {
+  return " (Code " + std::to_string(code) + ", Speicher " + std::to_string(ESP.getMaxAllocHeap() / 1024) + " KB)";
+}
+int netCode = 0;
+// Latest release tag from the redirect of /releases/latest (no large JSON in the Dial's memory).
+std::string netLatestTag() {
+  WiFiClientSecure client;
+  client.setCACertBundle(caBundle);
+  client.setTimeout(15);
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  http.setTimeout(15000);
+  if (!http.begin(client, mensa::netupd::latestUrl)) return "";
+  const char *keys[] = {"Location"};
+  http.collectHeaders(keys, 1);
+  int code = netCode = http.GET();
+  std::string location = http.header("Location").c_str();
+  http.end();
+  return code >= 300 && code < 400 ? mensa::netupd::tagFromLocation(location) : "";
+}
+void netCheck(const std::string &ssid, const std::string &password) {
+  if (!netConnect(ssid, password)) return;
+  netSet("checking", "Frage GitHub nach der neuesten Version …");
+  std::string tag = netLatestTag();
+  netOwnWlan();
+  if (tag.empty()) return netSet("error", "GitHub nicht erreichbar. Hat der Hotspot Internet?" + netDetail(netCode));
+  auto latest = mensa::netupd::parse(tag), mine = mensa::netupd::parse(MENSA_VERSION);
+  Guard g;
+  net.tag = tag;
+  net.latest = tag[0] == 'v' ? tag.substr(1) : tag;
+  net.network = ssid;
+  bool newer = mensa::netupd::compare(latest, mine) > 0;
+  net.phase = newer ? "available" : "current";
+  net.message =
+      newer ? "Neue Version " + net.latest + " verfügbar." : "Alles aktuell (" + std::string(MENSA_VERSION) + ").";
+}
+void netInstall(const std::string &ssid, const std::string &password, const std::string &tag) {
+  if (!netConnect(ssid, password)) return;
+  netSet("downloading", "Lade Version " + tag + " …");
+  auto fail = [&](const std::string &why) {
+    {
+      Guard g;
+      otaStop(why);
+    }
+    netOwnWlan();
+    netSet("error", why + " Altes Programm bleibt.");
+  };
+  WiFiClientSecure client;
+  client.setCACertBundle(caBundle);
+  client.setTimeout(20);
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  http.setTimeout(20000);
+  if (!http.begin(client, mensa::netupd::downloadUrl(tag).c_str())) return fail("Download nicht möglich.");
+  int code = http.GET();
+  int size = http.getSize();
+  const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+  if (code != 200 || size < 1024 || !next || size_t(size) > next->size) {
+    http.end();
+    return fail("Download fehlgeschlagen" + netDetail(code) + ".");
+  }
+  {
+    Guard g;
+    if (ota.active || Update.isRunning()) {
+      http.end();
+      netOwnWlan();
+      return netSet("error", "Es läuft schon ein Update.");
+    }
+    if (!Update.begin(size, U_FLASH)) {
+      http.end();
+      netOwnWlan();
+      return netSet("error", "Update konnte nicht starten.");
+    }
+    ota = OtaUpload{};
+    ota.total = size;
+    ota.active = true; // the entrance is blocked and the Dial shows the progress
+    ota.lastAt = nowMs();
+    mark("Online-Update");
+  }
+  std::vector<uint8_t> buf(4096);
+  WiFiClient *stream = http.getStreamPtr();
+  uint64_t lastData = nowMs();
+  while (ota.written < ota.total) {
+    size_t n = stream->available();
+    if (!n) {
+      if (!http.connected() || nowMs() - lastData > 20000) {
+        http.end();
+        return fail("Download unterbrochen.");
+      }
+      vTaskDelay(pdMS_TO_TICKS(5));
+      continue;
+    }
+    int got = stream->readBytes(buf.data(), std::min(n, std::min(buf.size(), size_t(ota.total - ota.written))));
+    if (got <= 0) continue;
+    if (ota.written == 0 && buf[0] != 0xE9) {
+      http.end();
+      return fail("Keine Dial-Firmware.");
+    }
+    ota.scan.feed(buf.data(), got);
+    if (Update.write(buf.data(), got) != size_t(got)) {
+      http.end();
+      return fail("Schreiben fehlgeschlagen.");
+    }
+    ota.written += got;
+    ota.lastAt = lastData = nowMs();
+    Guard g;
+    net.progress = int(ota.written * 100 / ota.total);
+  }
+  http.end();
+  netOwnWlan();
+  std::string expected = tag[0] == 'v' ? tag.substr(1) : tag;
+  if (!ota.scan.found || ota.scan.version != expected) return fail("Datei passt nicht zur Version " + expected + ".");
+  Guard g;
+  if (!otaCommit()) {
+    net.phase = "error";
+    net.message = ota.error + " Altes Programm bleibt.";
+    return;
+  }
+  net.phase = "done";
+  net.message = "Version " + expected + " installiert. Das Dial startet neu.";
+  net.progress = 100;
+}
+void netScan() {
+  netSet("scanning", "Suche WLANs …");
+  WiFi.mode(WIFI_AP_STA);
+  int n = WiFi.scanNetworks(false, false, false, 300);
+  Json list = Json::array();
+  for (int i = 0; i < n && list.size() < 15; i++) {
+    std::string ssid = WiFi.SSID(i).c_str();
+    if (ssid.empty() || ssid == config.ssid) continue;
+    bool seen = false;
+    for (auto &e : list)
+      if (e["ssid"] == ssid) seen = true; // strongest first (the library sorts by signal)
+    if (!seen)
+      list.push_back({{"ssid", ssid},
+                      {"rssi", WiFi.RSSI(i)},
+                      {"strength", mensa::netupd::strength(WiFi.RSSI(i))},
+                      {"open", WiFi.encryptionType(i) == WIFI_AUTH_OPEN}});
+  }
+  WiFi.scanDelete();
+  netOwnWlan();
+  Guard g;
+  net.networks = list.dump();
+  net.phase = "idle";
+  net.message = n < 0 ? "Suche fehlgeschlagen." : list.empty() ? "Kein WLAN gefunden." : "";
+}
+void netTask(void *) {
+  NetRequest r;
+  {
+    Guard g;
+    r = netRequest;
+  }
+  std::string password = r.password, tag;
+  if (r.what != "scan" && password.empty()) {
+    Preferences p;
+    if (p.begin("netupd", true)) {
+      if (r.ssid == p.getString("ssid", "").c_str()) password = p.getString("pass", "").c_str();
+      p.end();
+    }
+  }
+  if (r.what == "scan")
+    netScan();
+  else if (r.what == "check")
+    netCheck(r.ssid, password);
+  else {
+    {
+      Guard g;
+      tag = net.tag;
+    }
+    netInstall(r.ssid, password, tag);
+  }
+  netBusy = false;
+  vTaskDelete(nullptr);
+}
+// Web handlers (under the lock).
+void netStart(const std::string &what) {
+  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  if (config.routerMode())
+    return reply(200, result(false, "Im Router-Betrieb nicht möglich. Kurz auf das eigene WLAN des Dials umstellen."));
+  if (netBusy) return reply(200, result(false, "Bitte warten, das Dial ist noch beschäftigt."));
+  if (ota.active) return reply(200, result(false, "Es läuft schon ein Update."));
+  if (engine.outCards() > 0)
+    return reply(200, result(false, "Nur außerhalb des Betriebs: Es sind noch Karten draußen."));
+  NetRequest r{what, "", ""};
+  if (what != "scan") {
+    try {
+      auto j = Json::parse(web.arg("plain").c_str());
+      r.ssid = j.value("ssid", std::string());
+      r.password = j.value("password", std::string());
+      if (r.ssid.empty() || r.ssid.size() > 32 || r.password.size() > 63) throw 1;
+      // Remember the hotspot (once entered, one tap is enough next time).
+      if (!r.password.empty() && j.value("remember", true)) {
+        Preferences p;
+        if (p.begin("netupd", false)) {
+          p.putString("ssid", r.ssid.c_str());
+          p.putString("pass", r.password.c_str());
+          p.end();
+        }
+      }
+    } catch (...) { return reply(400, result(false, "Ungültige Anfrage.")); }
+    if (what == "install" && net.phase != "available")
+      return reply(200, result(false, "Zuerst nach einem Update suchen."));
+  }
+  netRequest = r;
+  netBusy = true;
+  if (xTaskCreatePinnedToCore(netTask, "net", 16 * 1024, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE) != pdPASS) {
+    netBusy = false;
+    return reply(200, result(false, "Zu wenig freier Speicher. Dial neu starten und nochmal."));
+  }
+  reply(200, result(true, ""));
+}
+void netState() {
+  if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+  std::string body = Json({{"ok", true},
+                           {"phase", net.phase},
+                           {"busy", bool(netBusy)},
+                           {"message", net.message},
+                           {"latest", net.latest},
+                           {"current", MENSA_VERSION},
+                           {"network", net.network},
+                           {"saved", netSaved()},
+                           {"progress", net.progress},
+                           {"router", config.routerMode()}})
+                         .dump();
+  body.pop_back();
+  replyBody(200, body + ",\"networks\":" + net.networks + "}");
+}
 void configureWeb() {
   const char *headers[] = {"Origin", "X-Mensa-Token", "X-Firmware-Size", "X-Update-Offset"};
   web.collectHeaders(headers, 4);
@@ -1090,6 +1386,19 @@ void configureWeb() {
                  {{"ok", true}, {"message", "Update übertragen. Das Dial startet neu."}, {"version", ota.version}});
          }),
          [] { receiveUpdate(); });
+  web.on("/api/net", HTTP_GET, guarded([] { netState(); }));
+  web.on("/api/net/scan", HTTP_POST, guarded([] { netStart("scan"); }));
+  web.on("/api/net/check", HTTP_POST, guarded([] { netStart("check"); }));
+  web.on("/api/net/install", HTTP_POST, guarded([] { netStart("install"); }));
+  web.on("/api/net/forget", HTTP_POST, guarded([] {
+           if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
+           Preferences p;
+           if (p.begin("netupd", false)) {
+             p.clear();
+             p.end();
+           }
+           reply(200, result(true, "Gespeicherter Hotspot vergessen."));
+         }));
   web.on("/api/update/begin", HTTP_POST, guarded([] { otaBegin(); }));
   web.on("/api/update/chunk", HTTP_POST, guarded([] { otaChunk(); }), [] { otaChunkData(); });
   web.on("/api/update/finish", HTTP_POST, guarded([] { otaFinish(); }));
@@ -1600,9 +1909,9 @@ void step(uint64_t now) {
     }
   }
   routerStep(now);
-  // An upload that stopped (tablet gone for 2 minutes) must not keep the entrance blocked; short WLAN drops are
-  // bridged by repeating the piece.
-  if (ota.active && !ota.ok && now - ota.lastAt > 120000) {
+  // An upload that stopped (tablet gone for 5 minutes) must not keep the entrance blocked; WLAN drops are bridged by
+  // repeating the piece, and a new start with the same file continues (0.24.1; before: 2 minutes, start over).
+  if (ota.active && !ota.ok && now - ota.lastAt > 300000) {
     otaStop("Update abgebrochen.");
     note("Update abgebrochen. Altes Programm bleibt.", false);
   }

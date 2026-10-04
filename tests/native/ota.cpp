@@ -24,6 +24,16 @@ int main() {
     check(s.found && s.version == "1.2.3-preview", "Marke über Blockgrenzen");
   }
   check(!scan(std::string(1000, 'x') + "MENSAAMPEL-FIRMWARE-1#0.1", 7).found, "Suchmuster zählt nicht als Marke");
+  // Resume (0.24.1): only the same file (size and CRC) of a running upload continues; no CRC = start over.
+  check(resumable(true, 5000, 77, 5000, 77), "gleiche Datei: weiter");
+  check(!resumable(true, 5000, 77, 5000, 78), "andere Datei: neu");
+  check(!resumable(true, 5000, 77, 5001, 77), "andere Größe: neu");
+  check(!resumable(false, 5000, 77, 5000, 77), "kein Update aktiv: neu");
+  check(!resumable(true, 5000, 0, 5000, 0), "ohne Prüfsumme: neu");
+  const char *digits = "123456789";
+  check(crc32(0, (const uint8_t *)digits, 9) == 0xCBF43926u, "CRC-32 Prüfwert");
+  check(crc32(crc32(0, (const uint8_t *)digits, 4), (const uint8_t *)digits + 4, 5) == 0xCBF43926u,
+        "CRC-32 in Stücken");
   check(onBoot(false, 5) == BootAction::None, "ohne Update nichts tun");
   check(onBoot(true, 0) == BootAction::Count && onBoot(true, 2) == BootAction::Count, "erste drei Starts zählen");
   check(onBoot(true, 3) == BootAction::Rollback, "nach drei Fehlstarts zurück");

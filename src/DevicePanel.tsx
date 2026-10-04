@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Radio, KeyRound, Wifi, Download, RefreshCw, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
-import { FirmwareUpdate } from './FirmwareUpdate';
+import { FirmwareUpdate, OnlineUpdate } from './FirmwareUpdate';
 import type { State, Send, Info } from './types';
 import { Backup } from './Backup';
 import { DeviceTest } from './DeviceTest';
@@ -61,6 +61,7 @@ export function DevicePanel({
   restore,
   diag,
   updateFirmware,
+  netCall,
 }: {
   state: State;
   send: Send;
@@ -70,6 +71,7 @@ export function DevicePanel({
   restore: (file: File) => Promise<boolean>;
   diag?: { lastMs: number; failures: number };
   updateFirmware?: (file: File, expected: string, progress: (percent: number) => void) => Promise<boolean>;
+  netCall?: (path: string, body?: unknown) => Promise<any>;
 }) {
   const d = s.device!;
   const [selected, setSelected] = useState('sim:K01'),
@@ -441,6 +443,9 @@ export function DevicePanel({
             am echten Gerät prüfen.
           </p>
         </section>
+        {netCall && d.configured && (
+          <OnlineUpdate version={d.version} disabled={disabled} netCall={netCall} outCards={s.outCards?.length ?? 0} />
+        )}
         {updateFirmware && d.configured && (
           <FirmwareUpdate version={d.version} disabled={disabled} updateFirmware={updateFirmware} />
         )}

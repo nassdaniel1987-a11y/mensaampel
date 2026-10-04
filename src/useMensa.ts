@@ -385,8 +385,20 @@ export function useMensa() {
       setBusy(false);
     }
   }
+  // Online update (0.25): the Dial searches WLANs, joins the phone hotspot and downloads the update itself.
+  async function netCall(path: string, body?: unknown) {
+    const r = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'X-Mensa-Token': token.current, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    return r.json();
+  }
   return {
     updateFirmware,
+    netCall,
     state,
     info,
     authRequired,

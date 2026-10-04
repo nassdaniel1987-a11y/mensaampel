@@ -388,6 +388,23 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.25.0
+
+- **Online-Update über den Handy-Hotspot** (Gerät → „Online-Update (Handy-Hotspot)“). Das Dial holt neue Versionen selbst aus dem Internet, ein Datei-Hochladen über das Tablet ist nicht mehr nötig.
+  1. Handy-Hotspot einschalten.
+  2. **„WLAN suchen“** tippen. Das Dial zeigt die WLANs in der Nähe mit Empfangsstärke.
+  3. Deinen Hotspot antippen, das Passwort eingeben und **„Verbinden und nach Update suchen“** tippen. Das Dial merkt sich den Hotspot. Beim nächsten Mal reicht **„Über … nach Update suchen“**.
+  4. Danach steht dort „Alles aktuell“ oder „Neue Version … verfügbar“. Mit **„Version … installieren“** lädt das Dial die Datei selbst, prüft sie und startet neu. Der Fortschritt steht am Tablet und auf dem Dial.
+- **Nur außerhalb des Mittags, wenn keine Karte draußen ist:** Während das Dial sucht oder lädt, sind die Tablets ein paar Sekunden getrennt. Das Dial muss dafür seinen Funkkanal an den Hotspot anpassen.
+- **Sicher:** Das Dial lädt nur aus dem Mensaampel-Projekt auf GitHub und nur verschlüsselt mit geprüftem Zertifikat. Es nimmt nur Dateien mit der Mensaampel-Kennung und der erwarteten Version an. Startet die neue Version dreimal nicht richtig, springt das Dial wie bisher auf die alte zurück.
+- **Im Router-Betrieb** geht das Online-Update nicht. Dafür kurz auf das eigene WLAN des Dials umstellen.
+- **Firmware-Datei über das Tablet** (der alte Weg) geht weiter und hält jetzt länger durch:
+  - Das Tablet wartet bis zu 4 Minuten statt 90 Sekunden.
+  - Bricht es ab, mit derselben Datei **nochmal starten**. Es geht dort weiter, wo es aufgehört hat. Das Dial hält ein angefangenes Update dafür 5 Minuten offen.
+- **Wichtig, einmalig: 0.25.0 per USB aufspielen** (USB-Helfer, wie bei 0.19.1). Die Update-Seite kommt vom Dial, darum hat ein Dial mit 0.19.1 die neuen Wege noch nicht. Danach gehen alle Updates über den Hotspot.
+- **„Bild zeichnen – längstes“:** Ein einzelner hoher Wert von mehreren hundert ms kann vom Update-Versuch stammen, denn während das Dial in seinen Speicher schreibt, steht alles kurz still. Aussagekräftig ist **„zuletzt“** im normalen Betrieb nach einem Neustart.
+- **Prüfstand:** Bisher nur gebaut und getestet, noch nicht am echten Dial mit Hotspot ausprobiert.
+
 ## Neu in 0.24.0
 
 - **Neues Aussehen des Dials: „Kugel mit Kranz“.** Das ist die Mischung der Claude-Design-Entwürfe B und C, so vom Nutzer gewählt.

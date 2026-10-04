@@ -3817,3 +3817,50 @@ header nav {
 .heat-table thead th {
   background: transparent !important;
 }
+
+/* 0.25: Online-Update */
+.online-update .action-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  max-width: 420px;
+}
+.online-update .action-row button,
+.online-update > button {
+  justify-content: center;
+  text-align: center;
+}
+.wlan-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wlan-list button {
+  width: 100%;
+  justify-content: flex-start;
+}
+.wlan-list small {
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.85;
+}
+.wlan-list {
+  max-width: 420px;
+}
+.wlan-login {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  max-width: 420px;
+}
+.wlan-login label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+}

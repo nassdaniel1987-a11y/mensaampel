@@ -292,6 +292,47 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Dial (`core/dial.hpp`, `core/engine.hpp`):** neue Töne (Grün `#15803d→#052e16` usw., Bernstein jetzt mit weißer Schrift, neu Türkis für Rückgaben), Hilfen `band`, `gauge` (Ring 105–114 px, Lücke oben 312°…588° für den Tastenhinweis, runde Enden als Kreise), `segments`, `mix`. Hauptbildschirm: Ring = freie Plätze / freigegebene Plätze bzw. Countdown; kleine Symbole über der großen Zahl entfallen; Unterzeile „Küche n · Mensa m“. Rückmeldung nach Art (`DialExtras::feedbackKind`: 1 ausgegeben, 2 zurück; Firmware aus dem Klang-Ereignis, PC-Dienst/Demo aus der Meldung): Doppelring + Haken + Nummer groß + „Guten Appetit!“, türkis „K12 zurück, danke!“, abgelehnt rot mit Ring in 6 Stücken und Kreuz; sonstige Meldungen wie bisher. Menü mit Strichring, blauem Zeiger und blauer Auswahl-Pille. Start-Check mit vier Vierteln in Zustandsfarbe und „OK/wartet/Fehler“. Halten: eigener Bildschirm, Ring 102–114 px. Rasterer unverändert (Pixelgleichheit Dial ↔ Browser bleibt).
 - **Tablet:** neue Farbschicht am Ende von `src/style.css` (Tokens, Pillen-Knöpfe ohne Rahmen, Kopfzeile mit Verbindungs-Pille und Pillen-Reitern; Reiter „Betreuung“ heißt jetzt „Betrieb“). `Management.tsx`: `StatusHero`, `RoomCard` (Plus/Minus über den Befehl `room`, nie unter die Belegung), Meldungen als `notice-card`, `SeatGrid` statt Seitentabelle, Tagesaktionen. `DevicePanel.tsx`: `Overview` (Gesundheit als Karten, Geräte-Details), Einrichtungs-Überschrift nur noch vor der Einrichtung. Ampel nur farblich angeglichen.
 
+## Version 0.25.0-preview: Online-Update über WLAN mit Internet (Handy-Hotspot)
+
+**Wunsch des Nutzers:** Das Dial verbindet sich zum Updaten selbst mit einem WLAN mit Internet. Die WLAN-Suche wird am Tablet angezeigt und das Netz dort ausgewählt (das Passwort geht nicht per Drehring).
+
+**Firmware (`main.cpp`, Abschnitt „Online update“):**
+- Eigener Task `netTask` (16 KB Stack) für drei Aufträge:
+  - **scan:** `WiFi.scanNetworks`, höchstens 15 Netze, das eigene WLAN ausgelassen, doppelte Namen nur einmal;
+  - **check:** im Modus AP+STA verbinden (20 s), dann `HTTPS GET …/releases/latest` ohne Weiterleitung. Der Tag kommt aus dem `Location`-Kopf, damit kein großes JSON in den Speicher muss;
+  - **install:** `…/releases/download/<tag>/Mensaampel-Dial-Update.bin` mit Weiterleitung, Stück für Stück in `Update` geschrieben. Dabei prüft er Größe, Erkennungsbyte `0xE9` und Marke, und die Version der Marke muss zum Tag passen. Danach `otaCommit()` (gemeinsam mit dem Tablet-Weg) samt Rückfall-Logik.
+- Während des Downloads ist `ota.active` gesetzt: Einlass gesperrt, das Dial zeigt den Fortschritt.
+- Nach jedem Auftrag geht das Dial zurück auf das eigene WLAN mit seinem Kanal (`netOwnWlan`).
+- Endpunkte: `GET /api/net` sowie `POST /api/net/scan|check|install|forget`.
+  - Nur im AP-Modus und ohne Karten draußen.
+  - Der Hotspot (SSID und Passwort) steht in den Preferences unter `netupd`.
+- **Fehlermeldungen** enthalten Code und größten freien Speicherblock. Eine TLS-Verbindung braucht etwa 40 KB, das ist der Engpass ohne PSRAM.
+- **Zertifikate:** `firmware/src/ca_bundle.h` (generiert von `scripts/build-ca-bundle.py`).
+  - 30 Stamm-Zertifikate aus der Mozilla-Liste (certifi): DigiCert, USERTrust/Sectigo, ISRG, GlobalSign, GTS, Amazon, Microsoft.
+  - Format von `esp_crt_bundle`, genutzt über `WiFiClientSecure::setCACertBundle`.
+- Rein und getestet: `firmware/src/netupdate.hpp` (Versionsvergleich, Tag aus der Weiterleitung, Download-Adresse, Signalstärke in Worten) mit `tests/native-netupdate.test.mjs`.
+- Flash: +170 KB (TLS), jetzt 62 % des App-Bereichs.
+
+**Tablet:** `OnlineUpdate` in `src/FirmwareUpdate.tsx` (fragt alle 1,5 s ab, solange ein Auftrag läuft) und `netCall` in `useMensa.ts`.
+
+**Offen am Gerät:** ob der freie Speicher für TLS reicht, wie stabil der Kanalwechsel für die Tablets ist und ob die GitHub-Weiterleitungen zum Download-Server klappen.
+
+## Version 0.24.1-preview: Update fortsetzen (nicht einzeln veröffentlicht, in 0.25.0 enthalten)
+
+**Befund am Gerät:** Auf dem Dial lief 0.19.1. Das Update auf 0.24 per Tablet brach mittendrin ab, mit der Meldung „Übertragung unterbrochen (WLAN)“: 90 Sekunden ohne Fortschritt. Die Update-Seite kommt vom Dial, also lief auf dem Tablet noch der Ablauf von 0.19.1. Dazu kam „Bild zeichnen längstes 553 ms“ – Schreiben in den Flash hält beide Kerne an, das passt zum Update-Versuch.
+
+**Änderungen:**
+- `firmware/src/ota.hpp`: `resumable()` und `crc32()`.
+- `/api/update/begin` nimmt optional `crc` an. Bei laufendem Update mit gleicher Größe und gleicher CRC antwortet es mit `written` (Fortsetzen) statt neu zu beginnen.
+- Leerlauf-Abbruch nach 5 statt 2 Minuten.
+- `src/firmware-upload.mjs`: CRC-32 der Datei, Start bei `begin.written`, Geduld 240 s statt 90 s, Meldung „nochmal tippen – es geht dort weiter“.
+- Hinweis in `FirmwareUpdate.tsx`.
+- Ältere Dials ignorieren `crc` und beginnen neu.
+
+**Tests:** `tests/native/ota.cpp` (Fortsetzen, CRC-Prüfwert) und `tests/firmware-upload.test.mjs` (zweiter Versuch setzt fort).
+
+**Einmalig per USB aufspielen** (mit 0.25.0), weil der verbesserte Ablauf erst mit dem neuen Dial-Programm auf das Tablet kommt.
+
 ## Version 0.24.0-preview: Dial „Kugel mit Kranz“
 
 **Entwurf:** Claude-Design-Seite „Mensaampel – Dial-Entwürfe“, Reihe D (Mischung aus B „Ampel-Kugel“ und C „Plätze-Kranz“), vom Nutzer gewählt.
