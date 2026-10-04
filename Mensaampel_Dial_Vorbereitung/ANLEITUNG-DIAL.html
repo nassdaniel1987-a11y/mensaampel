@@ -542,6 +542,18 @@
 <li><strong>Ampel bei fast voller Mensa:</strong> Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).</li>
 <li><strong>Wie sicher ist das Gelernte?</strong> Unter Einlass &amp; Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen <em>noch nicht · unsicher · mittel · sicher</em>. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.</li>
 </ul>
+<h2>Neu in 0.25.3</h2>
+<ul>
+<li><strong>Updates brachen mit „Schreiben fehlgeschlagen“ ab</strong>, online und per Tablet-Datei. Was dahintersteckt, wird jetzt sichtbar:</li>
+<li><strong>Genaue Meldung bei jedem Update-Fehler:</strong> der Grund der Update-Funktion des Dials, wie viel schon geschrieben war und der freie Speicher.</li>
+<li><strong>Online-Update:</strong> Das Dial reserviert den Update-Speicher jetzt, <strong>bevor</strong> die Verbindung zu GitHub aufgebaut wird (die braucht viel Arbeitsspeicher).</li>
+<li><strong>USB-Prüfung am PC</strong> (<code>PRUEFUNG-AM-PC.md</code>): Sie macht einen neuen <strong>Schreibtest des Update-Speichers</strong>. Dabei werden 64 KB Testdaten geschrieben und wieder verworfen. Es wird nichts installiert, und das Dial startet danach wie vorher.</li>
+<li><strong>Diese Version einmal per USB aufspielen:</strong> <code>Mensaampel_Dial_Vorbereitung\Dial-Installieren.cmd</code> → „Update“. Die Update-Wege über das Tablet scheitern gerade, deshalb geht es nur über USB.</li>
+<li><strong>Danach:</strong></li>
+<li>Das Online-Update probieren und bei einem Fehler die ganze Meldung schicken.</li>
+<li>Wenn möglich die USB-Prüfung mit Claude Code am PC laufen lassen und den Bericht schicken.</li>
+<li>Bisher nur gebaut und getestet, noch nicht am Gerät.</li>
+</ul>
 <h2>Neu in 0.25.2</h2>
 <ul>
 <li><strong>Online-Update fand keine Version</strong> (Meldung „GitHub nicht erreichbar (Code 302 …)“). Das Dial hatte GitHub erreicht, aber alle Versionen waren als „Vorabversion“ veröffentlicht. GitHub zählt Vorabversionen nie als „neueste Version“.</li>

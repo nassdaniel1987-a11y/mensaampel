@@ -292,6 +292,24 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Dial (`core/dial.hpp`, `core/engine.hpp`):** neue Töne (Grün `#15803d→#052e16` usw., Bernstein jetzt mit weißer Schrift, neu Türkis für Rückgaben), Hilfen `band`, `gauge` (Ring 105–114 px, Lücke oben 312°…588° für den Tastenhinweis, runde Enden als Kreise), `segments`, `mix`. Hauptbildschirm: Ring = freie Plätze / freigegebene Plätze bzw. Countdown; kleine Symbole über der großen Zahl entfallen; Unterzeile „Küche n · Mensa m“. Rückmeldung nach Art (`DialExtras::feedbackKind`: 1 ausgegeben, 2 zurück; Firmware aus dem Klang-Ereignis, PC-Dienst/Demo aus der Meldung): Doppelring + Haken + Nummer groß + „Guten Appetit!“, türkis „K12 zurück, danke!“, abgelehnt rot mit Ring in 6 Stücken und Kreuz; sonstige Meldungen wie bisher. Menü mit Strichring, blauem Zeiger und blauer Auswahl-Pille. Start-Check mit vier Vierteln in Zustandsfarbe und „OK/wartet/Fehler“. Halten: eigener Bildschirm, Ring 102–114 px. Rasterer unverändert (Pixelgleichheit Dial ↔ Browser bleibt).
 - **Tablet:** neue Farbschicht am Ende von `src/style.css` (Tokens, Pillen-Knöpfe ohne Rahmen, Kopfzeile mit Verbindungs-Pille und Pillen-Reitern; Reiter „Betreuung“ heißt jetzt „Betrieb“). `Management.tsx`: `StatusHero`, `RoomCard` (Plus/Minus über den Befehl `room`, nie unter die Belegung), Meldungen als `notice-card`, `SeatGrid` statt Seitentabelle, Tagesaktionen. `DevicePanel.tsx`: `Overview` (Gesundheit als Karten, Geräte-Details), Einrichtungs-Überschrift nur noch vor der Einrichtung. Ampel nur farblich angeglichen.
 
+## Version 0.25.3-preview: Update-Fehler sichtbar machen, Schreibtest über USB
+
+**Befund am Gerät (0.25.0):**
+- Online-Update: Die Version wurde gefunden, dann kam „Schreiben fehlgeschlagen“.
+- Auch die Tablet-Datei ließ sich nicht installieren.
+- Der Nutzer vermutet, dass beim Update der Speicher vollläuft.
+
+**Mögliche Ursachen:**
+- `UpdateClass::_writeBuffer` holt sich beim ersten Sektor 16 Bytes (`_skipBuffer`). Fehlt Speicher, folgt „Schreiben fehlgeschlagen“ ohne Grund.
+- Fehler beim Löschen oder Schreiben im Flash.
+
+**Änderungen:**
+- `otaWhy()` liefert für jeden Update-Fehler `Update.errorString()`, die Fehlernummer, den Fortschritt und den größten freien Block.
+- Online-Update: `Update.begin(UPDATE_SIZE_UNKNOWN)` vor dem TLS-Aufbau; die Größe kommt aus dem Download.
+- Serieller Befehl `otatest`: 64 KB in den freien Update-Bereich schreiben, dann `Update.abort()`. Ohne Wirkung auf die Start-Partition und nicht während eines Updates oder einer Rückfall-Zählung.
+- `scripts/device-check.py`: Zeile „Update-Speicher beschreibbar“ mit Selbsttest.
+- **Einmal per USB aufspielen:** Beide OTA-Wege scheitern am Gerät.
+
 ## Version 0.25.2-preview: Online-Update findet Vorabversionen
 
 **Befund am Gerät:** Die Meldung lautete „GitHub nicht erreichbar (Code 302, Speicher 75 KB)“. TLS und Speicher waren in Ordnung, aber `…/releases/latest` leitete auf `…/releases` weiter. Alle Releases trugen `--prerelease`, und GitHub kennt dann keine „latest“.

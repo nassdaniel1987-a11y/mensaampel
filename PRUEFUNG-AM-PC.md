@@ -41,4 +41,4 @@ Nicht automatisch prüfbar (bleibt von Hand, siehe `ANLEITUNG-DIAL.md` → „Ab
 
 ## USB-Prüfschnittstelle (technisch)
 
-115200 Baud, Zeilen `@mensa <befehl>`, Antwort eine Zeile `@mensa-reply {json}`. Befehle: `info`, `health`, `memorytest` (startet den Hintergrundtest), `bench` (Status 10× bauen), `backupcheck` (Sicherung im Dial bauen und prüfen; der Inhalt geht nicht über das Kabel). Nur lesen bzw. Dauertest. Umsetzung: `firmware/src/main.cpp` (`serialPoll`, `serialCommand`).
+115200 Baud, Zeilen `@mensa <befehl>`, Antwort eine Zeile `@mensa-reply {json}`. Befehle: `info`, `health`, `memorytest` (startet den Hintergrundtest), `bench` (Status 10× bauen), `backupcheck` (Sicherung im Dial bauen und prüfen; der Inhalt geht nicht über das Kabel), `otatest` (seit 0.25.3: schreibt 64 KB Testdaten in den freien Update-Bereich und verwirft sie; installiert nichts, ändert nichts am Start). Nur lesen bzw. Dauertest. Umsetzung: `firmware/src/main.cpp` (`serialPoll`, `serialCommand`).

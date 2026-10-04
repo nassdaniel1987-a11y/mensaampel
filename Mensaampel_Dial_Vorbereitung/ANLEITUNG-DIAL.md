@@ -388,6 +388,18 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.25.3
+
+- **Updates brachen mit „Schreiben fehlgeschlagen“ ab**, online und per Tablet-Datei. Was dahintersteckt, wird jetzt sichtbar:
+  - **Genaue Meldung bei jedem Update-Fehler:** der Grund der Update-Funktion des Dials, wie viel schon geschrieben war und der freie Speicher.
+  - **Online-Update:** Das Dial reserviert den Update-Speicher jetzt, **bevor** die Verbindung zu GitHub aufgebaut wird (die braucht viel Arbeitsspeicher).
+  - **USB-Prüfung am PC** (`PRUEFUNG-AM-PC.md`): Sie macht einen neuen **Schreibtest des Update-Speichers**. Dabei werden 64 KB Testdaten geschrieben und wieder verworfen. Es wird nichts installiert, und das Dial startet danach wie vorher.
+- **Diese Version einmal per USB aufspielen:** `Mensaampel_Dial_Vorbereitung\Dial-Installieren.cmd` → „Update“. Die Update-Wege über das Tablet scheitern gerade, deshalb geht es nur über USB.
+- **Danach:**
+  1. Das Online-Update probieren und bei einem Fehler die ganze Meldung schicken.
+  2. Wenn möglich die USB-Prüfung mit Claude Code am PC laufen lassen und den Bericht schicken.
+- Bisher nur gebaut und getestet, noch nicht am Gerät.
+
 ## Neu in 0.25.2
 
 - **Online-Update fand keine Version** (Meldung „GitHub nicht erreichbar (Code 302 …)“). Das Dial hatte GitHub erreicht, aber alle Versionen waren als „Vorabversion“ veröffentlicht. GitHub zählt Vorabversionen nie als „neueste Version“.

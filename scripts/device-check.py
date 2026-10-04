@@ -210,6 +210,14 @@ def evaluate(record):
     if probes is not None:
         add('Internetprüfung der Tablets beantwortet', 'hinweis', f'{probes}×', '–',
             'Das Dial beantwortet die „Habe ich Internet?“-Prüfung, damit Tablets im WLAN bleiben.')
+    ota = record.get('otatest')
+    if ota:
+        detail = (f"{ota.get('message', 'keine Antwort')} · läuft {ota.get('running', '?')}, Ziel {ota.get('target', '?')}"
+                  f" ({int(ota.get('targetSize', 0)) // 1024} KB), {ota.get('ms', '?')} ms, Speicher "
+                  f"{int(ota.get('minBlockBefore', 0)) // 1024} → {int(ota.get('minBlockAfter', 0)) // 1024} KB")
+        add('Update-Speicher beschreibbar (Test, nichts installiert)', 'ok' if ota.get('ok') else 'fehler', detail,
+            '64 KB geschrieben', '' if ota.get('ok') else
+            'Updates können nicht geschrieben werden – diese Zeile an den Entwickler schicken.')
     missed = record.get('usb_missed', 0)
     if missed:
         add('USB-Antworten', 'warnung', f'{missed} ohne Antwort', '0',
@@ -358,6 +366,8 @@ def run(port, minutes):
         time.sleep(2)
     record['bench'] = dial.ask('bench', 15) or {}
     record['backup'] = dial.ask('backupcheck', 15) or {}
+    # Write test of the free update area (0.25.3): writes 64 KB and discards them, installs nothing.
+    record['otatest'] = dial.ask('otatest', 20) or {'ok': False, 'message': 'keine Antwort (Version vor 0.25.3?)'}
     record['log'] = dial.log
     return record
 
@@ -380,9 +390,14 @@ def selftest():
     record = {'info': {'ok': True, 'version': '0.17.1-preview', 'resetReason': 'Einschalten'},
               'samples': [good(t) for t in range(10)], 'test_samples': [good(t) for t in range(3)],
               'memory': {'ok': True, 'message': 'Dauertest ok'}, 'bench': {'ok': True, 'statusMaxMs': 120},
-              'backup': {'ok': True, 'cards': 112, 'bytes': 22000}, 'log': []}
+              'backup': {'ok': True, 'cards': 112, 'bytes': 22000}, 'log': [],
+              'otatest': {'ok': True, 'message': '64 KB geschrieben und verworfen', 'running': 'app0',
+                          'target': 'app1', 'targetSize': 3145728, 'ms': 900, 'minBlockBefore': 90000,
+                          'minBlockAfter': 90000}}
     checks = evaluate(record)
     assert not [c for c in checks if c['status'] != 'ok'], checks
+    broken = dict(record, otatest={'ok': False, 'message': 'Flash Erase Failed'})
+    assert [c for c in evaluate(broken) if c['name'].startswith('Update-Speicher') and c['status'] == 'fehler']
     # Problems are found: restart, small block, Ampel pause, old version, failed saves.
     bad = dict(record)
     bad['info'] = {'ok': True, 'version': '0.16.0-preview'}

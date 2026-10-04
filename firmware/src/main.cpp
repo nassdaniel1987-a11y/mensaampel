@@ -341,6 +341,7 @@ struct OtaUpload {
   bool chunkTooLong = false, chunkComplete = false;
 } ota;
 std::atomic<bool> netBusy{false}; // online update job running (0.25, see netTask)
+bool otaPending = false;          // a fresh update still counts its starts (otaBootCheck)
 bool blocked() {
   if (ota.active) return true;
   return !configValid || !config.configured || !storage.error.empty() || needsReview || !reader.healthy ||
@@ -674,6 +675,37 @@ void serialCommand(const std::string &cmd) {
         minBlock = std::min<uint32_t>(minBlock, ESP.getMaxAllocHeap());
       }
       serialAnswer({{"ok", true}, {"statusMaxMs", slowest}, {"minBlock", minBlock}});
+    } else if (cmd == "otatest") {
+      // Write test of the free update area (0.25.3): 64 KB test data, then abort. Nothing is installed and the boot
+      // partition stays as it is; not while an update runs or a fresh update still counts its starts.
+      if (ota.active || netBusy || Update.isRunning() || otaPending)
+        return serialAnswer(result(false, "Gerade nicht möglich (Update läuft oder wird noch geprüft)."));
+      const esp_partition_t *running = esp_ota_get_running_partition(),
+                            *next = esp_ota_get_next_update_partition(nullptr);
+      uint32_t before = ESP.getMaxAllocHeap();
+      uint64_t t0 = nowMs();
+      bool begun = Update.begin(256 * 1024, U_FLASH), written = false;
+      std::string why = begun ? "" : Update.errorString();
+      if (begun) {
+        std::vector<uint8_t> block(4096, 0x5A);
+        block[0] = 0xE9;
+        written = true;
+        for (int i = 0; i < 16 && written; i++) {
+          written = Update.write(block.data(), block.size()) == block.size();
+          block[0] = 0x5A;
+        }
+        if (!written) why = Update.errorString();
+        Update.abort();
+      }
+      serialAnswer({{"ok", begun && written},
+                    {"message", begun && written ? "64 KB geschrieben und verworfen" : why},
+                    {"error", int(Update.getError())},
+                    {"running", running ? running->label : "?"},
+                    {"target", next ? next->label : "?"},
+                    {"targetSize", next ? next->size : 0},
+                    {"ms", uint32_t(nowMs() - t0)},
+                    {"minBlockBefore", before},
+                    {"minBlockAfter", ESP.getMaxAllocHeap()}});
     } else if (cmd == "backupcheck") {
       // Parsing a full backup is the largest allocation (like /api/restore): only with enough memory.
       if (ESP.getMaxAllocHeap() < 60000)
@@ -692,7 +724,7 @@ void serialCommand(const std::string &cmd) {
       }
       serialAnswer({{"ok", valid}, {"bytes", size}, {"cards", cards}, {"minBlock", ESP.getMaxAllocHeap()}});
     } else
-      serialAnswer(result(false, "Unbekannt. Befehle: info, health, memorytest, bench, backupcheck"));
+      serialAnswer(result(false, "Unbekannt. Befehle: info, health, memorytest, bench, backupcheck, otatest"));
   } catch (...) { serialAnswer(result(false, "Speicher knapp - bitte gleich nochmal.")); }
 }
 void serialPoll() {
@@ -943,6 +975,12 @@ void otaStop(const std::string &why) {
   ota.error = why;
   std::vector<uint8_t>().swap(ota.buf);
 }
+// Why an update write failed, for the message (0.25.3): the update library's reason, progress and free memory.
+std::string otaWhy() {
+  return std::string(Update.errorString()) + " (Fehler " + std::to_string(Update.getError()) + ", " +
+         std::to_string(ota.written / 1024) + " von " + std::to_string(ota.total / 1024) + " KB, Speicher " +
+         std::to_string(ESP.getMaxAllocHeap() / 1024) + " KB)";
+}
 void otaBegin() {
   if (!authorized()) return reply(401, result(false, "Bitte anmelden."));
   if (netBusy) return reply(200, result(false, "Das Dial lädt gerade selbst ein Update."));
@@ -970,7 +1008,7 @@ void otaBegin() {
   } catch (...) { return reply(200, result(false, "Zu wenig freier Speicher. Dial neu starten und nochmal.")); }
   if (!Update.begin(size, U_FLASH)) {
     std::vector<uint8_t>().swap(ota.buf);
-    return reply(200, result(false, "Update konnte nicht starten."));
+    return reply(200, result(false, "Update konnte nicht starten: " + otaWhy()));
   }
   ota.total = size;
   ota.crc = crc;
@@ -1016,7 +1054,7 @@ void otaChunk() {
     }
     ota.scan.feed(ota.buf.data(), ota.chunkLength);
     if (Update.write(ota.buf.data(), ota.chunkLength) != ota.chunkLength) {
-      otaStop("Schreiben fehlgeschlagen.");
+      otaStop("Schreiben fehlgeschlagen: " + otaWhy());
       return reply(200, {{"ok", false}, {"restart", true}, {"message", ota.error}});
     }
     ota.written += ota.chunkLength;
@@ -1060,7 +1098,6 @@ void otaFinish() {
   reply(200, {{"ok", true}, {"message", "Update übertragen. Das Dial startet neu."}, {"version", ota.version}});
 }
 // A freshly installed firmware that never runs healthily (three starts) switches back to the previous one.
-bool otaPending = false;
 std::string otaNote;
 void otaBootCheck() {
   Preferences p;
@@ -1226,6 +1263,24 @@ void netInstall(const std::string &ssid, const std::string &password, const std:
     netOwnWlan();
     netSet("error", why + " Altes Programm bleibt.");
   };
+  // The update area is reserved before the secure connection takes its memory (0.25.3); the size follows from the
+  // download, Update.end(true) accepts the partition-sized start.
+  {
+    Guard g;
+    if (ota.active || Update.isRunning()) {
+      netOwnWlan();
+      return netSet("error", "Es läuft schon ein Update.");
+    }
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+      std::string why = otaWhy();
+      netOwnWlan();
+      return netSet("error", "Update konnte nicht starten: " + why);
+    }
+    ota = OtaUpload{};
+    ota.active = true; // the entrance is blocked and the Dial shows the progress
+    ota.lastAt = nowMs();
+    mark("Online-Update");
+  }
   WiFiClientSecure client;
   client.setCACertBundle(caBundle);
   client.setTimeout(20);
@@ -1240,24 +1295,7 @@ void netInstall(const std::string &ssid, const std::string &password, const std:
     http.end();
     return fail("Download fehlgeschlagen" + netDetail(code) + ".");
   }
-  {
-    Guard g;
-    if (ota.active || Update.isRunning()) {
-      http.end();
-      netOwnWlan();
-      return netSet("error", "Es läuft schon ein Update.");
-    }
-    if (!Update.begin(size, U_FLASH)) {
-      http.end();
-      netOwnWlan();
-      return netSet("error", "Update konnte nicht starten.");
-    }
-    ota = OtaUpload{};
-    ota.total = size;
-    ota.active = true; // the entrance is blocked and the Dial shows the progress
-    ota.lastAt = nowMs();
-    mark("Online-Update");
-  }
+  ota.total = size;
   std::vector<uint8_t> buf(4096);
   WiFiClient *stream = http.getStreamPtr();
   uint64_t lastData = nowMs();
@@ -1279,8 +1317,9 @@ void netInstall(const std::string &ssid, const std::string &password, const std:
     }
     ota.scan.feed(buf.data(), got);
     if (Update.write(buf.data(), got) != size_t(got)) {
+      std::string why = otaWhy();
       http.end();
-      return fail("Schreiben fehlgeschlagen.");
+      return fail("Schreiben fehlgeschlagen: " + why);
     }
     ota.written += got;
     ota.lastAt = lastData = nowMs();
