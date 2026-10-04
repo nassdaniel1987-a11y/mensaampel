@@ -148,6 +148,7 @@ DNSServer dns;
 std::string routerHost;
 std::atomic<bool> routerUp{false}, rescue{false};
 std::atomic<uint32_t> dnsWanted{0};
+std::atomic<bool> dnsRestart{false}; // the WLAN was restarted (online update): start the DNS answers again
 uint64_t routerSeenAt = 0, routerRetryAt = 0;
 IPAddress toIp(uint32_t v) {
   return IPAddress(v >> 24, v >> 16 & 255, v >> 8 & 255, v & 255);
@@ -1126,15 +1127,24 @@ void netSet(const char *phase, const std::string &message, int progress = 0) {
   net.progress = progress;
 }
 // Back to the own WLAN only, on its configured channel.
+// Also as at start: no power saving (tablets would drop out) and the DNS answers started again, so that the tablets'
+// internet check is answered (otherwise the Galaxy Tab leaves the WLAN, finding 0.17.2).
+// The own WLAN is only started again when joining the hotspot moved it to another channel (a plain search keeps it,
+// so the tablets stay connected).
 void netOwnWlan() {
   WiFi.disconnect(false);
   WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4);
+  WiFi.setSleep(false);
+  if (WiFi.channel() != config.channel) {
+    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+    WiFi.softAP(config.ssid.c_str(), config.wifiPassword.c_str(), config.channel, false, 4);
+  }
+  dnsRestart = true;
 }
 bool netConnect(const std::string &ssid, const std::string &password) {
   netSet("connecting", "Verbinde mit „" + ssid + "“ …");
   WiFi.mode(WIFI_AP_STA);
+  WiFi.setSleep(false);
   WiFi.begin(ssid.c_str(), password.c_str());
   for (int i = 0; i < 80 && WiFi.status() != WL_CONNECTED; i++)
     vTaskDelay(pdMS_TO_TICKS(250));
@@ -1269,6 +1279,7 @@ void netInstall(const std::string &ssid, const std::string &password, const std:
 void netScan() {
   netSet("scanning", "Suche WLANs …");
   WiFi.mode(WIFI_AP_STA);
+  WiFi.setSleep(false);
   int n = WiFi.scanNetworks(false, false, false, 300);
   Json list = Json::array();
   for (int i = 0; i < n && list.size() < 15; i++) {
@@ -1695,7 +1706,7 @@ void webTask(void *) {
   uint32_t dnsIp = 0;
   for (;;) {
     // Start or move the DNS answers (only here: the DNS belongs to this task).
-    if (dnsWanted != dnsIp) {
+    if (dnsWanted != dnsIp || dnsRestart.exchange(false)) {
       dnsIp = dnsWanted;
       dns.stop();
       dns.setTTL(60);

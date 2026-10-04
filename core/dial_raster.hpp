@@ -4,7 +4,9 @@
 // Edges: 4x4 samples per pixel (coverage 0..16). Text: 4-bit alpha glyphs from core/dial_font.hpp.
 #include "dial_font.hpp"
 #include "vendor/json.hpp"
+#include <cmath>
 #include <cstdint>
+#include <algorithm>
 #include <string>
 namespace mensa::raster {
 // Rows y0..y0+h-1 of the 240-pixel-wide screen. swap: bytes swapped as in the M5GFX sprite buffer.
@@ -209,8 +211,30 @@ inline void arc(Target &t, int cx, int cy, int r0, int r1, int a0, int a1, uint1
     return coverage(x, y, inside);
   };
   long long lo = (r0 - 2) > 0 ? (r0 - 2) * (r0 - 2) : 0, hi = (r1 + 2) * (r1 + 2);
-  for (int y = rowFrom(t, cy - r1 - 2); y < rowTo(t, cy + r1 + 2); y++)
-    for (int x = cx - r1 - 2; x < cx + r1 + 2; x++) {
+  // 0.25.1: a short part only visits the box around it (its end points on both radii, the axis points it passes, the
+  // round ends and a margin) instead of the box of the whole ring: the wreath of the 0.24 design has up to eight such
+  // parts. Pixels outside that box have no sample inside, so the result is exactly the same.
+  int xa = cx - r1 - 2, xb = cx + r1 + 2, ya = cy - r1 - 2, yb = cy + r1 + 2;
+  if (!full) {
+    double lx = 1e9, hx = -1e9, ly = 1e9, hy = -1e9;
+    auto point = [&](int deg, int r) {
+      double px = cx + r * double(cosine(deg)) / 16384, py = cy + r * double(sine(deg)) / 16384;
+      lx = std::min(lx, px), hx = std::max(hx, px), ly = std::min(ly, py), hy = std::max(hy, py);
+    };
+    for (int r : {r0, r1}) {
+      point(a0, r);
+      point(a1, r);
+    }
+    for (int m = (a0 >= 0 ? (a0 + 89) / 90 : a0 / 90) * 90; m < a1; m += 90)
+      if (m > a0) point(m, r1);
+    int pad = (r1 - r0) / 2 + 4;
+    xa = std::max(xa, int(std::floor(lx)) - pad);
+    xb = std::min(xb, int(std::ceil(hx)) + pad);
+    ya = std::max(ya, int(std::floor(ly)) - pad);
+    yb = std::min(yb, int(std::ceil(hy)) + pad);
+  }
+  for (int y = rowFrom(t, ya); y < rowTo(t, yb); y++)
+    for (int x = xa; x < xb; x++) {
       if (x < 0 || x >= t.w) continue;
       long long dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
       if (d < lo || d > hi) continue;

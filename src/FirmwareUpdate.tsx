@@ -162,7 +162,7 @@ export function OnlineUpdate({
         )}
       </div>
       {net && net.networks.length > 0 && !running && (
-        <ul className="wlan-list" aria-label="Gefundene WLANs">
+        <ul className="wlan-list" aria-label="Gefundene WLANs (stärkste zuerst)">
           {net.networks.map(w => (
             <li key={w.ssid}>
               <button
@@ -178,6 +178,21 @@ export function OnlineUpdate({
             </li>
           ))}
         </ul>
+      )}
+      {net && !running && (net.networks.length > 0 || net.message === 'Kein WLAN gefunden.') && (
+        <label className="wlan-manual">
+          Anderes WLAN: Name eingeben
+          <input
+            value={net.networks.some(w => w.ssid === chosen) ? '' : chosen}
+            maxLength={32}
+            placeholder="z. B. Name des Handy-Hotspots"
+            onChange={e => {
+              setChosen(e.currentTarget.value);
+              setPassword('');
+            }}
+            disabled={locked}
+          />
+        </label>
       )}
       {chosen && !running && (
         <form

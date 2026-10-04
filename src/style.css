@@ -3841,7 +3841,17 @@ header nav {
 }
 .wlan-list button {
   width: 100%;
+  min-height: 44px;
+  padding-block: 6px;
   justify-content: flex-start;
+}
+.wlan-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  max-width: 420px;
+  font-weight: 700;
 }
 .wlan-list small {
   font-weight: 600;

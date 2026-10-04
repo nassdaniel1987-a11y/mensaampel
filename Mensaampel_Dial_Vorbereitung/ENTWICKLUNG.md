@@ -292,6 +292,24 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Dial (`core/dial.hpp`, `core/engine.hpp`):** neue Töne (Grün `#15803d→#052e16` usw., Bernstein jetzt mit weißer Schrift, neu Türkis für Rückgaben), Hilfen `band`, `gauge` (Ring 105–114 px, Lücke oben 312°…588° für den Tastenhinweis, runde Enden als Kreise), `segments`, `mix`. Hauptbildschirm: Ring = freie Plätze / freigegebene Plätze bzw. Countdown; kleine Symbole über der großen Zahl entfallen; Unterzeile „Küche n · Mensa m“. Rückmeldung nach Art (`DialExtras::feedbackKind`: 1 ausgegeben, 2 zurück; Firmware aus dem Klang-Ereignis, PC-Dienst/Demo aus der Meldung): Doppelring + Haken + Nummer groß + „Guten Appetit!“, türkis „K12 zurück, danke!“, abgelehnt rot mit Ring in 6 Stücken und Kreuz; sonstige Meldungen wie bisher. Menü mit Strichring, blauem Zeiger und blauer Auswahl-Pille. Start-Check mit vier Vierteln in Zustandsfarbe und „OK/wartet/Fehler“. Halten: eigener Bildschirm, Ring 102–114 px. Rasterer unverändert (Pixelgleichheit Dial ↔ Browser bleibt).
 - **Tablet:** neue Farbschicht am Ende von `src/style.css` (Tokens, Pillen-Knöpfe ohne Rahmen, Kopfzeile mit Verbindungs-Pille und Pillen-Reitern; Reiter „Betreuung“ heißt jetzt „Betrieb“). `Management.tsx`: `StatusHero`, `RoomCard` (Plus/Minus über den Befehl `room`, nie unter die Belegung), Meldungen als `notice-card`, `SeatGrid` statt Seitentabelle, Tagesaktionen. `DevicePanel.tsx`: `Overview` (Gesundheit als Karten, Geräte-Details), Einrichtungs-Überschrift nur noch vor der Einrichtung. Ampel nur farblich angeglichen.
 
+## Version 0.25.1-preview: Kranz schneller zeichnen, WLAN-Suche schonender
+
+**Befund am Gerät (0.25.0):**
+- Die WLAN-Liste ließ sich nicht scrollen.
+- Die Verbindung zur Ampel war viel instabiler.
+- Das Dial sprang erst sehr spät auf Gelb.
+
+**Ursache Zeichnen:** Der Kranz (0.24) besteht aus bis zu 8 kurzen Ringteilen. `arc()` lief für jedes Teil über das Quadrat des ganzen Rings (228 × 228 Punkte). Am PC kostete das Hauptbild dadurch 1,47 statt 0,61 ms, das Dial braucht ein Vielfaches davon. Ein so langsam zeichnendes Dial verzögert die Anzeige und teilt sich den Kern mit dem Webserver.
+
+**Lösung `core/dial_raster.hpp`:** Ein kurzes Ringteil besucht nur noch sein eigenes Kästchen (Endpunkte auf beiden Radien, überstrichene Achsenpunkte, runde Enden und Rand). Das ist ergebnisgleich, der Paritäts- und Bench-Test mit zufälligen Ringen bleibt grün. Hauptbild am PC jetzt 0,34 ms.
+
+**WLAN (`netOwnWlan`):**
+- Eigenes WLAN nur neu starten, wenn sich der Kanal geändert hat. Nach einer reinen Suche bleiben die Tablets verbunden.
+- `setSleep(false)` in allen Modi.
+- `dnsRestart` startet die DNS-Antworten im Web-Task neu, damit die Internet-Prüfung der Tablets weiter beantwortet wird.
+
+**Tablet:** kompaktere WLAN-Liste und das Feld „Anderes WLAN: Name eingeben“.
+
 ## Version 0.25.0-preview: Online-Update über WLAN mit Internet (Handy-Hotspot)
 
 **Wunsch des Nutzers:** Das Dial verbindet sich zum Updaten selbst mit einem WLAN mit Internet. Die WLAN-Suche wird am Tablet angezeigt und das Netz dort ausgewählt (das Passwort geht nicht per Drehring).

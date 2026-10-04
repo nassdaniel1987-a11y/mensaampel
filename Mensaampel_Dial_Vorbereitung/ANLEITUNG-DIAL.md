@@ -388,6 +388,15 @@ Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Cli
 - **Ampel bei fast voller Mensa:** Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).
 - **Wie sicher ist das Gelernte?** Unter Einlass & Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen *noch nicht · unsicher · mittel · sicher*. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.
 
+## Neu in 0.25.1
+
+- **Dial zeichnet das Hauptbild etwa 4× schneller.** Der Kranz aus 0.24 hatte sehr viel Rechenzeit gekostet. Darum sprang das Dial spät auf Gelb, und die Antworten an die Ampel wurden langsamer. Das Bild sieht genau gleich aus.
+- **WLAN-Suche stört die Tablets weniger:** Nach einer reinen Suche startet das Dial-WLAN nicht mehr neu. Nach der Update-Prüfung startet es nur dann neu, wenn sich der Funkkanal geändert hat. Danach beantwortet das Dial die Internet-Prüfung der Tablets sofort wieder, damit sie im WLAN bleiben.
+- **WLAN-Liste:** Die Einträge sind kompakter. Neu ist das Feld **„Anderes WLAN: Name eingeben“**, falls der Hotspot nicht in der Liste steht.
+- **Installieren:** Mit 0.25.0 auf dem Dial geht das schon über **Gerät → Online-Update**, also ohne USB.
+- **Bitte danach melden:** Ist die Ampel wieder stabil, und springt das Dial rechtzeitig auf Gelb? Unter Gerät → Gesundheit: „Bild zeichnen“ (zuletzt und längstes) und „Flüssige Animation“.
+- Bisher nur gebaut und getestet, noch nicht am Gerät.
+
 ## Neu in 0.25.0
 
 - **Online-Update über den Handy-Hotspot** (Gerät → „Online-Update (Handy-Hotspot)“). Das Dial holt neue Versionen selbst aus dem Internet, ein Datei-Hochladen über das Tablet ist nicht mehr nötig.
