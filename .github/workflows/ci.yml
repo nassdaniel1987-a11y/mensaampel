@@ -1,0 +1,45 @@
+# Automatic checks on every push and pull request: TypeScript, tests, web build, core rebuild and firmware build.
+name: Prüfung
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    name: Tests und Weboberfläche
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Code-Format prüfen
+        run: pip install clang-format==19.1.7 && npm run format:check
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npx vite build
+      - name: Kern mit Emscripten 4.0.15 neu bauen und erneut testen
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.15
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.15
+          EMSDK="$RUNNER_TEMP/emsdk" EMSDK_PYTHON=python3 npm run build:core
+          npm test
+  firmware:
+    name: Firmware (ESP32-S3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('firmware/platformio.ini') }}
+      - run: pip install platformio
+      - run: pio run -d firmware -e mensa-dial
+      - run: pio run -d firmware -e dial-core-check

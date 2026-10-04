@@ -1,0 +1,281 @@
+:root {
+  --bg: #f4f7f6;
+  --panel: #ffffff;
+  --ink: #183345;
+  --muted: #557080;
+  --line: #d5e0e2;
+  --accent: #1f7a6d;
+  --z: 0.62;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+.top {
+  padding: 16px 20px 4px;
+}
+.top h1 {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+  color: #174e55;
+}
+.top p {
+  margin: 0;
+  max-width: 900px;
+  line-height: 1.45;
+}
+main {
+  display: flex;
+  gap: 20px;
+  padding: 16px 20px 40px;
+  align-items: flex-start;
+}
+.panel {
+  flex: 0 0 360px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+fieldset {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 10px;
+  padding: 0 0 10px;
+}
+legend {
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 8px;
+  color: #174e55;
+}
+label {
+  display: block;
+  font-size: 0.9rem;
+  margin: 6px 0;
+}
+label input:not([type='checkbox']),
+label select {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+}
+input,
+select,
+button {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #b8c7cb;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+.check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.range {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.range .check {
+  flex: 0 0 110px;
+  margin: 0;
+}
+.range input[type='number'] {
+  width: 70px;
+}
+.hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 6px 0 0;
+}
+button {
+  cursor: pointer;
+  margin-top: 6px;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 16px;
+}
+button.link {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: inherit;
+}
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.problems:not(:empty) {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff4e6;
+  border: 1px solid #ffc078;
+  font-size: 0.88rem;
+}
+.themes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.theme {
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+  margin: 0;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+}
+.theme[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px #1f7a6d33;
+}
+.theme svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.theme span {
+  display: block;
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+.preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.sheetbox h2 {
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.sheetwrap {
+  width: calc(210mm * var(--z));
+  height: calc(297mm * var(--z));
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 10px #0002;
+}
+.sheet {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  overflow: hidden;
+  background: #fff;
+  transform: scale(var(--z));
+  transform-origin: 0 0;
+}
+.lbl,
+.cell {
+  position: absolute;
+}
+.lbl svg {
+  display: block;
+}
+.cell {
+  border: 0.3mm dashed #adb5bd;
+  cursor: pointer;
+}
+.cell.used {
+  background: repeating-linear-gradient(45deg, #dee2e6 0 2mm, #f1f3f5 2mm 4mm);
+}
+.cell.used::after {
+  content: 'belegt';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 4mm;
+  color: #868e96;
+}
+.lbl.clickable {
+  cursor: pointer;
+}
+.testpage {
+  display: none;
+}
+@page {
+  size: A4;
+  margin: 0;
+}
+@media print {
+  body {
+    background: #fff;
+  }
+  .ui,
+  .sheetbox h2,
+  .cell {
+    display: none !important;
+  }
+  main {
+    display: block;
+    padding: 0;
+  }
+  .preview {
+    display: block;
+  }
+  .sheetwrap {
+    width: auto;
+    height: auto;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .sheet {
+    transform: none;
+    break-after: page;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.print-test main {
+    display: none;
+  }
+  body.print-test .testpage {
+    display: block;
+  }
+}
+@media (max-width: 800px) {
+  main {
+    flex-direction: column;
+  }
+  .panel {
+    position: static;
+    flex: none;
+    width: 100%;
+    max-height: none;
+  }
+}

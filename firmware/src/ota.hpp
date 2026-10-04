@@ -1,0 +1,97 @@
+#pragma once
+// Firmware update over the Dial's WLAN: recognising a Mensaampel firmware while it streams in, and the decision to
+// fall back to the previous firmware when a new one never runs healthily. No Arduino dependencies (native tests:
+// tests/native/ota.cpp).
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
+namespace mensa::ota {
+// Every Mensaampel firmware contains this mark followed by its version and a zero byte (see main.cpp). The tablet
+// (src/firmware-file.mjs) checks the same before uploading.
+// The pattern is kept with '#' instead of the final ':' so that the scanner's own copy in flash never counts as the
+// mark; expected() puts the ':' back.
+constexpr const char *markBase = "MENSAAMPEL-FIRMWARE-1#";
+constexpr size_t markLength = 22;
+inline char expected(size_t i) {
+  return i + 1 == markLength ? ':' : markBase[i];
+}
+// Finds the mark in data arriving in blocks of any size (also across block boundaries) and reads the version.
+class MarkScan {
+  size_t matched = 0;
+  bool inVersion = false;
+  static size_t fallback(size_t matched, char c) {
+    // Knuth-Morris-Pratt with the borders of the mark computed on the fly (the mark is short).
+    while (matched > 0) {
+      size_t border = 0;
+      for (size_t k = matched - 1; k > 0 && !border; k--) {
+        bool same = true;
+        for (size_t j = 0; j < k && same; j++)
+          same = expected(j) == expected(matched - k + j);
+        if (same) border = k;
+      }
+      matched = border;
+      if (expected(matched) == c) return matched + 1;
+    }
+    return expected(0) == c ? 1 : 0;
+  }
+
+public:
+  bool found = false;
+  std::string version;
+  void feed(const uint8_t *data, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+      char c = char(data[i]);
+      if (inVersion) {
+        if (c == 0 || version.size() >= 40)
+          inVersion = false;
+        else
+          version += c;
+        continue;
+      }
+      if (found) return;
+      if (expected(matched) == c)
+        matched++;
+      else
+        matched = fallback(matched, c);
+      if (matched == markLength) {
+        found = true;
+        inVersion = true;
+      }
+    }
+  }
+};
+// Upload in pieces (0.19.1): the tablet sends the firmware in pieces of at most `maxLength` bytes, each one complete
+// before it is written. After a WLAN drop the tablet repeats the piece; a piece that is already written is only
+// acknowledged (Skip), the next piece in order is written (Write), anything else is refused. Before 0.19.1 one long
+// upload broke off when the tablet left the WLAN for a moment.
+enum class ChunkAction { Write, Skip, Reject };
+inline ChunkAction chunk(size_t offset, size_t length, size_t written, size_t total, size_t maxLength) {
+  if (length == 0 || length > maxLength || offset + length > total) return ChunkAction::Reject;
+  if (offset == written) return ChunkAction::Write;
+  if (offset + length <= written) return ChunkAction::Skip;
+  return ChunkAction::Reject;
+}
+// Resume (0.24.1): a new start with the same file (size and CRC-32 sent by the tablet) continues an upload that broke
+// off instead of starting over. Without a CRC (tablets before 0.24.1) it always starts over.
+inline bool resumable(bool active, size_t total, uint32_t crc, size_t size, uint32_t newCrc) {
+  return active && newCrc != 0 && crc == newCrc && total == size;
+}
+// CRC-32 (IEEE, as in zip), continued over pieces: crc = crc32(crc, data, n), starting with 0.
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t n) {
+  crc = ~crc;
+  for (size_t i = 0; i < n; i++) {
+    crc ^= data[i];
+    for (int k = 0; k < 8; k++)
+      crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+  }
+  return ~crc;
+}
+// Boot of a freshly installed firmware: tries counts starts without reaching "healthy" (60 s running, web server
+// up). After three such starts the Dial switches back to the previous firmware.
+enum class BootAction { None, Count, Rollback };
+inline BootAction onBoot(bool pending, int tries) {
+  if (!pending) return BootAction::None;
+  return tries + 1 > 3 ? BootAction::Rollback : BootAction::Count;
+}
+} // namespace mensa::ota

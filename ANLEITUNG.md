@@ -37,6 +37,8 @@ Mit **Mensaampel-beenden.cmd** wird der Hintergrunddienst beendet. Nur das Brows
 
 **Neustart testen:** Der Bestand bleibt erhalten, aber der Einlass ist bis zur Bestätigung gesperrt.
 
+**Dial in der Simulation:** Unter **Simulation** ist das Dial so abgebildet, wie sein runder Bildschirm am Gerät aussieht (gleiche Schrift, Farben und Texte). Orange Fläche anklicken = antippen, Ring oder **Taste drücken** = Gerätetaste, Karte auf das Dial ziehen = vorhalten. Rückmeldungen erscheinen wie am Gerät für 3,5 Sekunden mit Ton (abschaltbar).
+
 **Speicherfehler:** Fehler einschalten und eine Karte scannen. Es wird nichts gebucht. Fehler beenden und die Aktion erneut ausführen; erst eine erfolgreiche Speicherung beseitigt den Störungshinweis.
 
 Ungültige gespeicherte Daten sperren den Betrieb. Bei einer ausdrücklich bestätigten Wiederherstellung wird die beschädigte Datei aufbewahrt und ein leerer Grundbestand angelegt. Den tatsächlichen Bestand danach abgleichen.
@@ -45,7 +47,7 @@ Ungültige gespeicherte Daten sperren den Betrieb. Bei einer ausdrücklich best�
 
 Der Ordner `data` wird beim Start angelegt. `bestand.json` enthält Karten, Einstellungen und maximal 80 Ereignisse ohne Kindernamen. Vor einer Sicherung den Dienst beenden und den gesamten Ordner kopieren. Zwei Instanzen dürfen nicht dieselbe Bestandsdatei bearbeiten.
 
-Diese Version läuft auf einem Windows-PC (x64) mit einem aktuellen Browser. Sie ist bewusst nur auf diesem PC unter `http://127.0.0.1:4317` erreichbar. Ein verbundenes Tablet kann die PC-Version noch nicht über das Netzwerk öffnen.
+Diese Version läuft auf einem Windows-PC (x64) mit einem aktuellen Browser. Fehlt der Ordner `runtime` (z. B. bei einer Kopie direkt von GitHub), nutzt `Start-Mensaampel.cmd` ein installiertes Node.js ab Version 22 (https://nodejs.org). Sie ist bewusst nur auf diesem PC unter `http://127.0.0.1:4317` erreichbar. Ein verbundenes Tablet kann die PC-Version noch nicht über das Netzwerk öffnen.
 
 Die Geräteversion ist jetzt als separates Paket vorbereitet: **Mensaampel_Dial_Vorbereitung.zip** mit USB-Installationshelfer und **ANLEITUNG-DIAL.html**. Leser-, Speicher-, Anzeige- und WLAN-Anbindung sind implementiert und übersetzt, müssen aber noch mit echter Hardware erprobt werden. Die Auswahl zwischen internem und externem Leser erfolgt dort in der Oberfläche. Die PC-Simulation bleibt unabhängig davon nutzbar.
 
@@ -61,8 +63,11 @@ Die Geräteversion ist jetzt als separates Paket vorbereitet: **Mensaampel_Dial_
 
 Die technischen Prüfungen sind abgeschlossen. Probiere nun einen vollständigen Mittag mit euren Abläufen: Küche füllen, Karten zurückgeben, Mensa teilweise freigeben, Pause, Verlustkorrektur und Neustart. Erst damit ist die Bedienung für euren Alltag gemeinsam abgenommen.
 
-## Neu: Einlassgruppen, Gelb und Messungen
+## Einlass, Automatik und Dial
 
-Unter **Einlass & Messungen** stehen Gelbgrenze, begrenzte Einlassgruppen sowie Einzel- und Gruppenmessungen zur Verfügung. Startwert Gelb: fünf freie Plätze. Gruppenbegrenzung zunächst aus (0); beispielsweise auf fünf setzen und Einlass anschließend bewusst fortsetzen. Die Messungen bedient ihr am verbundenen Tablet. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
-
-Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Druck pausiert beziehungsweise setzt fort; bei einer noch laufenden Gruppenmessung zuerst den Messabschluss am Tablet bestätigen oder die Messung verwerfen.
+- **Einlass & Messungen:** Gelbgrenze, Einlassgruppen, Messungen, Automatik mit Startgruppe und lernender Gruppengröße, automatischer neuer Essenstag, Lernwerte und Tagesbericht. Einzelheiten: [Einlass und Messungen](EINLASS-UND-MESSUNGEN.md).
+- **Simulation:** Das Dial ist genau so abgebildet, wie sein runder Bildschirm am Gerät aussieht. Orange Fläche anklicken = antippen, **Taste drücken** bzw. Klick auf den Ring = Gerätetaste, **Taste 3 s halten**, Mausrad oder Pfeilknöpfe = Drehring, Karte auf das Dial ziehen = vorhalten.
+- **Hilfe:** bebilderte Bedienung des Dials. Zum Ausdrucken: `BEDIENUNG-DIAL.pdf` und `DIAL-KURZKARTE.pdf`.
+- **Betreuung → Einstellungen:** Sperrzeit, Dial-Lautstärke, Sicherung herunterladen und einspielen. Nicht zurückgegebene Karten stehen unter Betreuung.
+- **Große Ampel:** zeigt bei laufender Automatik „Gleich geht's weiter · 0:40“; unten „Ton an“ für einen Gong bei Grün.
+- Die PC-Version übernimmt Wochentag und Uhrzeit automatisch vom PC.

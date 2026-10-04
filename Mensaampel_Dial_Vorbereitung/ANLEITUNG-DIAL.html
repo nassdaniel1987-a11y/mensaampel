@@ -1,5 +1,8 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mensaampel · Dial einrichten</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#243a42;font:17px/1.65 "Segoe UI",Arial,sans-serif}main{max-width:940px;margin:36px auto;background:white;border-radius:22px;padding:50px 64px;box-shadow:0 12px 40px #183c4810}h1{font-size:42px;line-height:1.15;letter-spacing:-1.3px;color:#174e55;margin:0 0 22px}h2{font-size:25px;line-height:1.3;margin-top:42px;border-top:2px solid #dceae7;padding-top:24px;color:#245d62}a{color:#196d75;text-underline-offset:3px}li{margin:9px 0}code{background:#edf3f2;padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dce4e4}th{background:#eaf3f1}tr:nth-child(even){background:#f7fafa}.eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#477b7e;margin-bottom:24px}.print{border:0;border-radius:8px;background:#326d72;color:white;padding:12px 20px;font:inherit;float:right;cursor:pointer}@media(max-width:700px){main{margin:0;border-radius:0;padding:26px 20px}h1{font-size:32px}.print{float:none;margin-bottom:20px}table{font-size:13px}th,td{padding:7px}}@media print{body{background:white;font-size:10.5pt}main{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{font-size:9pt}tr{break-inside:avoid}a{color:inherit}p,li{orphans:3;widows:3}@page{size:A4;margin:18mm}}</style><main><button class="print" onclick="window.print()">Drucken / als PDF speichern</button><div class="eyebrow">MENSAAMPEL · GERÄTEVORBEREITUNG</div><h1>Mensaampel auf dem M5Stack Dial</h1>
-<p><strong>Vorbereitete Geräteversion 0.3.0 · Stand 24.09.2026</strong></p>
+<p><strong>Vorbereitete Geräteversion 0.17.7-preview · Stand 02.10.2026</strong></p>
+<blockquote>
+<p><strong>Bedienung im Alltag:</strong> siehe die bebilderte <a href="BEDIENUNG-DIAL.html">Bedienungsanleitung</a> (auch als PDF) und die <a href="DIAL-KURZKARTE.html">Kurzkarte zum Aufkleben</a>. Download aller Dateien: https://github.com/nassdaniel1987-a11y/mensaampel/releases</p>
+</blockquote>
 <p>Die Software, Tabletoberfläche und Windows-Übertragung sind vorbereitet. Der Gerätecode wurde erfolgreich für ESP32-S3 übersetzt. Die Erprobung an einem echten Dial steht noch aus. Dieses Paket ist für euren ersten begleiteten Hardwaretest vorgesehen.</p>
 <h2>Was du brauchst</h2>
 <ul>
@@ -7,7 +10,7 @@
 <li>Windows-PC zum einmaligen Aufspielen und ein USB-C-<strong>Datenkabel</strong>. Ein reines Ladekabel reicht dafür nicht.</li>
 <li>Tablet mit aktuellem Browser für Betreuung oder große Ampel.</li>
 <li>Passende 13,56-MHz-Karten, deren UID der WS1850S lesen kann; zunächst mit wenigen Karten testen, bevor ihr alle beschriftet oder kauft.</li>
-<li>Optional: M5Stack RFID2 Unit (WS1850S, U031-B) am <strong>Port A</strong>, mit passendem Grove-Kabel. Vor dem Anstecken die Stromversorgung trennen.</li>
+<li>M5Stack RFID2 Unit (WS1850S, U031-B) am <strong>Port A</strong>, mit passendem Grove-Kabel. Vor dem Anstecken die Stromversorgung trennen. In der Tischkonsole ist sie fest unter der Kartenfläche eingebaut: <a href="hardware/gehaeuse/README.md">hardware/gehaeuse</a> (3D-Druck).</li>
 <li>Für den späteren Betrieb eine zuverlässige USB-Stromversorgung. Bei einer Powerbank prüfen, ob sie bei der geringen Last eingeschaltet bleibt.</li>
 </ul>
 <p>Nach dem Aufspielen läuft die Buchungslogik auf dem Dial. Der PC wird im Alltag nicht gebraucht. Das Dial stellt sein eigenes WLAN und die Webseiten bereit; Internet und zusätzliche Router sind dafür nicht nötig. Das Tablet ist Anzeige und Bedienung, der Dial speichert den Bestand.</p>
@@ -21,7 +24,11 @@
 <li>Gerät und Vorgang im Kontrollkästchen bestätigen und <strong>Software übertragen</strong> wählen. Währenddessen USB verbunden lassen.</li>
 <li>Nach „Fertig“ nötigenfalls RST drücken oder USB neu verbinden. Auf dem Display erscheinen WLAN-Name, WLAN-Kennwort und Einrichtungscode.</li>
 </ol>
-<p>Der Übertragungshelfer wurde ohne angeschlossenes Gerät geprüft. Die erste tatsächliche USB-Übertragung ist Teil des Hardwaretests. Das Programm ist nicht digital signiert. Sicherheitsrichtlinien eines Schul-PCs gegebenenfalls mit der zuständigen IT klären.</p>
+<p><strong>Notfallweg, falls der Helfer abbricht:</strong> Im entpackten Ordner in die Adresszeile des Explorers <code>cmd</code> tippen und Enter drücken. Dann diesen Befehl eingeben (statt <code>COM3</code> den im Helfer angezeigten Anschluss):</p>
+<pre><code>tools\mensa-flash.exe --chip esp32s3 --port COM3 --baud 460800 write_flash --flash_size 8MB 0x0 firmware\first-install.bin
+</code></pre>
+<p>Erfolgreich, wenn am Ende „Hash of data verified.“ steht. Bei „Failed to connect“: USB abziehen, G0-Modus neu starten, Befehl wiederholen.</p>
+<p>Der Übertragungshelfer wurde zuerst ohne angeschlossenes Gerät geprüft; bei der ersten echten Installation meldete er nach dem Löschen fälschlich einen Fehler (inzwischen behoben). Die erste tatsächliche USB-Übertragung ist Teil des Hardwaretests. Das Programm ist nicht digital signiert. Sicherheitsrichtlinien eines Schul-PCs gegebenenfalls mit der zuständigen IT klären.</p>
 <h2>2 · Tablet verbinden und Zugang einrichten</h2>
 <ol>
 <li>In den WLAN-Einstellungen des Tablets das auf dem Dial angezeigte Netz auswählen und dessen WLAN-Kennwort eingeben.</li>
@@ -42,6 +49,10 @@
 </thead>
 <tbody>
 <tr>
+<td><strong>Automatisch (empfohlen, Standard)</strong></td>
+<td>Externe RFID2 Unit an Port A, sobald sie antwortet; sonst der eingebaute Leser</td>
+</tr>
+<tr>
 <td>Intern im M5Stack Dial</td>
 <td>Eingebauter Leser; kein Zusatzgerät</td>
 </tr>
@@ -51,10 +62,12 @@
 </tr>
 </tbody>
 </table>
+<p><strong>Automatisch:</strong> Beim Start und danach alle 5 Sekunden (wenn gerade keine Karte aufliegt) prüft das Dial, ob an Port A ein Leser antwortet, und schaltet selbst um. Fällt der externe Leser aus oder wird abgezogen, arbeitet das Dial ohne Störung mit dem internen Leser weiter. Das Dial meldet „Externer Leser aktiv“ bzw. „Interner Leser aktiv“; unter Gerät steht, welcher Leser gerade aktiv ist. Der Bestand bleibt dabei unverändert. Port A laut Hersteller nur <strong>stromlos</strong> umstecken.</p>
 <p><strong>Auswahl speichern und Leser prüfen</strong> drücken. Die Einstellung bleibt nach dem Ausschalten erhalten. Beim Wechsel wird der Einlass gesperrt und der Bestand muss erneut bestätigt werden. Es ist kein erneutes Aufspielen der Software erforderlich.</p>
 <p>Im externen Modus wird das interne RFID-Feld abgeschaltet und dessen Abschaltung überwacht. Ein fehlender oder nicht erreichbarer Leser führt zu Rot. Nach dem Einschalten oder Wechsel den Leser etwa eine Sekunde frei lassen. Ein Leserfehler oder eine Lesepause gilt nicht als bestätigtes Entfernen einer Karte.</p>
 <p>Die echte Funkstabilität muss mit Tablet und Karten geprüft werden. Interner RFID-Leser und WLAN nutzen unterschiedliche Frequenzen; dennoch sind beim Dial Berichte über gegenseitige Störungen bekannt. Eine externe Unit ist eine prüfbare Alternative, keine bereits nachgewiesene Garantie.</p>
 <h2>4 · Karten einmalig zuordnen</h2>
+<p><strong>Am schnellsten: Karten am Stück einlernen.</strong> Unter <strong>Betreuung → Karten am Stück einlernen</strong> „Küche“ oder „Mensa“ starten. Das Dial zeigt groß die nächste freie Nummer (z. B. „K07“). Karte vorhalten → sie gehört nun zu K07 → mit dem passenden Etikett bekleben (aus dem <strong>Etiketten-Tool</strong>, siehe unten). Das Dial springt selbst weiter. Taste = Nummer überspringen, 3 s halten = Ende. Doppelte Karten werden erkannt, gebucht wird nichts. Der Einzelweg unten bleibt für Nachträge.</p>
 <p>Die Nummern <strong>K01–K48</strong> und <strong>M01–M64</strong> sind vorbereitet. Auf einem echten Gerät zählen noch nicht zugeordnete Nummern zunächst nicht als verfügbare Karten.</p>
 <ol>
 <li>Unter <strong>Gerät → Platzkarten zuordnen</strong> beispielsweise K01 auswählen.</li>
@@ -65,9 +78,18 @@
 <li>Zum Schluss unter <strong>Betreuung</strong> den Bestand prüfen und bestätigen; eine bestehende Einlasspause ausdrücklich beenden.</li>
 </ol>
 <p>Für den ersten Test genügen z. B. zwei Küchen- und zwei Mensakarten. Die maximal mögliche Ausgabe ergibt sich sowohl aus Raumfreigabe als auch verfügbaren zugeordneten Karten. Zusätzliche Kartennummern vergrößern die Raumkapazität nicht automatisch.</p>
+<h3>Etiketten drucken</h3>
+<p><code>Etiketten-Tool.html</code> am PC im Browser öffnen (funktioniert ohne Internet):</p>
+<ol>
+<li><strong>Bogen wählen.</strong> Empfohlen: Avery Zweckform <strong>3474</strong> (70 × 37 mm, 24 pro A4). Das Etikett passt mit Rand auf die Karte. Weitere Bögen, kartengroße und runde Etiketten oder eigene Maße sind möglich.</li>
+<li><strong>Testseite</strong> auf Normalpapier drucken, auf den Etikettenbogen legen und gegen das Licht halten. Bei Bedarf „nach rechts / nach unten“ verschieben. Das rote Lineal muss genau 10 cm lang sein. Die Einstellung bleibt im Browser gespeichert.</li>
+<li><strong>Karten wählen:</strong> Küche K01–K48, Mensa M01–M64 oder einzelne Ersatzkarten (z. B. <code>K03, M10-M12</code>). Bei einem angefangenen Bogen in der Vorschau die schon benutzten Felder anklicken.</li>
+<li><strong>Aussehen:</strong> Tiere, Monster &amp; Weltraum, Gemischt oder Schlicht. Jede Nummer hat immer dasselbe Motiv, auch beim Nachdruck. So finden auch Kinder, die noch nicht sicher lesen, ihre Karte wieder.</li>
+<li><strong>Drucken:</strong> im Druckdialog <strong>„Tatsächliche Größe / 100 %“</strong> und <strong>„Ränder: keine“</strong> wählen.</li>
+</ol>
 <h2>5 · So läuft der Mittag</h2>
 <ul>
-<li>Nach jedem Neustart den tatsächlichen Bestand prüfen und <strong>Bestand bestätigen</strong>. Es wird nichts automatisch auf null gesetzt.</li>
+<li>Nach dem Einschalten den tatsächlichen Bestand prüfen und <strong>Bestand bestätigen</strong> (Taste 3 s halten). Ausnahme: Ein kurzer Neustart am selben Tag (z. B. Stecker kurz raus) übernimmt den heute schon bestätigten Bestand, sobald die Uhr gelesen ist; ein laufender Gruppen-Countdown läuft dann weiter. Es wird nichts automatisch auf null gesetzt.</li>
 <li>Die Küche hat zunächst 48 Plätze; die Mensa bleibt für das freie Essen geschlossen. Die 61 begleiteten Kinder werden nicht einzeln gebucht.</li>
 <li>Karte vorhalten: verfügbare Karte wird ausgegeben. Dieselbe Karte später erneut vorhalten: Rückgabe.</li>
 <li>Nach einer erfolgreichen Buchung gelten zehn Sekunden Sperre für diese Karte. Andere Karten bleiben nutzbar. Dauerhaftes Vorhalten erzeugt keine zweite Buchung.</li>
@@ -75,18 +97,41 @@
 <li><strong>Einlass pausieren</strong> stoppt Ausgaben, lässt Rückgaben zu. Ein kurzer Tastendruck am Dial schaltet die Pause ebenfalls um.</li>
 <li>Tatsächlich freie Mensaplätze später unter <strong>Betreuung → Mensa → Anpassen</strong> teilweise oder vollständig freigeben.</li>
 <li>Eine verlorene ausgegebene Karte bleibt belegt, bis der Platz geprüft und die Karte manuell korrigiert wurde.</li>
+<li><strong>Karten, die am Tagesende fehlen,</strong> werden beim neuen Essenstag als verloren <strong>gesperrt</strong> (sie zählen nicht als freie Plätze). Taucht eine Karte wieder auf, einfach ans Dial halten: „K07 ist wieder da und frei“. Alternativ am Tablet unter „Gesperrte Karten“ → „gefunden“.</li>
 <li>Ein erneuter Scan nach Ablauf der Sperrzeit zählt als Gegenbuchung, auch wenn er versehentlich war. Dann „Letzte Buchung rückgängig“ oder gezielt „Bearbeiten“ verwenden.</li>
-<li><strong>Neuer Essenstag</strong> wird ausdrücklich gestartet. Dabei werden Belegungen zurückgesetzt, Verlustmarkierungen bleiben erhalten und die Mensa wird wieder gesperrt.</li>
+<li><strong>Neuer Essenstag:</strong> startet mit eingestellter Uhrzeit von selbst (frühestens 30 Minuten nach dem letzten Scan, am nächsten Kalendertag). Sind noch Karten draußen, wartet das Dial stattdessen auf eine Person: „Neuer Tag? Taste 3 s halten“. Am Tablet geht es jederzeit über „Neuer Essenstag“. Belegungen werden zurückgesetzt, fehlende Karten gesperrt, die Mensa wieder geschlossen. Tage ohne ein einziges Essen (Wochenende, Ferien) zählen nicht im Tagesbericht.</li>
+<li><strong>Erinnerung:</strong> Wartet eine Pause, Entlastung oder volle Gruppe länger als 3 Minuten auf jemanden, piept das Dial kurz und zeigt z. B. „Noch Pause? Taste: weiter“ (einstellbar unter Einstellungen, auch „aus“).</li>
 </ul>
 <h2>6 · Große Ampel anzeigen</h2>
 <p>Auf dem Tablet <strong>Ampel öffnen</strong> und bei Bedarf <strong>Vollbild</strong> wählen. Grün bedeutet: betriebsbereit, keine Pause und mindestens eine verfügbare Karte für einen freigegebenen Platz. Bei Pause, vollem Bestand oder Störung erscheint Rot.</p>
 <p>Nach mehr als drei Sekunden ohne erfolgreiche Statusmeldung schaltet die laufende Browseranzeige auf Rot. Das gilt nicht für einen eingefrorenen Browser oder ausgeschalteten Bildschirm: Energiesparen und automatische Bildschirmsperre für euren Einsatz passend einstellen und testen. Die getrennte Ampel sollte vor dem Mensaeingang sichtbar sein.</p>
+<h3>iPad als Ampel einrichten (einmalig)</h3>
+<p>Auf dem iPad braucht es keine Zusatz-App: Die eingebaute Funktion <strong>„Geführter Zugriff“</strong> sperrt das iPad auf die Ampelseite (Kiosk-Betrieb).</p>
+<ol>
+<li><strong>WLAN:</strong> Einstellungen → WLAN → dem WLAN des Dial beitreten (Name und Kennwort zeigt das Dial nach 3 s Halten), <strong>„Automatisch verbinden“ an</strong>. Beim <strong>Schul-WLAN</strong> auf diesem iPad <strong>„Automatisch verbinden“ aus</strong> – das Dial-WLAN hat kein Internet, sonst wechselt das iPad gern zurück.</li>
+<li><strong>Ampelseite:</strong> Safari → <code>http://192.168.4.1/ampel</code> → Teilen → <strong>„Zum Home-Bildschirm“</strong>.</li>
+<li><strong>Bildschirm immer an:</strong> Einstellungen → Anzeige &amp; Helligkeit → <strong>Automatische Sperre: Nie</strong>. Einstellungen → Batterie → <strong>Stromsparmodus aus</strong>. Im Kontrollzentrum <strong>Fokus „Nicht stören“</strong> einschalten (keine Mitteilungen).</li>
+<li><strong>Geführten Zugriff vorbereiten:</strong> Einstellungen → Bedienungshilfen → <strong>Geführter Zugriff an</strong> → <strong>Code-Einstellungen</strong>: Code festlegen, den nur die Betreuung kennt → <strong>Anzeige-Autosperre: Nie</strong>.</li>
+</ol>
+<p><strong>Jeden Tag bzw. nach einem Neustart des iPads:</strong></p>
+<ol>
+<li>Ampelseite öffnen, <strong>„Vollbild“</strong> tippen.</li>
+<li><strong>Dreimal schnell die obere Taste</strong> drücken (iPads mit Home-Taste: Home-Taste).</li>
+<li>Unter „Optionen“ <strong>Tasten aus</strong>, Berührung an lassen → <strong>„Starten“</strong>.</li>
+<li>Ist „Ton an“ gewählt: <strong>einmal auf den Bildschirm tippen</strong> (die Ampel zeigt dazu einen Hinweis) – Browser erlauben Töne erst nach einer Berührung.</li>
+</ol>
+<p><strong>Beenden:</strong> wieder dreimal die Taste drücken, Code eingeben, „Beenden“. Das iPad <strong>am Ladekabel lassen</strong>. Nach einem iPad-Neustart ist der Geführte Zugriff aus und muss neu gestartet werden.</p>
+<p><strong>Wichtig:</strong> Die Ampelseite muss auf ihrem Tablet <strong>im Vordergrund</strong> laufen. Ein Browser fragt in einem Hintergrund-Tab (oder bei ausgeschaltetem Bildschirm) nur noch etwa einmal pro Minute nach – dann meldet das Dial zu Recht „Ampel draußen getrennt!“. Zum Ausprobieren auf einem einzigen Tablet ist das normal; sobald der Ampel-Tab wieder vorne ist, meldet das Dial „Ampel wieder verbunden.“ Unter <strong>Gerät</strong> steht jederzeit live „Ampel draußen: verbunden / getrennt seit …“.</p>
+<p>Verwaltet die Schul-IT die iPads zentral (MDM), kann sie das iPad fest im <strong>„Einzel-App-Modus“</strong> auf Safari sperren; dann startet es auch nach einem Neustart von selbst so. Für ein Android-Tablet eignet sich stattdessen eine Kiosk-App wie „Fully Kiosk Browser“.</p>
+<p><strong>Uhr:</strong> Das Dial hat eine eingebaute Uhr (RTC). Sie wird automatisch von jedem angemeldeten Tablet gestellt. Ist sie nach einem langen Stromausfall leer, übernimmt das Dial die Uhrzeit auch von der Ampel-Seite; bis dahin steht am Dial „Uhr nicht gestellt“.</p>
+<p>Meldet sich eine Minute nach dem Bestätigen noch keine Ampel, zeigt das Dial „Ampel nicht verbunden!“.</p>
 <h2>7 · Sicherung, Zugang und Updates</h2>
-<p><strong>Bestand sichern:</strong> Unter Gerät die JSON-Sicherung herunterladen. Sie enthält Kartenzuordnungen und Belegungen, keine Zugangskennwörter. Derzeit ist dies eine Sicherung zur Kontrolle und technischen Wiederherstellung; ein automatischer Importknopf ist noch nicht enthalten.</p>
-<p><strong>WLAN anzeigen:</strong> Taste am Dial drei Sekunden halten und loslassen. Die Zugangsdaten werden vorübergehend angezeigt.</p>
-<p><strong>Betreuungskennwort vergessen:</strong> Taste zehn Sekunden halten, loslassen und die Rückfrage mit einem kurzen Druck bestätigen. Danach erscheint ein neuer Einrichtungscode. Der Kartenbestand bleibt erhalten. Dies setzt den Betreuungszugang zurück; bei gültiger Konfiguration bleibt das WLAN-Kennwort unverändert.</p>
-<p><strong>Update:</strong> Bestand vorher sichern. Im Installationshelfer „Update“ wählen. Der Helfer liest zunächst das Speicherlayout aus; bei Abweichung bricht er ab, ohne die Firmware zu schreiben. Bei passendem Layout wird nur die Programmdatei aktualisiert. Die Option ist für die bereits installierte Mensaampel vorgesehen. Nach Neustart ist erneut eine Bestandsbestätigung erforderlich. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.</p>
-<p><strong>Speicherstörung:</strong> Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.</p>
+<p><strong>Bestand sichern:</strong> Unter Gerät die JSON-Sicherung herunterladen – spätestens direkt nach dem Einlernen der Karten und danach etwa alle zwei Wochen (das Tablet erinnert daran). Sie enthält Kartenzuordnungen, Belegungen, Einstellungen und Lernwerte, keine Zugangskennwörter. Mit „Sicherung einspielen“ lässt sie sich wiederherstellen, z. B. auf einem Ersatzgerät; danach den Bestand bestätigen.</p>
+<p><strong>WLAN anzeigen:</strong> Taste am Dial drei Sekunden halten und loslassen (ein weißer Ring zeigt den Fortschritt). Die Zugangsdaten werden 30 Sekunden angezeigt; ein kurzer Druck schließt die Anzeige, ohne etwas anderes auszulösen. <strong>WLAN-Kanal</strong> (1, 6 oder 11) unter Gerät → Geräteeinstellungen wählen, falls das WLAN in der Schule durch Nachbarnetze gestört wird.</p>
+<p><strong>Betreuungskennwort vergessen:</strong> Taste zehn Sekunden halten, loslassen und die Rückfrage zur Sicherheit mit <strong>nochmal 3 Sekunden Halten</strong> bestätigen (ein kurzer Druck bricht ab). Danach erscheint ein neuer Einrichtungscode. Der Kartenbestand bleibt erhalten. Dies setzt den Betreuungszugang zurück; bei gültiger Konfiguration bleibt das WLAN-Kennwort unverändert.</p>
+<p><strong>Update:</strong> Bestand vorher sichern. Im Installationshelfer „Update“ wählen. Der Helfer liest zunächst das Speicherlayout aus; bei Abweichung bricht er ab, ohne die Firmware zu schreiben. Bei passendem Layout wird nur die Programmdatei aktualisiert. Die Option ist für die bereits installierte Mensaampel vorgesehen. Am besten nach dem Mittag updaten; am selben Tag bleibt der Bestand danach bestätigt, sonst einmal bestätigen.</p>
+<p><strong>Update für den Hausmeister in Kürze:</strong> 1. Tablet: Sicherung herunterladen. 2. Dial per USB-Datenkabel an den Windows-PC. 3. Neue <code>Mensaampel_Dial_Vorbereitung.zip</code> entpacken, <code>Dial-Installieren.cmd</code> starten, „Update“ wählen. 4. Warten, bis das Dial neu startet. 5. Am Tablet unter Gerät die Version prüfen. Ein erstmaliger oder fremder Geräteinhalt gehört nicht in den Updatepfad.</p>
+<p><strong>Speicherstörung:</strong> Der Einlass bleibt gesperrt. Bei einem vorübergehenden Schreibfehler versucht das Dial alle 5 Sekunden selbst erneut zu speichern; gelingt das, verschwindet die Störung ohne Zutun. Sonst kann „Speicherung prüfen“ helfen. Bei beschädigten oder unterbrochenen Bestandsdateien zuerst alle tatsächlichen Belegungen abgleichen, nötige Korrekturen unter Betreuung vornehmen und erst danach unter Gerät ausdrücklich übernehmen. Die Software formatiert den Speicher niemals selbstständig. Bei einer wiederholten Beschädigung ist eine technische Prüfung nötig; nicht durch Erstinstallation den ungeklärten Bestand löschen.</p>
 <h2>Abnahme am echten Gerät</h2>
 <table>
 <thead>
@@ -113,6 +158,26 @@
 <td>☐</td>
 </tr>
 <tr>
+<td>Unter Gerät 10 Karten einzeln einlernen</td>
+<td>Kein Speicherfehler</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Karte von ihrer Nummer lösen und neu einlernen</td>
+<td>Nummer bleibt, alte Karte wird abgewiesen</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Gerätetest → „Speicher-Dauertest“</td>
+<td>Nach etwa 10 s Ergebnis unter dem Knopf, ohne Fehler; kleinster größter Block deutlich über 24 KB; Ampel bleibt dabei verbunden</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Betreuungsseite 10 Minuten offen lassen, dabei scannen</td>
+<td>Unter Gerät „Aussetzer 0“ (vereinzelte Aussetzer ohne Meldung sind harmlos)</td>
+<td>☐</td>
+</tr>
+<tr>
 <td>Ausgabe / Rückgabe</td>
 <td>Genau eine Änderung; gesicherter Bestand</td>
 <td>☐</td>
@@ -123,8 +188,8 @@
 <td>☐</td>
 </tr>
 <tr>
-<td>Erneut bei 5 und nach 10 Sekunden vorhalten</td>
-<td>Erst abgewiesen, später Gegenbuchung</td>
+<td>Sofort erneut und nach 3 Sekunden vorhalten</td>
+<td>Erst abgewiesen mit Countdown („K03 gesperrt – noch 2 s“), danach Gegenbuchung</td>
 <td>☐</td>
 </tr>
 <tr>
@@ -149,7 +214,22 @@
 </tr>
 <tr>
 <td>Strom nach bestätigter Buchung trennen</td>
-<td>Belegung bleibt, Einlass fordert Bestätigung</td>
+<td>Belegung bleibt; am selben Tag bleibt der Bestand bestätigt und der Countdown läuft weiter</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Tagesstart mit einer nicht zurückgegebenen Karte</td>
+<td>Dial wartet („Neuer Tag? 3 s halten“), Karte danach gesperrt, Scan gibt sie frei</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ring um eine Raste anstoßen</td>
+<td>Mensa-Einstellung öffnet sich nicht</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Taste halten</td>
+<td>Weißer Fortschrittsring, nach 3 s „Loslassen“</td>
 <td>☐</td>
 </tr>
 <tr>
@@ -160,6 +240,61 @@
 <tr>
 <td>Update des Testgeräts</td>
 <td>Kartenzuordnungen und Einstellungen bleiben</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Update per Tablet, dabei das WLAN des Tablets kurz aus- und wieder einschalten (ab 0.19.1)</td>
+<td>Fortschritt bleibt kurz stehen und läuft danach weiter; Update fertig</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Update per Tablet über das Dial-WLAN (Gerät → Firmware-Update)</td>
+<td>Fortschritt am Dial, Neustart mit neuer Version, Karten unverändert; ein Foto wird abgelehnt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Küche auf wenige Plätze stellen, bis „Mensa öffnen? Drehen“ erscheint; Ring drehen</td>
+<td>Mensa-Einstellung öffnet mit Vorschlag, Taste übernimmt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Gerät → „Gesundheit heute“ nach einem Mittag</td>
+<td>Alle Punkte grün oder erklärbar; Werte notieren</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Dial einschalten (0.19)</td>
+<td>„Start-Check“ mit Haken für Leser, Uhr, Speicher, WLAN/Router; Uhr gelb, bis ein Tablet verbunden ist</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ruhemodus auf 10 Minuten, keine Karte draußen, 10 Minuten nichts tun</td>
+<td>Dial wird dunkel; Ampel läuft weiter</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Im Ruhemodus Ring drehen bzw. Taste drücken</td>
+<td>Dial wird hell, sonst passiert nichts (keine Pause, keine Mensa-Einstellung)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Im Ruhemodus eine Kinderkarte auflegen</td>
+<td>Dial wird hell und bucht die Karte wie gewohnt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Mensa fast voll (≥ 85 % der freigegebenen Plätze belegt)</td>
+<td>Ampel bei Grün zusätzlich „bitte leise reingehen“</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Nach einem Mittag (0.20): Einlass &amp; Messungen → Lern-Tagebuch</td>
+<td>Einträge zum Mittag in verständlichen Sätzen</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ampel-Tablet: Dial kurz ausschalten (1 Minute), wieder ein</td>
+<td>Ampel rot ohne Fehlerseite, danach von selbst wieder grün</td>
 <td>☐</td>
 </tr>
 <tr>
@@ -177,8 +312,469 @@
 <li><a href="https://docs.m5stack.com/en/arduino/m5dial/program">Übertragungsmodus des Dial</a></li>
 <li><a href="https://community.m5stack.com/topic/6628/m5dial-wifi-not-work-when-rfid-is-enabled">Erfahrungsbericht zu WLAN und RFID</a></li>
 </ul>
-<h2>Neu: Einlassgruppen, Gelb und Messungen</h2>
-<p>Unter <strong>Einlass &amp; Messungen</strong> stehen Gelbgrenze, begrenzte Einlassgruppen sowie Einzel- und Gruppenmessungen zur Verfügung. Startwert Gelb: fünf freie Plätze. Gruppenbegrenzung zunächst aus (0); beispielsweise auf fünf setzen und Einlass anschließend bewusst fortsetzen. Die Messungen bedient ihr am verbundenen Tablet. Einzelheiten: <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a>.</p>
-<p>Auf dem Dial zeigt ein Kreis Grün, Gelb oder Rot mit kurzem Text. Ein kurzer Druck pausiert beziehungsweise setzt fort; bei einer noch laufenden Gruppenmessung zuerst den Messabschluss am Tablet bestätigen oder die Messung verwerfen.</p>
-<h2>Erweiterung 0.4: Entlastung und frühe Hinweise</h2>
-<p>Die orange Bildschirmtaste am Dial startet <strong>Ausgabe entlasten</strong>. Kurzer physischer Tastendruck setzt bewusst fort. Messungen bleiben am Betreuungstablet. Die neue Ampelanzeige und die zweistufigen Zeithinweise sind in <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a> beschrieben.</p></main></html>
+<h2>Bedienung im Alltag (Stand 0.8)</h2>
+<p>Ausführlich und mit echten Bildschirmbildern in <a href="BEDIENUNG-DIAL.html">BEDIENUNG-DIAL.html</a> bzw. <code>BEDIENUNG-DIAL.pdf</code>. Die Kurzkarte <code>DIAL-KURZKARTE.pdf</code> (zwei Karten pro A4-Seite) neben das Dial kleben. Dieselben Inhalte stehen am Tablet unter <strong>Hilfe</strong>.</p>
+<p><strong>Anzeige:</strong> Der ganze Bildschirm leuchtet grün (Platz frei), gelb (fast voll) oder rot (Einlass zu). Ganz oben steht, was die Taste gerade bewirkt (z. B. „Taste: Pause“). Darunter ein Symbol (✓ frei, ⏸ Pause/Warten, ! Hinweis, ✕ Störung) und eine <strong>große Zahl</strong>: Läuft eine Gruppe, wie viele Kinder dieser Gruppe noch kommen dürfen – in Klammern die insgesamt freien Plätze „(46 frei: K 42 · M 4)“; ohne Gruppen die freien Plätze. Wartet die Automatik auf die nächste Gruppe, zeigt die Zahl die Restzeit („0:42“) und ein Ring läuft am Rand ab. Nach jedem Scan erscheint kurz ein ✓ (gebucht) oder ! (abgewiesen) mit der Meldung. Hinweise stehen in einem dunklen Feld über dem Knopf „ENTLASTEN“ (unten).</p>
+<table>
+<thead>
+<tr>
+<th>Handgriff</th>
+<th>Wirkung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Taste (Dial-Front drücken) kurz</td>
+<td>Grün: Pause · Pause/Entlastung: weiter · Countdown: nächste Gruppe sofort · Mensa-Einstellung: übernehmen</td>
+</tr>
+<tr>
+<td>Taste 3 s halten</td>
+<td>Bestand unbestätigt: bestätigen · sonst WLAN-Daten</td>
+</tr>
+<tr>
+<td>Taste 10 s halten</td>
+<td>Zugang zurücksetzen (mit kurzem Druck bestätigen)</td>
+</tr>
+<tr>
+<td>Ring drehen</td>
+<td>Mensaplätze einstellen (0 = sperren), Taste übernimmt, 15 s ohne Eingabe = Abbruch</td>
+</tr>
+<tr>
+<td>Fläche „ENTLASTEN“</td>
+<td>Einlass sofort stoppen, weil die Ausgabe zu voll ist</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Automatik, Startgruppe, Tagesstart:</strong> unter <strong>Einlass &amp; Messungen → Automatik</strong> am Tablet. Einzelheiten in <a href="EINLASS-UND-MESSUNGEN.html">Einlass und Messungen</a>. Der automatische neue Essenstag setzt nur zurück, wenn mindestens 30 Minuten nicht gescannt wurde – eine falsch gehende Uhr kann so nicht mitten im Mittag zurücksetzen.</p>
+<p><strong>Uhrzeit:</strong> Die angemeldete Betreuungsansicht stellt die Dial-Uhr automatisch nach, wenn sie mehr als 2 Minuten abweicht (auch nach der Zeitumstellung). Einmal im Monat kurz die Betreuungsseite öffnen genügt.</p>
+<p><strong>Lautstärke:</strong> Betreuung → Einstellungen (0 = stumm). <strong>Gong an der Ampel:</strong> Auf dem Ampel-Tablet unten „Ton an“ tippen; beim Wechsel auf Grün klingt ein kurzer Gong.</p>
+<p><strong>Warnungen am Dial:</strong> „Ampel draussen getrennt!“ (Ampel-Tablet fragt nicht mehr nach), „2 Karten fehlen“ (20 Minuten kein Scan, aber Karten ausgegeben), „Stoerung“ (Leser oder Speicher).</p>
+<p><strong>Sicherung:</strong> unter Gerät herunterladen und wieder einspielen (enthält auch Lernwerte und Tagesberichte, keine Kennwörter). <strong>Tagesbericht:</strong> unter Einlass &amp; Messungen, als CSV.</p>
+<h3>Zusätzlich am echten Gerät prüfen (0.8)</h3>
+<table>
+<thead>
+<tr>
+<th>Prüfung</th>
+<th>Erwartung</th>
+<th>Erledigt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Taste = Dial-Front drücken</td>
+<td>kurz / 3 s / 10 s wie beschrieben</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Drehring</td>
+<td>eine Raste = eine Platzzahl, Richtung sinnvoll</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Lesbarkeit aus 1–2 m</td>
+<td>Farbe und große Schrift erkennbar</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Anzeige ohne Flackern</td>
+<td>Bildwechsel ruhig (Zwischenspeicher aktiv)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Uhr nach Stromlosigkeit</td>
+<td>Uhrzeit bleibt oder wird beim Öffnen der Betreuung nachgestellt</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Ampel-Tablet ausschalten</td>
+<td>nach 10 s „Ampel draussen getrennt!“ am Dial</td>
+<td>☐</td>
+</tr>
+</tbody>
+</table>
+<h2>Dial nur zur Mittagszeit eingeschaltet</h2>
+<p>So ist es gedacht – das Dial muss nicht dauerhaft laufen.</p>
+<ul>
+<li><strong>Neuer Essenstag automatisch:</strong> nur wenn unter <strong>Einlass &amp; Messungen → Automatik</strong> „Neuer Essenstag automatisch um …“ angehakt ist (z. B. 10:00). Dann startet beim Einschalten an einem neuen Kalendertag der neue Tag von selbst, sobald die Uhr gestellt ist und keine Karte mehr draußen ist. Sind noch Karten draußen (z. B. eine Karte versehentlich mitgenommen), fragt das Dial „Neuer Tag? 3 s halten“. Ist der Haken nicht gesetzt, startet der neue Tag nur von Hand: Tablet „Neuer Essenstag“ oder Betreuerkarte → „Neuer Essenstag“.</li>
+<li><strong>Uhr:</strong> Das Dial hat keinen Akku; nach dem Ausschalten ist die Uhr oft leer. Sie wird automatisch gestellt, sobald das Ampel- oder das Betreuungs-Tablet verbunden ist. Bis dahin steht „Uhr nicht gestellt“ und es gibt keinen automatischen Tageswechsel. Deshalb: zuerst Dial einschalten, dann Ampel-Tablet verbinden.</li>
+<li><strong>Bestand bestätigen:</strong> nach jedem Einschalten wie gewohnt (Taste 3 s halten).</li>
+</ul>
+<h2>Testdaten löschen</h2>
+<p>Nach dem Ausprobieren, vor dem echten Betrieb: <strong>Einlass &amp; Messungen → ganz unten „Testdaten löschen“</strong>. Einzeln wählbar: Tagesberichte (Statistik; der Essenstag beginnt wieder bei 1), letzte Vorgänge, Gruppenmessungen, Gelerntes (auch die Verweildauer), Hinweise zu Karten. Karten-Zuordnungen, Bestand und Einstellungen bleiben immer erhalten. Vorher eine Sicherung herunterladen.</p>
+<h2>Update ohne PC (über das WLAN des Dials)</h2>
+<p>Ab Version 0.12 lassen sich Updates mit jedem Tablet (Android oder iPad) einspielen – ohne Kabel, ohne G0-Taste und ohne Internet am Dial. Die erste Installation von 0.12 braucht einmal den PC (siehe oben).</p>
+<ol>
+<li><strong>Mit Internet:</strong> Im Release die Datei <strong>„Mensaampel-Dial-Update.bin“</strong> auf das Tablet laden (Android: landet unter „Downloads“; iPad: in Safari laden, liegt dann in der App „Dateien“).</li>
+<li>Tablet mit dem <strong>WLAN des Dials</strong> verbinden, <code>http://192.168.4.1</code> öffnen und anmelden.</li>
+<li><strong>Gerät → Firmware-Update</strong> → Datei auswählen. Das Tablet prüft sie und zeigt „Version alt → neu“.</li>
+<li><strong>Update starten</strong> und bestätigen. Am Dial läuft ein Ring mit Prozentzahl („UPDATE“), danach startet es neu. Nicht ausschalten. Dauer etwa eine Minute; so lange ist der Einlass unterbrochen und die Ampel rot. Ab 0.19.1 überträgt das Tablet die Datei in kleinen Stücken: Fällt das Tablet kurz aus dem WLAN, macht es danach an derselben Stelle weiter (bis zu 90 Sekunden ohne Verbindung).</li>
+<li>Das Tablet meldet „Update fertig: Version …“. Neu anmelden und den Bestand wie nach jedem Neustart bestätigen. Ab 0.17.7 laden die übrigen Tablets (auch die Ampel) die neue Oberfläche von selbst; bei älteren Versionen die Ampelseite einmal neu laden.</li>
+</ol>
+<p>Sicherheit: Karten, Bestand und Einstellungen bleiben erhalten. Eine falsche Datei (z. B. ein Foto) wird abgelehnt, das Dial bleibt unverändert. Bricht die Übertragung ab, bleibt das alte Programm aktiv. Startet die neue Version dreimal nicht sauber, schaltet das Dial selbst auf die alte Version zurück und meldet „Update zurückgenommen“.</p>
+<h2>Update per USB, wenn das Tablet-Update abbricht</h2>
+<p>Bis 0.19.0 lief ein Update vom Tablet in einem Stück. Fiel das Tablet dabei kurz aus dem WLAN (beim Galaxy Tab etwa jede Minute), brach die Übertragung ab und das alte Programm blieb. Ab 0.19.1 geht das stückweise. <strong>Einmalig</strong> muss 0.19.1 aber noch über den alten Weg auf das Dial – am sichersten per USB:</p>
+<ol>
+<li>Release <strong>v0.19.1-preview</strong> öffnen und <code>Mensaampel_Dial_Vorbereitung.zip</code> <strong>neu</strong> herunterladen und vollständig entpacken (nicht den alten Ordner benutzen – der alte Helfer hatte beim Update einen Fehler, siehe unten).</li>
+<li>Vorher am Tablet <strong>Gerät → Sicherung herunterladen</strong> (zur Sicherheit).</li>
+<li>G0-Taste am Dial gedrückt halten, USB-Datenkabel mit dem PC verbinden, G0 loslassen.</li>
+<li><code>Dial-Installieren.cmd</code> starten, Anschluss wählen, <strong>„Update – Karten und Einstellungen behalten“</strong> wählen, bestätigen, <strong>Software übertragen</strong>.</li>
+<li>Nach „Fertig“ RST drücken bzw. USB neu verbinden. Am Tablet unter Gerät muss <strong>Version 0.19.1-preview</strong> stehen. Bestand wie nach jedem Neustart bestätigen.</li>
+</ol>
+<p><strong>Fehler im alten Helfer (bis 0.19.0):</strong> Die Option „Update“ schrieb das Programm nur in den ersten Programmbereich. Nach einem Tablet-Update startet das Dial aber aus dem zweiten Bereich – das neue Programm wäre dann unsichtbar geblieben. Ab 0.19.1 setzt der Helfer zusätzlich den Startbereich zurück. Karten und Einstellungen bleiben dabei erhalten.</p>
+<p><strong>Ohne PC:</strong> Statt mit dem Galaxy Tab das Update mit einem Laptop oder einem Tablet machen, das zuverlässig im WLAN bleibt (Bildschirm an, nahe am Dial). Mit Claude Code am PC: „Bitte das Dial per USB auf 0.19.1 aktualisieren (Update-Modus, Karten behalten).“</p>
+<h2>Lernen, Hinweise und Gesundheit (ab 0.16)</h2>
+<p>Alles wird im Dial gespeichert, nur als Zahlen, ohne Namen. <strong>Jedes Tablet</strong>, das sich anmeldet, sieht dieselben Werte; ein Tablet-Wechsel verliert nichts.</p>
+<ul>
+<li><strong>Verweildauer:</strong> Das Dial lernt bei jeder Rückgabe, wie lange ein Kind seine Karte behält (je Wochentag und halber Stunde von 11 bis 15 Uhr). Ignoriert werden Rückgaben unter 3 Minuten (Doppelscan) und über 90 Minuten (vergessen). Ab 5 Rückgaben zeigt die <strong>Ampel bei vollem Haus</strong> „Nächster Platz frei in ca. 4 Min.“. Das ist eine <strong>Schätzung</strong>; die automatische Gruppenfreigabe ändert sich dadurch nicht. Nach einem Neustart des Dials gibt es die Schätzung erst wieder für neu ausgegebene Karten.</li>
+<li><strong>Mensa-Assistent:</strong> Ist die Küche voll (höchstens 1 Platz frei) und die Mensa geschlossen, steht am Dial „Mensa öffnen? Drehen“. Ring drehen öffnet die Mensa-Einstellung <strong>schon mit einem Vorschlag</strong>, die Taste übernimmt. Der Vorschlag ist die höchste Mensa-Belegung der letzten (bis zu 4) gleichen Wochentage, auf 5 aufgerundet, mindestens 10; ohne Erfahrung 20. Am Tablet erscheint dazu ein Hinweis mit Knopf „Mensa mit … Plätzen öffnen“.</li>
+<li><strong>Hinweise zu Karten</strong> (Betreuung): Nummern, die schon <strong>2-mal am Tagesende fehlten</strong>, und Nummern, die <strong>3-mal innerhalb einer Minute zurückkamen</strong> (Doppelscan? Karte geteilt?). Nach dem Klären „Erledigt“ tippen; der Zähler dieser Nummer beginnt neu.</li>
+<li><strong>Tagesbericht:</strong> neu „Höchste Belegung“ (meiste Karten gleichzeitig draußen) und „Mensa-Spitze“.</li>
+<li><strong>Gesundheit heute</strong> (Gerät): seit dem Einschalten je ein farbiger Punkt für Start (Absturz?), Kartenleser, Speichern, Arbeitsspeicher, Ampel draußen, Antwortzeit und dieses Tablet – mit einem Satz, was zu tun ist. Grün = in Ordnung, Gelb = beobachten, Rot = handeln.</li>
+<li><strong>Freundliches Warten</strong> an der Ampel: bei Rot ruhig pulsierende Punkte und abwechselnd „Danke fürs Warten!“, „Gleich bist du dran!“ …; im Countdown „Ihr seid die Nächsten!“. Die Sprachzeile sagt abwechselnd „Bitte warten“ und „Danke fürs Warten“ (Übersetzungen bitte wie die anderen prüfen lassen).</li>
+</ul>
+<h2>Prognose, Wochen-Coach und Simulator (ab 0.17)</h2>
+<p>Das rechnet das <strong>Tablet</strong> aus den Tagesberichten im Dial, das Dial braucht dafür keinen Speicher. Jedes angemeldete Tablet zeigt dasselbe.</p>
+<ul>
+<li><strong>Heute erwartet</strong> (oben unter Betreuung): aus den letzten bis zu 4 gleichen Wochentagen etwa so viele Essen, so viele Kinder gleichzeitig, Ausgabezeit, ob die Mensa wohl gebraucht wird. Erscheint, sobald es mindestens einen früheren gleichen Wochentag gibt.</li>
+<li><strong>Wochen-Coach</strong> (Einlass &amp; Messungen): ab 3 Essenstagen Vorschläge mit Begründung, z. B. „Gruppen auf 5 verkleinern – bei 32 von 104 Gruppen musste entlastet werden“, „Automatische Freigabe einschalten“, „Mensa heute gleich öffnen“, „Karten am Ende einsammeln“. <strong>Nichts ändert sich von selbst</strong>; erst „Übernehmen“ schickt die Einstellung ans Dial. Eine neue Gruppengröße nimmt das Dial nur zwischen zwei Gruppen oder in einer Pause an.</li>
+<li><strong>Was wäre, wenn …?</strong> (Einlass &amp; Messungen): zwei Gruppengrößen nebeneinander durchrechnen – Wartezeit an der Tür, an der Ausgabe, Zahl der Gruppen. Es ist eine <strong>Schätzung</strong> mit einem einfachen Modell (die meisten Kinder kommen gleich zu Beginn); zum Vergleichen reicht es, echte Mittage weichen ab.</li>
+</ul>
+<h2>Prüfung über USB (ab 0.17.1)</h2>
+<p>Das Dial per USB-Datenkabel an den PC, die Tablets normal im Dial-WLAN: Ein Prüfskript beobachtet 10 Minuten lang Speicher, Ampel-Verbindung, Leser und Speichern, startet den Speicher-Dauertest und schreibt einen Bericht. Mit Claude Code am PC: „Bitte die Geräteprüfung nach PRUEFUNG-AM-PC.md machen.“ Einzelheiten in <a href="PRUEFUNG-AM-PC.md">PRUEFUNG-AM-PC.md</a>.</p>
+<h2>Ampel-Tablet: WLAN stabil halten</h2>
+<p>Das Dial-WLAN hat absichtlich kein Internet. Viele Tablets verlassen so ein Netz deshalb immer wieder kurz oder hören im Energiesparmodus auf zu fragen – dann wird die Ampel für einige Sekunden rot. Einmal einstellen:</p>
+<p>Ab 0.17.3 beantwortet das Dial die „Habe ich Internet?“-Prüfung der Tablets selbst; damit bleiben die meisten Tablets ohne weitere Einstellung im Dial-WLAN. Zusätzlich:</p>
+<p><strong>Samsung Galaxy Tab:</strong>
+- Einstellungen → Verbindungen → WLAN → ⋮ (oben rechts) → <strong>Intelligentes WLAN</strong>: <strong>„Zu mobilen Daten wechseln“ aus</strong>, <strong>„WLAN-Energiesparmodus“ aus</strong>.
+- Beim Dial-Netz auf das Zahnrad → „Automatisch erneut verbinden“ <strong>an</strong>, <strong>MAC-Adresstyp: „Telefon-MAC“</strong> (nicht „Zufällige MAC“).
+- Einstellungen → Akku → Hintergrundnutzungslimits: den Browser unter <strong>„Nie im Standby“</strong> eintragen.</p>
+<p><strong>Android allgemein</strong> (Bezeichnungen je nach Hersteller etwas anders):
+- Einstellungen → WLAN → beim Dial-Netz auf das Zahnrad: <strong>„Automatisch verbinden“ an</strong>; wenn gefragt „Kein Internet – verbunden bleiben?“: <strong>„Ja, nicht mehr fragen“</strong>.
+- <strong>Mobile Daten aus</strong> (bzw. keine SIM) und <strong>„Intelligenter Netzwechsel“ / „Adaptives WLAN“ / „Zu mobilen Daten wechseln“ aus</strong>.
+- Anzeige → <strong>Bildschirm-Timeout auf das Maximum</strong> bzw. „Nie“ (oft unter Entwickleroptionen „Aktiv lassen“ beim Laden) und <strong>Ladekabel dran</strong>.
+- Akku → Browser (Chrome) <strong>nicht optimieren / „Uneingeschränkt“</strong>.</p>
+<p><strong>iPad:</strong>
+- Einstellungen → WLAN → (i) beim Dial-Netz: <strong>„Automatisch verbinden“ an</strong>, „Datenarmer Modus“ aus, <strong>„Private WLAN-Adresse“ aus</strong>.
+- Einstellungen → Mobilfunk (falls vorhanden): <strong>„WLAN-Assistent“ aus</strong>.
+- Anzeige &amp; Helligkeit → <strong>Automatische Sperre: Nie</strong>, Ladekabel dran. Am besten „Geführter Zugriff“ (siehe „iPad als Ampel einrichten“).</p>
+<p><strong>Hilft das nicht:</strong> WLAN-Kanal des Dials wechseln (Gerät → Einstellungen → WLAN-Kanal 1, 6 oder 11; einen anderen als das Heim- oder Schul-WLAN nehmen) und die Prüfung über USB wiederholen. Der Bericht zeigt jetzt jede Trennung mit Uhrzeit und die Signalstärke: schwaches Signal → Tablet näher ans Dial; gutes Signal → Einstellung am Tablet.</p>
+<p><strong>Immer:</strong> Auf dem Ampel-Tablet nur <strong>einen</strong> Tab mit <code>/ampel</code> offen lassen, keine anderen Apps im Vordergrund. Ob es hilft, zeigt „Gesundheit heute“ (WLAN-Trennungen) bzw. die Prüfung über USB (Tabelle „Pausen der Ampel“ mit Ursache).</p>
+<h2>Router einrichten (ab 0.18, freiwillig)</h2>
+<p><strong>Du hast die Wahl.</strong> Ohne Router läuft alles wie bisher: Das Dial macht sein eigenes WLAN auf (Standard). Mit einem eigenen kleinen Router (ohne Internet) meldet sich das Dial dort an, und die Tablets verbinden sich ebenfalls mit dem Router. Vorteile: Der Router funkt stärker und weiter, und Tablets bleiben meist stabiler verbunden. Zurück zum eigenen WLAN geht jederzeit (Schritt E).</p>
+<p><strong>Was du brauchst:</strong> einen kleinen Reiserouter, empfohlen <strong>GL.iNet GL-SFT1200 „Opal“</strong> (ca. 35 €, Strom über USB-C, Oberfläche auf Deutsch). Ein Internetanschluss ist <strong>nicht</strong> nötig. Die Anleitung passt zur Router-Software 4.x; heißen Menüpunkte bei dir etwas anders, mach ein Foto vom Bildschirm und frag nach.</p>
+<h3>A · Router auspacken und anmelden</h3>
+<ol>
+<li>Router mit dem USB-C-Netzteil an den Strom, etwa 1 Minute warten. Kein Kabel in die Buchsen „WAN“ oder „LAN“ stecken.</li>
+<li>Laptop oder Tablet mit dem WLAN des Routers verbinden. Name und Kennwort stehen auf dem <strong>Aufkleber unten</strong> am Router (z. B. „GL-SFT1200-xxx“).</li>
+<li>Im Browser <strong>http://192.168.8.1</strong> öffnen.</li>
+<li><strong>Sprache: Deutsch</strong> wählen und ein <strong>Admin-Kennwort</strong> für den Router festlegen (mindestens 10 Zeichen). <strong>Aufschreiben</strong> – es ist nicht das WLAN-Kennwort.</li>
+<li>Fragt der Router nach Internet oder Updates: <strong>überspringen</strong>.</li>
+</ol>
+<h3>B · WLAN des Routers einstellen</h3>
+<p>Menü links: <strong>DRAHTLOS</strong> (bzw. „WLAN“).
+1. Bei <strong>2,4 GHz WLAN</strong>: <strong>WLAN-Name (SSID)</strong> z. B. <code>Mensaampel</code>, <strong>WLAN-Kennwort</strong> mindestens 8 Zeichen (z. B. 12 Zeichen aus Buchstaben und Zahlen). <strong>Aufschreiben.</strong>
+2. Dort auf <strong>Erweitert</strong> bzw. das Zahnrad: <strong>Kanal fest auf 1, 6 oder 11</strong> (nicht „Auto“; am besten einen anderen als das Schul-WLAN). „AP-Isolation“ muss <strong>aus</strong> sein (ist sie ab Werk).
+3. <strong>5 GHz WLAN: ausschalten</strong> (das Dial kann nur 2,4 GHz; so landen alle Tablets im selben Netz).
+4. <strong>Gast-WLAN: aus</strong> lassen.
+5. <strong>Übernehmen.</strong> Der Router startet das WLAN neu – den Laptop bzw. das Tablet jetzt mit dem <strong>neuen</strong> Namen und Kennwort verbinden und wieder http://192.168.8.1 öffnen.</p>
+<h3>C · Dial als DNS-Server eintragen</h3>
+<p>Damit die Tablets nicht „Kein Internet“ melden und das WLAN verlassen, beantwortet das Dial ihre Internetprüfung. Dafür muss der Router die Anfragen ans Dial geben:
+1. Menü <strong>NETZWERK → DNS</strong>.
+2. <strong>DNS-Rebinding-Angriffsschutz</strong> (bzw. „Rebind-Schutz“): <strong>ausschalten</strong>. Wichtig – sonst verwirft der Router die Antworten des Dials.
+3. <strong>Modus: Manuell</strong> (bzw. „Benutzerdefinierter DNS-Server“) und als DNS-Server <strong>192.168.8.20</strong> eintragen (das ist gleich die Adresse des Dials).
+4. <strong>Übernehmen.</strong></p>
+<p>Mehr ist am Router nicht einzustellen. Eine feste Adresse für das Dial muss im Router <strong>nicht</strong> eingetragen werden: 192.168.8.20 liegt außerhalb des Bereichs, den der Router selbst vergibt (ab 192.168.8.100).</p>
+<h3>D · Dial auf den Router umstellen</h3>
+<ol>
+<li>Das Betreuungs-Tablet noch <strong>mit dem WLAN des Dials</strong> verbinden (wie bisher) und anmelden.</li>
+<li><strong>Gerät → WLAN und Zugang → WLAN-Art: „WLAN eines Routers“</strong>.</li>
+<li><strong>WLAN-Name des Routers</strong> und <strong>WLAN-Kennwort des Routers</strong> aus Schritt B eintragen. Adresse des Dials <code>192.168.8.20</code>, Adresse des Routers <code>192.168.8.1</code>, Netzmaske <code>255.255.255.0</code> sind schon vorausgefüllt – so lassen.</li>
+<li><strong>Zugang speichern.</strong> Das Dial startet neu und zeigt kurz „Verbinde mit Router …“.</li>
+<li>Alle Tablets (Ampel und Betreuung) mit dem <strong>Router-WLAN</strong> verbinden und öffnen:</li>
+<li>Betreuung: <strong>http://192.168.8.20</strong></li>
+<li>Ampel: <strong>http://192.168.8.20/ampel</strong> (Lesezeichen bzw. „Zum Home-Bildschirm“ neu anlegen; die alte Adresse 192.168.4.1 geht jetzt nicht mehr)</li>
+<li>Die Einstellungen aus „Ampel-Tablet: WLAN stabil halten“ gelten genauso für das Router-WLAN (dort beim Router-Netz statt beim Dial-Netz).</li>
+</ol>
+<p><strong>Adresse vergessen?</strong> Am Dial Betreuerkarte → „WLAN-Daten“ (oder Taste 3 s halten): Das Dial zeigt Router-Name, Kennwort und seine Adresse.</p>
+<h3>E · Wenn etwas nicht klappt (Rettung)</h3>
+<p>Findet das Dial den Router <strong>30 Sekunden</strong> lang nicht (Router aus, Name oder Kennwort falsch), macht es <strong>zusätzlich sein eigenes WLAN</strong> wieder auf. Das Display zeigt dann „Router fehlt: eigenes WLAN an“.
+1. Tablet mit dem <strong>eigenen WLAN des Dials</strong> verbinden (Name und Kennwort zeigt das Dial unter „WLAN-Daten“) und <strong>http://192.168.4.1</strong> öffnen.
+2. Unter Gerät → WLAN und Zugang die Router-Daten korrigieren – oder <strong>WLAN-Art: „Eigenes WLAN des Dials“</strong> wählen, um ganz zurückzuwechseln – und speichern.</p>
+<p>Kommt der Router später wieder, verbindet sich das Dial von selbst (es versucht es jede Minute).</p>
+<table>
+<thead>
+<tr>
+<th>Was du siehst</th>
+<th>Was tun</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dial: „Verbinde mit Router …“ bleibt stehen</td>
+<td>Router an? Name und Kennwort genau gleich wie im Router (Groß-/Kleinschreibung)? 5 GHz-only-Netz? → 2,4 GHz an.</td>
+</tr>
+<tr>
+<td>Tablet im Router-WLAN, aber Seite lädt nicht</td>
+<td>Adresse genau <strong>http://192.168.8.20</strong> (nicht https). Gast-WLAN? → normales WLAN nehmen. AP-Isolation aus?</td>
+</tr>
+<tr>
+<td>Tablet meldet „Kein Internet“ und wechselt</td>
+<td>Schritt C prüfen: DNS-Server 192.168.8.20 <strong>und</strong> Rebind-Schutz aus.</td>
+</tr>
+<tr>
+<td>Gesundheit heute: „Verbindung zum Router verloren“</td>
+<td>Router näher ans Dial, Router-Netzteil prüfen, festen Kanal 1/6/11 einstellen.</td>
+</tr>
+<tr>
+<td>Anderer Router, z. B. FRITZ!Box</td>
+<td>Siehe unten.</td>
+</tr>
+</tbody>
+</table>
+<h3>Anderer Router (Kurzfassung)</h3>
+<p>Prinzip ist gleich: 2,4-GHz-WLAN mit Kennwort und festem Kanal, Gäste- bzw. Client-Isolation aus, <strong>DNS-Server für die Geräte = Adresse des Dials</strong>, Rebind-Schutz aus bzw. Ausnahme für die Adresse. Die Adresse des Dials muss im Netz des Routers liegen, aber außerhalb des Bereichs, den der Router selbst vergibt.
+- <strong>FRITZ!Box</strong> (Adresse meist 192.168.178.1): Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Einstellungen: DHCP-Bereich z. B. ab .100 lassen, <strong>Lokaler DNS-Server: 192.168.178.20</strong>. Im Tablet dann Adresse des Dials <code>192.168.178.20</code>, Router <code>192.168.178.1</code>.
+- Router mit Internet: geht auch, aber dann das Dial <strong>nicht</strong> als DNS-Server eintragen (sonst haben alle Geräte kein Internet mehr).</p>
+<h2>Start-Check, Ruhemodus und Hinweise (ab 0.19)</h2>
+<ul>
+<li><strong>Start-Check:</strong> Nach dem Einschalten zeigt das Dial etwa 4 Sekunden lang Haken für <strong>Leser, Uhr, Speicher und WLAN</strong> (im Router-Betrieb „Router“). Grün = in Ordnung, gelb = wartet (z. B. die Uhr, bis ein Tablet verbunden ist), rot = Fehler – dann bleibt die Anzeige länger stehen und darunter steht, was zu tun ist. Taste oder Karte beenden den Check sofort (eine Karte wird dabei normal gebucht).</li>
+<li><strong>Ruhemodus:</strong> Wird das Dial eine Weile nicht benutzt und ist <strong>keine Karte draußen</strong>, wird es dunkel und leise (Standard 20 Minuten; einstellen unter Einstellungen → „Ruhemodus“, auch „aus“). Eine <strong>Karte</strong> weckt es und wird sofort gebucht. <strong>Ring, Taste oder Berühren</strong> wecken es nur – es passiert dabei nichts anderes. Die Ampel draußen und die Tablets laufen unverändert weiter. Nicht im Ruhemodus: solange der Bestand nicht bestätigt ist, ein Menü, das Einlernen oder ein Countdown läuft.</li>
+<li><strong>Ampel bei fast voller Mensa:</strong> Sind mindestens 85 % der freigegebenen Plätze belegt, zeigt die Ampel bei Grün zusätzlich „Die Mensa ist fast voll – bitte leise reingehen“, auch in der Sprachzeile (Übersetzungen bitte von Muttersprachlern prüfen lassen).</li>
+<li><strong>Wie sicher ist das Gelernte?</strong> Unter Einlass &amp; Messungen zeigt eine Tabelle je Wochentag und halber Stunde, wie viele Gruppen schon gemessen wurden, mit den Stufen <em>noch nicht · unsicher · mittel · sicher</em>. Darunter je Wochentag ein Satz, z. B. „Freitag: unsicher (1 Mittag) – bis sicher noch 3 Mittage“. So sieht man, ab wann man der Automatik und der Prognose trauen kann.</li>
+</ul>
+<h2>Neu in 0.25.3</h2>
+<ul>
+<li><strong>Updates brachen mit „Schreiben fehlgeschlagen“ ab</strong>, online und per Tablet-Datei. Was dahintersteckt, wird jetzt sichtbar:</li>
+<li><strong>Genaue Meldung bei jedem Update-Fehler:</strong> der Grund der Update-Funktion des Dials, wie viel schon geschrieben war und der freie Speicher.</li>
+<li><strong>Online-Update:</strong> Das Dial reserviert den Update-Speicher jetzt, <strong>bevor</strong> die Verbindung zu GitHub aufgebaut wird (die braucht viel Arbeitsspeicher).</li>
+<li><strong>USB-Prüfung am PC</strong> (<code>PRUEFUNG-AM-PC.md</code>): Sie macht einen neuen <strong>Schreibtest des Update-Speichers</strong>. Dabei werden 64 KB Testdaten geschrieben und wieder verworfen. Es wird nichts installiert, und das Dial startet danach wie vorher.</li>
+<li><strong>Diese Version einmal per USB aufspielen:</strong> <code>Mensaampel_Dial_Vorbereitung\Dial-Installieren.cmd</code> → „Update“. Die Update-Wege über das Tablet scheitern gerade, deshalb geht es nur über USB.</li>
+<li><strong>Danach:</strong></li>
+<li>Das Online-Update probieren und bei einem Fehler die ganze Meldung schicken.</li>
+<li>Wenn möglich die USB-Prüfung mit Claude Code am PC laufen lassen und den Bericht schicken.</li>
+<li>Bisher nur gebaut und getestet, noch nicht am Gerät.</li>
+</ul>
+<h2>Neu in 0.25.2</h2>
+<ul>
+<li><strong>Online-Update fand keine Version</strong> (Meldung „GitHub nicht erreichbar (Code 302 …)“). Das Dial hatte GitHub erreicht, aber alle Versionen waren als „Vorabversion“ veröffentlicht. GitHub zählt Vorabversionen nie als „neueste Version“.</li>
+<li>Ab jetzt wird jede Version als <strong>neueste Version</strong> veröffentlicht.</li>
+<li>Zusätzlich fragt das Dial notfalls nach der zuletzt veröffentlichten Version.</li>
+<li><strong>Installieren:</strong> Auch ein Dial mit 0.25.0 oder 0.25.1 findet 0.25.2 damit über <strong>Gerät → Online-Update</strong>.</li>
+<li>Bisher nur gebaut und getestet, noch nicht am Gerät.</li>
+</ul>
+<h2>Neu in 0.25.1</h2>
+<ul>
+<li><strong>Dial zeichnet das Hauptbild etwa 4× schneller.</strong> Der Kranz aus 0.24 hatte sehr viel Rechenzeit gekostet. Darum sprang das Dial spät auf Gelb, und die Antworten an die Ampel wurden langsamer. Das Bild sieht genau gleich aus.</li>
+<li><strong>WLAN-Suche stört die Tablets weniger:</strong> Nach einer reinen Suche startet das Dial-WLAN nicht mehr neu. Nach der Update-Prüfung startet es nur dann neu, wenn sich der Funkkanal geändert hat. Danach beantwortet das Dial die Internet-Prüfung der Tablets sofort wieder, damit sie im WLAN bleiben.</li>
+<li><strong>WLAN-Liste:</strong> Die Einträge sind kompakter. Neu ist das Feld <strong>„Anderes WLAN: Name eingeben“</strong>, falls der Hotspot nicht in der Liste steht.</li>
+<li><strong>Installieren:</strong> Mit 0.25.0 auf dem Dial geht das schon über <strong>Gerät → Online-Update</strong>, also ohne USB.</li>
+<li><strong>Bitte danach melden:</strong> Ist die Ampel wieder stabil, und springt das Dial rechtzeitig auf Gelb? Unter Gerät → Gesundheit: „Bild zeichnen“ (zuletzt und längstes) und „Flüssige Animation“.</li>
+<li>Bisher nur gebaut und getestet, noch nicht am Gerät.</li>
+</ul>
+<h2>Neu in 0.25.0</h2>
+<ul>
+<li><strong>Online-Update über den Handy-Hotspot</strong> (Gerät → „Online-Update (Handy-Hotspot)“). Das Dial holt neue Versionen selbst aus dem Internet, ein Datei-Hochladen über das Tablet ist nicht mehr nötig.</li>
+<li>Handy-Hotspot einschalten.</li>
+<li><strong>„WLAN suchen“</strong> tippen. Das Dial zeigt die WLANs in der Nähe mit Empfangsstärke.</li>
+<li>Deinen Hotspot antippen, das Passwort eingeben und <strong>„Verbinden und nach Update suchen“</strong> tippen. Das Dial merkt sich den Hotspot. Beim nächsten Mal reicht <strong>„Über … nach Update suchen“</strong>.</li>
+<li>Danach steht dort „Alles aktuell“ oder „Neue Version … verfügbar“. Mit <strong>„Version … installieren“</strong> lädt das Dial die Datei selbst, prüft sie und startet neu. Der Fortschritt steht am Tablet und auf dem Dial.</li>
+<li><strong>Nur außerhalb des Mittags, wenn keine Karte draußen ist:</strong> Während das Dial sucht oder lädt, sind die Tablets ein paar Sekunden getrennt. Das Dial muss dafür seinen Funkkanal an den Hotspot anpassen.</li>
+<li><strong>Sicher:</strong> Das Dial lädt nur aus dem Mensaampel-Projekt auf GitHub und nur verschlüsselt mit geprüftem Zertifikat. Es nimmt nur Dateien mit der Mensaampel-Kennung und der erwarteten Version an. Startet die neue Version dreimal nicht richtig, springt das Dial wie bisher auf die alte zurück.</li>
+<li><strong>Im Router-Betrieb</strong> geht das Online-Update nicht. Dafür kurz auf das eigene WLAN des Dials umstellen.</li>
+<li><strong>Firmware-Datei über das Tablet</strong> (der alte Weg) geht weiter und hält jetzt länger durch:</li>
+<li>Das Tablet wartet bis zu 4 Minuten statt 90 Sekunden.</li>
+<li>Bricht es ab, mit derselben Datei <strong>nochmal starten</strong>. Es geht dort weiter, wo es aufgehört hat. Das Dial hält ein angefangenes Update dafür 5 Minuten offen.</li>
+<li><strong>Wichtig, einmalig: 0.25.0 per USB aufspielen</strong> (USB-Helfer, wie bei 0.19.1). Die Update-Seite kommt vom Dial, darum hat ein Dial mit 0.19.1 die neuen Wege noch nicht. Danach gehen alle Updates über den Hotspot.</li>
+<li><strong>„Bild zeichnen – längstes“:</strong> Ein einzelner hoher Wert von mehreren hundert ms kann vom Update-Versuch stammen, denn während das Dial in seinen Speicher schreibt, steht alles kurz still. Aussagekräftig ist <strong>„zuletzt“</strong> im normalen Betrieb nach einem Neustart.</li>
+<li><strong>Prüfstand:</strong> Bisher nur gebaut und getestet, noch nicht am echten Dial mit Hotspot ausprobiert.</li>
+</ul>
+<h2>Neu in 0.24.0</h2>
+<ul>
+<li><strong>Neues Aussehen des Dials: „Kugel mit Kranz“.</strong> Das ist die Mischung der Claude-Design-Entwürfe B und C, so vom Nutzer gewählt.</li>
+<li><strong>Hintergrund:</strong> Er leuchtet in der Ampelfarbe wie die Ampel an der Tür, also grün, gelb oder rot.</li>
+<li><strong>Weiße Kugel in der Mitte:</strong> Dort stehen die große Zahl oder ein Symbol und ein kurzes Wort, zum Beispiel „4 · noch frei“.</li>
+<li><strong>Der Kranz am Rand:</strong> Jedes Kind der laufenden Gruppe hat ein eigenes Feld, links und rechts verteilt.</li>
+<li><strong>Weiß:</strong> Dieses Kind darf noch rein.</li>
+<li><strong>Dunkel:</strong> schon drin.</li>
+<li><strong>Gelb:</strong> Hier hat gerade ein Kind seine Karte bekommen.</li>
+<li>Oben bleibt Platz für den Tasten-Hinweis, unten für „ENTLASTEN“.</li>
+<li>Bei Gruppen über 8 Kindern und ohne Gruppen ist der Kranz ein durchgehender Ring.</li>
+<li><strong>Countdown:</strong> Der Kranz läuft als Uhr ab. In der Kugel steht die Zeit mit „bis Freigabe“.</li>
+<li><strong>Karte ausgegeben:</strong> Haken und Kartennummer in der Kugel, darunter „noch 3 frei“ und „Guten Appetit!“.</li>
+<li><strong>Karte zurück:</strong> türkis mit „danke!“.</li>
+<li><strong>Abgelehnt:</strong> rot mit Kreuz, die Meldung steht in der Kugel.</li>
+<li><strong>Unverändert:</strong> Die Taste „ENTLASTEN“ bleibt an derselben Stelle. Menü, Einlernen, Start-Check und „Taste halten“ behalten ihr dunkles Aussehen.</li>
+<li><strong>Prüfstand:</strong> Bisher ist das nur gebaut und in der Simulation geprüft. Bitte am Dial ansehen: Ist alles gut lesbar? Wie flüssig läuft der Countdown? Die Messwerte stehen unter Gerät → Gesundheit.</li>
+</ul>
+<h2>Neu in 0.23.0</h2>
+<p>Neue Dashboard-Seiten am Betreuungs-Tablet, nach dem Entwurf aus Claude Design:</p>
+<ul>
+<li><strong>Betrieb → Mittags-Zeitleiste:</strong> Ein Balken über den Mittag zeigt jede Gruppe.</li>
+<li><strong>Grün:</strong> Die Gruppe war schon dran.</li>
+<li><strong>Gelb:</strong> Diese Gruppe ist gerade drin.</li>
+<li><strong>Gestrichelt:</strong> So erwartet die Automatik die nächsten Gruppen.</li>
+<li>Die Linie „jetzt“ zeigt die aktuelle Uhrzeit.</li>
+</ul>
+<p>Darunter stehen drei Kästen:
+  - <strong>Nächste Gruppe:</strong> zum Beispiel „in ca. 4 Min.“ oder „noch 3 Kinder“.
+  - <strong>Im Vergleich:</strong> Minuten pro Gruppe, verglichen mit dem gleichen Wochentag sonst.
+  - <strong>Voraussichtlich fertig:</strong> wann sonst die letzte Ausgabe ist.
+- <strong>Einlass &amp; Messungen → Vorhersage und Wirklichkeit:</strong> Eine Kurve zeigt die belegten Plätze.
+  - <strong>Grün:</strong> was heute wirklich passiert.
+  - <strong>Gestrichelt:</strong> die Vorhersage aus den letzten vier gleichen Wochentagen.
+  - <strong>Grau:</strong> der übliche Bereich.</p>
+<p>Darunter steht ein Satz, ob es voller oder ruhiger ist als sonst.
+- <strong>Einlass &amp; Messungen → Was die Automatik heute entschieden hat:</strong> jede Freigabe, jedes Entlasten und jeder Ausreißer beim Lernen. Jeder Eintrag hat eine Uhrzeit und einen Grund in einfachen Worten, das Neueste steht oben.
+- <strong>Neuer Reiter „Statistik“ → Wann ist es am vollsten?:</strong> ein Wärmebild nach Wochentag und halber Stunde.
+  - Jedes Feld zeigt, wie viele Kinder im Schnitt gleichzeitig drin waren. Je dunkler, desto voller.
+  - Wählbar sind die letzten 4 Wochen, 8 Wochen oder alle gespeicherten 60 Tage.
+  - Darunter stehen „Am vollsten“ und „Am ruhigsten“.
+- <strong>Was das Dial dafür speichert:</strong> nur Zahlen.
+  - die Belegung je 10 Minuten (heute);
+  - die Gruppen-Ereignisse von heute;
+  - je Essenstag die höchste Belegung pro halbe Stunde (60 Tage).</p>
+<p>Keine Karten, keine Namen. Die Sicherung enthält diese Zahlen mit.
+- <strong>Wann sich die Seiten füllen:</strong> Vorhersage und Wärmebild füllen sich erst ab dem ersten Essenstag mit dieser Version. Vorher steht dort ein Hinweis. „Testdaten löschen → Tagesberichte“ löscht diese Zahlen mit.
+- <strong>Prüfstand:</strong> Bisher ist das nur gebaut und mit einem simulierten Mittag geprüft. Bitte beim nächsten echten Mittag ansehen.</p>
+<h2>Neu in 0.22.1</h2>
+<ul>
+<li><strong>Dial zeichnet schneller:</strong> Der Ring am Rand (seit 0.21.0) brauchte beim Zeichnen viel Rechenzeit. Jetzt ist ein Bild etwa doppelt so schnell fertig, bei genau gleichem Aussehen. Das soll Countdown-Ring und Drehen am Ring flüssiger machen. Bisher nur gebaut und am PC gemessen. Bitte nach dem Update unter Gerät → Gesundheit die Werte „Bild zeichnen“ und „Flüssige Animation“ ansehen.</li>
+</ul>
+<h2>Neu in 0.22.0</h2>
+<ul>
+<li><strong>Neue Ampelseite für die Kinder</strong> (Entwurf aus Claude Design, vom Nutzer gewählt): große leuchtende Kugel mit Symbol (Haken, Ausrufezeichen, Stopp-Hand, Sanduhr, Uhr), daneben ein großes Wort und höchstens zwei Zeilen; oben eine kleine Mini-Ampel mit Uhrzeit und die freien Plätze als Glas-Pillen; unten die Sprachzeile in einer Glasleiste. Beim Countdown läuft ein dicker weißer Ring um die Kugel, die Zeit steht groß darin. „Bitte leise reingehen“ erscheint als weiße Pille. Neue, rundere Schrift (Plus Jakarta Sans), auf dem Dial gespeichert – kein Internet nötig. Passt quer und hochkant.</li>
+<li>Die Knöpfe „Vollbild“ und „Ton“ sind jetzt kleine Symbole unten rechts in der Glasleiste.</li>
+<li>Nur gebaut und mit Tests geprüft – bitte einmal auf dem Ampel-Tablet ansehen.</li>
+</ul>
+<h2>Neu in 0.21.0</h2>
+<ul>
+<li><strong>Neues Aussehen nach den Google-Stitch-Entwürfen</strong> (nur die Gestaltung, die Bedienung bleibt gleich):</li>
+<li><strong>Dial:</strong> tiefere Farbverläufe; ein Ring am Rand zeigt, wie viele Plätze frei sind (bzw. den Countdown). Eigene Bilder für „Karte ausgegeben“ (große Kartennummer, „Guten Appetit!“), „Karte zurück“ (türkis, „danke!“) und abgelehnte Karten (rot, Ring in Stücken). Menü mit blauer Auswahl, Start-Check mit vier farbigen Viertelringen, „Taste halten“ als eigener dunkler Bildschirm mit dickem Ring. Der Knopf „ENTLASTEN“ unten bleibt an derselben Stelle.</li>
+<li><strong>Betreuung → Betrieb:</strong> oben eine Statuskarte (Farbe, Symbol, Satz) mit den großen Knöpfen „Pausieren“ / „Gruppe jetzt freigeben“; darunter Küche und Mensa mit großer Zahl, Balken und Plus/Minus für die freigegebenen Plätze (Mensa in 5er-Schritten); „Heute erwartet“ als Leiste; „Meldungen &amp; Vorschläge“ als Karten; alle Plätze als einklappbares Raster mit Filtern (Alle/Belegt/Frei/Auffällig) – Tippen auf eine Kachel öffnet die Karte.</li>
+<li><strong>Gerät:</strong> „Gesundheit heute“ als Karten mit Symbol, Zustand und einem Satz, was zu tun ist; rechts die Geräte-Details (Version, WLAN, Adresse, Laufzeit, Leser, Speicher, Ampel).</li>
+<li><strong>Ampel:</strong> Farben ans Dial angeglichen, heller Ring um das Symbol.</li>
+<li>Nur gebaut und mit Tests geprüft – am Gerät bitte einmal alle Bildschirme ansehen (Karte ausgeben/zurück, Menü, Taste halten, Start-Check).</li>
+</ul>
+<h2>Neu in 0.20.0</h2>
+<ul>
+<li><strong>Ausreißer zählen nur begrenzt:</strong> Eine Gruppe, die an der Ausgabe aufgehalten wurde oder ungewöhnlich schnell durch war, verändert die gelernte Freigabezeit höchstens bis zum 1,6-Fachen (bzw. 1,6-Tel) des bisherigen Werts. Eine vergessene Karte zählt bei der Verweildauer höchstens doppelt so lang wie üblich. So verstellt ein einzelner schlechter Tag die Automatik nicht mehr. Greift der Schutz erst, wenn ein Wert schon auf mindestens 3 Gruppen bzw. 5 Rückgaben beruht.</li>
+<li><strong>Lern-Tagebuch</strong> (Einlass &amp; Messungen, unter „Wie sicher ist das Gelernte?“): je Mittag in ganzen Sätzen, was die Automatik geändert hat, z. B. „Dienstag 12:00–12:30: 18,0 s → 16,0 s pro Kind (4 Gruppen)“ oder „Karte war ungewöhnlich lange weg (85 Min.) – zählt nur als 40 Min.“. Das Dial hebt die letzten 40 Einträge auf; jedes Tablet sieht dasselbe.</li>
+<li><strong>Ampel-Tablet heilt sich selbst:</strong> Bekommt die Ampelseite 30 Sekunden lang keine Antwort, obwohl das Dial erreichbar ist, lädt sie sich selbst neu (höchstens alle 5 Minuten). Ist das Dial aus, bleibt sie rot stehen und lädt nicht neu – sonst stünde nur eine Fehlerseite des Browsers da.</li>
+<li>Nur gebaut und mit Tests geprüft.</li>
+</ul>
+<h2>Neu in 0.19.1</h2>
+<ul>
+<li><strong>Update vom Tablet in Stücken:</strong> Kurze WLAN-Aussetzer brechen das Update nicht mehr ab; das Tablet setzt an derselben Stelle fort. Während des Updates zeichnet das Dial langsamer, damit die Übertragung Vorrang hat.</li>
+<li><strong>USB-Update repariert:</strong> Der Helfer setzt beim Update jetzt auch den Startbereich zurück (siehe „Update per USB, wenn das Tablet-Update abbricht“). <strong>Diese Version einmal per USB aufspielen.</strong></li>
+<li><strong>Flüssigere Animationen:</strong> Das Dial malt den nächsten Bildstreifen, während der vorige schon zum Display unterwegs ist, schickt unveränderte Streifen nicht erneut und zeichnet bis zu 30 Bilder pro Sekunde. Neu unter „Gesundheit heute“: <strong>„Flüssige Animation“</strong> (längste Pause zwischen zwei Bildern). Steht dort Gelb oder Rot, den Wert melden – dann wissen wir, ob Tablet-Anfragen das Dial aufhalten.</li>
+<li>Nur gebaut und mit Tests geprüft, noch nicht am Gerät.</li>
+</ul>
+<h2>Neu in 0.19.0</h2>
+<ul>
+<li>Start-Check nach dem Einschalten, Ruhemodus (Dial dunkel und leise, Karte weckt und bucht), Ampel-Hinweis „bitte leise reingehen“ bei fast voller Mensa, Übersicht „Wie sicher ist das Gelernte?“. Einzelheiten im Abschnitt davor. Nur gebaut und mit Tests geprüft – bitte am Gerät ausprobieren (Abnahme-Tabelle).</li>
+</ul>
+<h2>Neu in 0.18.0</h2>
+<ul>
+<li><strong>WLAN über einen eigenen Router (freiwillig):</strong> Unter Gerät → WLAN und Zugang lässt sich „WLAN eines Routers“ wählen. Das Dial meldet sich dann mit fester Adresse (Standard http://192.168.8.20) beim Router an, die Tablets verbinden sich mit dem Router. Genaue Schritte: „Router einrichten“. Standard bleibt das eigene WLAN des Dials.</li>
+<li><strong>Rettung:</strong> Findet das Dial den Router 30 s nicht, öffnet es zusätzlich sein eigenes WLAN (http://192.168.4.1), damit man die Einstellung korrigieren kann.</li>
+<li>„Gesundheit heute“ und die Prüfung über USB zeigen im Router-Betrieb die Verbindung des Dials zum Router und deren Signalstärke.</li>
+<li>Noch nicht am echten Router geprüft – bitte nach dem Einrichten die Prüfung über USB einmal laufen lassen.</li>
+</ul>
+<h2>Neu in 0.17.7</h2>
+<ul>
+<li><strong>Tablets holen sich nach einem Update die neue Oberfläche von selbst:</strong> Bisher lief die Ampelseite nach einem Dial-Update mit dem alten Stand weiter, bis jemand sie neu geladen hat (z. B. fehlten deshalb zunächst Japanisch und Chinesisch). Jetzt merkt jedes Tablet die neue Version und lädt die Seite einmal neu; die Anmeldung bleibt. <strong>Einmalig</strong> beim Wechsel auf 0.17.7 die Ampelseite noch von Hand neu laden.</li>
+</ul>
+<h2>Neu in 0.17.6</h2>
+<ul>
+<li><strong>Flüssigere Animationen am Dial:</strong> Während sich etwas bewegt (Countdown-Ring, Ring beim Halten der Taste, Rückmeldung nach dem Scan), zeichnet das Dial jetzt bis zu 25 Bilder pro Sekunde statt 4. Das Zeichnen selbst ist deutlich schneller geworden; das Bild sieht genau gleich aus. Im Ruhezustand bleibt es sparsam.</li>
+<li><strong>Gesundheit heute / Prüfung über USB:</strong> neuer Messwert „Bild zeichnen“ (wie lange ein Bild dauert; gut bis 40 ms).</li>
+</ul>
+<h2>Neu in 0.17.5</h2>
+<ul>
+<li><strong>Sprachzeile der Ampel auch auf Japanisch und Chinesisch</strong> (vereinfachte Schriftzeichen). Sie wechselt jetzt zwischen Englisch, Türkisch, Arabisch, Ukrainisch, Japanisch und Chinesisch (je 4 Sekunden). Die Schrift kommt vom Tablet selbst (iPad und Samsung haben sie eingebaut). <strong>Bitte auch diese Übersetzungen von Muttersprachlern prüfen lassen</strong> (Liste in <code>src/ampel-texts.mjs</code>).</li>
+</ul>
+<h2>Neu in 0.17.4</h2>
+<ul>
+<li><strong>Mehrere Tablets gleichzeitig angemeldet:</strong> Bisher hat die Anmeldung auf einem zweiten Tablet das erste abgemeldet. Jetzt bleiben bis zu 4 Tablets gleichzeitig angemeldet. Meldet sich ein fünftes an, wird das am längsten nicht benutzte abgemeldet. „Abmelden“ betrifft nur das eigene Tablet; nach einem neuen Betreuungskennwort müssen sich die anderen Tablets neu anmelden. Die Ampelseite braucht keine Anmeldung und zählt nicht mit.</li>
+</ul>
+<h2>Neu in 0.17.3</h2>
+<ul>
+<li><strong>Tablets bleiben im Dial-WLAN:</strong> Das Dial beantwortet jetzt die „Habe ich Internet?“-Prüfung von Android, iPad und Windows. Bisher blieb sie unbeantwortet, und das Testtablet hat sich dadurch etwa jede Minute für 10–15 Sekunden abgemeldet (die Ampel wurde dann rot). Das Dial-WLAN hat weiterhin kein Internet.</li>
+<li><strong>Gesundheit heute / Prüfung über USB:</strong> neu die Signalstärke der Tablets und eine Liste, wann welches Gerät sich verbunden oder getrennt hat.</li>
+<li>Anleitung „Ampel-Tablet: WLAN stabil halten“ mit den Samsung- und iPad-Einstellungen.</li>
+</ul>
+<h2>Neu in 0.17.2</h2>
+<ul>
+<li><strong>Ampel bleibt bedient, wenn ein Tablet mitten in einer Antwort verschwindet:</strong> Bisher konnte das Dial dann bis zu 10 Sekunden niemandem antworten. Jetzt gibt es nach 1,5 Sekunden auf und bedient die anderen weiter.</li>
+<li><strong>Gesundheit heute:</strong> neu „WLAN-Trennungen“ und „Antworten abgebrochen“. Beim Kartenleser zählen nur noch echte Störungen; „Karte unklar gelesen“ (schräg, zwei Karten, zu schnell weggezogen) steht nur noch als Hinweis daneben.</li>
+<li><strong>Prüfung über USB:</strong> Die Auswertung verwechselt keine Antworten mehr (die erste Prüfung meldete deshalb fälschlich „Neustart“, „0 KB“ und „Dauertest nicht gestartet“) und nennt bei jeder Ampel-Pause die vermutliche Ursache.</li>
+<li>Neuer Abschnitt „Ampel-Tablet: WLAN stabil halten“ (oben).</li>
+</ul>
+<h2>Neu in 0.17.1</h2>
+<ul>
+<li><strong>Speicher-Dauertest repariert:</strong> Er lief bisher am Stück in einer einzigen Tablet-Anfrage (knapp 9 Sekunden). Das Tablet brach nach 7 Sekunden mit „Failed to fetch“ ab, und so lange bekam auch die Ampel keine Antwort. Jetzt läuft er im Hintergrund: Der Knopf zeigt „Dauertest läuft …“, nach etwa 10 Sekunden steht das Ergebnis darunter und am Dial. Tablet und Ampel bleiben verbunden. Die hohe „Antwortzeit“ unter Gesundheit stammte von diesem Test; nach einem Neustart des Dials ist sie wieder normal.</li>
+<li><strong>Prüfung über USB</strong> (siehe oben).</li>
+</ul>
+<h2>Neu in 0.17</h2>
+<ul>
+<li>Tagesprognose „Heute erwartet“, Wochen-Coach mit „Übernehmen“, Simulator „Was wäre, wenn …?“. Nur am Tablet, die Firmware ist bis auf die Versionsnummer gleich wie 0.16.</li>
+</ul>
+<h2>Neu in 0.16</h2>
+<ul>
+<li>Verweildauer lernen und Wartezeit an der Ampel, Mensa-Assistent am Dial und Tablet, Hinweise zu Karten, Tagesbericht mit Spitzenwerten, „Gesundheit heute“, freundliches Warten. Einzelheiten im Abschnitt oben.</li>
+<li>Tablet: Die Schrift enthält jetzt auch die türkischen Buchstaben (ğ, ş, ı); die Kästen „Karten am Stück einlernen“ und „Hinweise“ haben wieder Innenabstand.</li>
+<li>Im Dial wird beim Abfragen durch das Tablet weniger Arbeitsspeicher gebraucht als in 0.15 (Status ohne doppelten Ablaufteil).</li>
+</ul>
+<h2>Neu in 0.15</h2>
+<ul>
+<li><strong>Ampelseite mit mehr Infos:</strong> Uhrzeit, „Küche · 46 frei“, „Mensa offen · 20 frei / geschlossen“, bei Grün „Noch 4 Kinder in dieser Gruppe“ bzw. „12 Plätze frei“, dazu eine kurze Zeile abwechselnd auf Englisch, Türkisch, Arabisch und Ukrainisch. <strong>Bitte die Übersetzungen einmal von Muttersprachlern prüfen lassen</strong> (Liste in <code>src/ampel-texts.mjs</code>).</li>
+<li><strong>Betreuerkarte:</strong> neu Lautstärke, Neuer Essenstag (mit Rückfrage) und WLAN-Daten.</li>
+<li><strong>Testdaten löschen</strong> unter Einlass &amp; Messungen.</li>
+</ul>
+<h2>Neu in 0.14</h2>
+<ul>
+<li><strong>Modernes Tablet-Design:</strong> Schrift Inter (ohne Internet), helle Karten, Navigation als Pillen. Die <strong>Ampelseite</strong> leuchtet wie das Dial im Farbverlauf; wartet die Automatik, zeigen eine große Restzeit und ein ablaufender Ring, wann es weitergeht.</li>
+</ul>
+<h2>Neu in 0.13</h2>
+<ul>
+<li><strong>Neues Dial-Design:</strong> Ampelfarbe als weicher Verlauf, Symbol, große Zahl (Rest der Gruppe bzw. freie Plätze, Countdown), Knopf „ENTLASTEN“ jetzt unten. Nach jedem Scan ein kurzer Bestätigungsbildschirm (✓ / !).</li>
+<li><strong>Klänge:</strong> vier Klangsets (Klassisch, Ping, Gong, Marimba) mit eigenen Tönen für Ausgabe, Rückgabe und Abweisung. Auswahl unter <strong>Betreuung → Einstellungen → Klang am Dial</strong>, „Anhören“ spielt sie am Dial vor. Neuer Standard: Ping.</li>
+</ul>
+<h2>Neu in 0.12</h2>
+<ul>
+<li><strong>0.12.1:</strong> Kommt die Ampel nach „Ampel draußen getrennt!“ zurück, meldet das Dial „Ampel wieder verbunden.“ Unter Gerät steht live, ob die Ampel verbunden ist, und wie alt die letzte Rückmeldung ist. Ein Tab, der wieder in den Vordergrund kommt, fragt sofort beim Dial nach.</li>
+<li><strong>Firmware-Update über das Dial-WLAN</strong> mit Android-Tablet oder iPad (Gerät → Firmware-Update), mit Prüfung der Datei, Fortschritt am Dial und automatischem Rückfall auf die alte Version.</li>
+</ul>
+<h2>Neu in 0.11</h2>
+<ul>
+<li><strong>Neues Aussehen am Dial:</strong> geglättete, deutlich größere Schrift (Inter) mit echten Umlauten, ruhigere kontrastreiche Ampelfarben, Knopf und Infofeld als abgerundete „Pillen“, Ring mit runden Enden. Was die Taste gerade bewirkt, steht jetzt oben. Simulation, Hilfe und gedruckte Anleitung zeigen pixelgenau dasselbe Bild wie das Dial (automatisch geprüft).</li>
+<li><strong>Stromausfall an jeder Stelle geprüft:</strong> Ein abgebrochenes Speichern führt nicht mehr zu „Bestand manuell abgleichen“ – das Dial nimmt den zuletzt bestätigten Stand. Ein unterbrochener Abgleich verliert nie Karten und lässt sich beliebig oft wiederholen. Getestet mit einem simulierten Stromausfall nach jedem einzelnen Schreibschritt.</li>
+<li><strong>Verbindung:</strong> Antworten an das Tablet werden ohne Sperre gesendet – ein Tablet, das mitten in der Antwort das WLAN verlässt, hält Scans und Ampel nicht mehr auf. Befehle vom Tablet tragen eine Kennung: eine Wiederholung nach einem Aussetzer wird nie doppelt ausgeführt (z. B. „Neuer Essenstag“).</li>
+<li><strong>Sicherer Betrieb:</strong> Ein abgewiesener Scan bleibt nie gebucht. Eine eingespielte Sicherung muss immer neu bestätigt werden. „Rückgängig“ stellt auch die Gruppe zurück. Im Gerätetest ist die Ampel draußen rot. Eine Betreuerkarte kann nicht versehentlich als Kinderkarte eingelernt werden.</li>
+</ul>
+<h2>Neu in 0.10</h2>
+<ul>
+<li><strong>0.10.5:</strong> Verbindung stabiler: Der Webserver läuft im Dial als eigene Aufgabe und wird nicht mehr durch Zeichnen, Kartenleser oder Speichern aufgehalten. Das Tablet holt die Kartenliste nur noch, wenn sich etwas geändert hat, fragt ruhiger (1,5 s), versucht es nach einem Aussetzer sofort erneut und meldet „Verbindung unterbrochen“ erst nach 8 s (die Ampel draußen bleibt bei 3 s → Rot). Unter Gerät steht jetzt „Verbindung: letzte Antwort … · Aussetzer …“.</li>
+<li><strong>0.10.5:</strong> Einzel-Einlernen unter Gerät ohne „Speicherfehler“. Scheitert ein Speichern, versucht das Dial es alle 5 s selbst erneut. Bei knappem Arbeitsspeicher wird eine Aktion sauber abgelehnt („Speicher knapp – bitte gleich nochmal“), statt das Dial zu sperren. Neuer „Speicher-Dauertest“ im Gerätetest.</li>
+<li><strong>0.10.5:</strong> Karten lösen/löschen: In der Kartenverwaltung „Karte von dieser Nummer lösen“ (Nummer bleibt, neu einlernbar) bzw. „Nummer löschen“ für Nummern ohne Karte. Nur möglich, wenn die Karte nicht ausgegeben ist.</li>
+<li><strong>0.10.5:</strong> Sperrzeit Standard 3 s mit Countdown am Dial („K03 gesperrt – noch 2 s“). Frisch eingelernte Karten sind sofort nutzbar. <strong>Bereits eingerichtete Dials behalten ihren gespeicherten Wert – einmal unter Einstellungen auf 3 s stellen.</strong></li>
+<li><strong>0.10.4:</strong> Speichern braucht nur noch einen Bruchteil des Arbeitsspeichers (Text statt JSON-Baum, Prüfung durch Byte-Vergleich); das Speichern konnte das Dial vorher zum Absturz bringen. Reste eines abgebrochenen Speicherns räumt das Dial selbst auf, solange noch keine echte Karte eingelernt ist.</li>
+<li><strong>0.10.3:</strong> Behebt „Verbindung unterbrochen“ am iPad: Der Webserver des Dial wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen.</li>
+<li><strong>0.10.3:</strong> Behebt „Gerätespeicher nicht lesbar“ (Datenbereich wurde unter falschem Namen gesucht) und „Verbindung unterbrochen“ am iPad (Webserver wartete bis zu 5 s auf leere, von Safari vorab geöffnete Verbindungen). Hinweis: Der eingebaute Kartenleser des Dial kann das WLAN stören – mit dem externen RFID2 („Extern“) tritt das nicht auf.</li>
+<li><strong>0.10.2:</strong> Größerer Arbeitsbereich (Stack) für das Speichern – die erste Speicherung nach der Anmeldung konnte das Dial neu starten. „Blackbox“: Nach einem Fehler-Neustart zeigt das Dial eine Minute lang, wobei es passiert ist (z. B. „Fehler: Befehl clockSync“).</li>
+<li><strong>0.10.1:</strong> Behebt einen Neustart des Dial beim ersten Anmelden am Tablet (Arbeitsspeicher war zu knapp: Bildpuffer jetzt in Streifen, Kartenliste speichersparend). Unter Gerät stehen jetzt „Letzter Start“ (z. B. „Absturz“) und der größte freie Speicherblock; nach einem Fehler-Neustart zeigt das Dial kurz den Grund.</li>
+<li><strong>Etiketten-Tool</strong> (<code>Etiketten-Tool.html</code>): bunte Etiketten mit Tieren oder Monstern &amp; Weltraum, passend für gängige Etikettenbögen, mit Testseite (siehe Abschnitt 4).</li>
+<li><strong>Tagesstart sicherer:</strong> nach Kalenderdatum statt nur Wochentag; wartet bei Karten draußen auf eine Person; fehlende Karten werden gesperrt und per Scan wieder frei; Wochenenden zählen nicht im Tagesbericht. Die Uhr wird auch mit laufender Gruppe gestellt (vorher konnte der automatische Tagesstart nach einer angebrochenen letzten Gruppe ausfallen).</li>
+<li><strong>Neustart mitten im Mittag:</strong> Bestand bleibt am selben Tag bestätigt, Countdown läuft weiter; 30-Minuten-Schutz zählt ab Neustart.</li>
+<li><strong>Bedienung:</strong> Eine einzelne Raste am Ring öffnet die Mensa nicht mehr; ein Tastendruck direkt beim Drehen speichert nicht aus Versehen; Fortschrittsring beim Halten; Zurücksetzen nur mit zweitem langen Halten; das Touch-Feld wirkt in Menü, Einlernen und Mensa-Einstellung wie die Taste; Erinnerungs-Piep bei langer Pause.</li>
+<li><strong>Wartung:</strong> Sicherungs-Erinnerung am Tablet, WLAN-Kanal wählbar, Ampel-Warnung auch wenn sich nach dem Start nie eine Ampel meldet, Ton-Hinweis auf der Ampel nach dem Neuladen.</li>
+</ul>
+<h2>Neu in 0.9</h2>
+<ul>
+<li><strong>Leser automatisch</strong> (siehe Abschnitt 3), <strong>Karten am Stück einlernen</strong> (Abschnitt 4), <strong>Kartenetiketten</strong> zum Drucken.</li>
+<li><strong>Betreuerkarte:</strong> unter Betreuung → Einstellungen „Neue Betreuerkarte einlernen“ und die Karte ans Dial halten (bis zu 5). Vorgehalten öffnet sie das Menü <strong>BETREUUNG</strong>: Bestand ok · Pause/Weiter · Mensa freigeben · Lautstärke (Ring drehen, Taste speichert; das Dial piept zur Probe) · Neuer Essenstag (mit Rückfrage „Taste = Ja“; Drehen oder Karte bricht ab) · WLAN-Daten (Name und Kennwort für ein neues Tablet) · Abbrechen (Ring = Auswahl, Taste = ausführen, Karte erneut = schließen). Sie bucht keinen Platz. Kein Sicherheitsschlüssel: Die Kartenkennung ist kopierbar, das Menü kann nur Alltagsaktionen.</li>
+<li><strong>Gerätetest:</strong> unter Gerät „Gerätetest starten“. Das Dial zeigt Leser, Kartenkennung, Lesungen, Drehring, Taste/Touch, Tablets, Speicher und Uhr; Scans buchen nicht. Darunter eine Checkliste für die Abnahme (auf dem Tablet gespeichert, als CSV exportierbar).</li>
+<li><strong>Statistik:</strong> Diagramme im Tagesbericht (Kinder pro Tag, Eingriffe, gelernte Sekunden pro Kind).</li>
+</ul>
+<h3>Welche Karten kaufen?</h3>
+<p>Der Leser (WS1850S, 13,56 MHz, ISO 14443A) liest nur die Kartenkennung. Es reichen günstige <strong>MIFARE Classic 1K</strong>-Karten (ca. 0,50–0,70 € im 100er-Pack); NTAG213 geht auch. Farbige Karten (z. B. blau/rot) oder Karten mit Schlitz für eine Hakenleiste sind praktisch. <strong>Zuerst 5–10 Stück am echten Dial testen.</strong> Beispiele (ohne Gewähr): <a href="https://www.variuscard.com/shop/de/chipkarten-nxp-mifare-classic-1k-ev1-4bnuid.html">Varius Card</a>, <a href="https://www.primacards.de/rfid-karten-mifare-classic-1k-1356-mhz-100.html">primacards</a>, <a href="https://www.bueromarkt-ag.de/rfid-karte_nxp_mifare_classic_1k_100_stueck,p-card12826.html">Böttcher AG (Rechnungskauf)</a>, <a href="https://ausweisshop.com/produkt/mifare-classic-1k-rfid-karte-farbig/">ausweisshop farbig</a>, <a href="https://mychip24.de/rfid-transponderanhaenger/17/13-56mhz-mifare-classic-1k-rfid-schluesselanhaenger">mychip24 Schlüsselanhänger</a>.</p></main></html>

@@ -15,7 +15,7 @@ for name in ('firmware.bin','partitions.bin','bootloader.bin','littlefs.bin'):
 shutil.copy2(tools/'platformio-home/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin',output/'firmware/boot_app0.bin')
 shutil.copy2(workspace/'work/flash-dist/mensa-flash.exe',output/'tools/mensa-flash.exe')
 shutil.copy2(root/'scripts/installer.ps1',output/'scripts/installer.ps1')
-for name in ('Dial-Installieren.cmd','ANLEITUNG-DIAL.md','ENTWICKLUNG.md','DRITTANBIETER.md','EINLASS-UND-MESSUNGEN.md'):
+for name in ('Dial-Installieren.cmd','ANLEITUNG-DIAL.md','ENTWICKLUNG.md','DRITTANBIETER.md','EINLASS-UND-MESSUNGEN.md','PRUEFUNG-AM-PC.md','Etiketten-Tool.html'):
     shutil.copy2(root/name,output/name)
 args=[str(output/'tools/mensa-flash.exe'),'--chip','esp32s3','merge_bin','--flash_mode','dio','--flash_freq','80m','--flash_size','8MB','-o',str(output/'firmware/first-install.bin')]
 for offset,name in [('0x0','bootloader.bin'),('0x8000','partitions.bin'),('0xe000','boot_app0.bin'),('0x10000','firmware.bin'),('0x610000','littlefs.bin')]:
@@ -57,7 +57,7 @@ with ZipFile(output/'source/Mensaampel-Quellcode.zip','w',ZIP_DEFLATED) as archi
         if lib.is_dir():
             for f in lib.rglob('*'):
                 if f.is_file() and '.git' not in f.parts:archive.write(f,Path('vendor')/lib.name/f.relative_to(lib))
-manifest={'version':'0.5.0-preview','board':'M5Stack Dial v1.1 / ESP32-S3 / 8MB','hardwareTested':False,'files':[]}
+manifest={'version':__import__('re').search(r'MENSA_VERSION\s+"([^"]+)"',(root/'firmware/src/version.hpp').read_text(encoding='utf-8')).group(1),'board':'M5Stack Dial v1.1 / ESP32-S3 / 8MB','hardwareTested':False,'files':[]}
 for f in sorted((output/'firmware').glob('*.bin')):
     manifest['files'].append({'path':f.relative_to(output).as_posix(),'sha256':hashlib.sha256(f.read_bytes()).hexdigest()})
 manifest['files'].append({'path':'tools/mensa-flash.exe','sha256':hashlib.sha256((output/'tools/mensa-flash.exe').read_bytes()).hexdigest()})

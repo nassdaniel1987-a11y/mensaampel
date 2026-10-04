@@ -95,3 +95,39 @@ Vor einer Gruppe Uhrzeit übernehmen und bei Bedarf den Puffer einstellen (0–3
 Wenn der Zeitpunkt erreicht ist, einmal **Passt** oder **Noch zu voll** drücken. Die Ampel bleibt in beiden Fällen rot. Zum Einlassen weiterhin bewusst die nächste Gruppe freigeben. Bei manueller Pause, Entlastung oder unbestätigtem Bestand ist die Bewertung gesperrt. Ein Neustart verwirft den laufenden Vorschlag, behält aber abgeschlossene Bewertungen.
 
 Die letzten 120 anonymen Bewertungen werden separat gespeichert und lassen sich als CSV exportieren. Erfasst werden Gruppengröße, Schlange, Wochentag, Startminute, vorgeschlagene Dauer, tatsächlicher Bewertungszeitpunkt, Antwort, Zahl der Vergleiche und Genauigkeitsstufe (1 grob, 2 passend). Eine späte Antwort bewertet die Situation zum tatsächlichen Drücken; sie beweist nicht, dass der frühere Vorschlagszeitpunkt gepasst hätte. Es gibt noch keine automatische Anpassung und kein automatisches Öffnen. Die Zahl positiver Rückmeldungen allein ist kein Nachweis für eine verlässliche Automatik.
+
+## Automatische Gruppenfreigabe (0.6.0-preview)
+
+**Ziel:** Die täglich wechselnde Person in der Mensa soll möglichst nichts bedienen müssen. Das Tablet vor der Tür ist nur Ampel, das Dial steht drinnen.
+
+**Ablauf:** Gruppengröße festlegen und unter **Automatik** einschalten. Sobald eine Gruppe voll ist, wird die Ampel rot und das Dial zeigt einen Countdown. Nach Ablauf wird die nächste Gruppe automatisch freigegeben. Die Freigabezeit ist *Gruppengröße × gelernte Sekunden pro Kind*, gerechnet ab dem ersten Einlass der Gruppe, frühestens 10 Sekunden nach dem letzten Einlassscan.
+
+**Woher der Wert kommt** (in dieser Reihenfolge):
+1. passender Wochentag und passende halbe Stunde mit mindestens drei Beobachtungen,
+2. alle bisherigen Beobachtungen,
+3. der eingestellte Startwert (Standard 20 s pro Kind).
+
+**Wie gelernt wird:**
+- **Einlernphase:** Jede abgeschlossene Gruppenmessung („Alle haben Essen“) zählt als Beobachtung (gleitender Mittelwert). Gruppenmessungen aus älteren Speicherständen werden einmalig übernommen.
+- **Taste im Countdown:** Die Ausgabe war schon früher frei. Sofortige Freigabe; der Wert bewegt sich in Richtung der tatsächlich vergangenen Zeit.
+- **Orange Fläche (Entlasten) nach einer automatischen Freigabe:** Die Freigabe kam zu früh. Wert ×1,2 (einmal pro Freigabe). Weiter geht es mit der Taste.
+- **Keine Beschwerde bis zur nächsten automatischen Freigabe:** Wert ×0,97, also vorsichtig schneller.
+- Grenzen: 3 bis 180 Sekunden pro Kind. Es werden nur Zahlen je Wochentag und halber Stunde gespeichert, keine Kartenkennungen.
+
+**Keine automatische Freigabe** bei manueller Pause, Entlastung, laufender Gruppenmessung (erst „Alle haben Essen“ bestätigen), unbestätigtem Bestand, Leser- oder Speicherstörung. Nach einem Neustart beginnt der Countdown nach der Bestandsbestätigung neu. Die Automatik lässt sich jederzeit ausschalten; „Gelerntes zurücksetzen“ löscht alle Lernwerte. Die Tabelle **Was die Automatik gelernt hat** zeigt die Werte und lässt sich als CSV sichern.
+
+**Uhrzeit:** Die PC-Version nimmt sie automatisch vom PC. Das Dial übernimmt sie aus seiner eingebauten Uhr, sobald diese einmal über **Uhrzeit vom Tablet übernehmen** gestellt wurde.
+
+Die „Erprobung der Freigabe“ bleibt als zusätzliche Bewertungsmöglichkeit erhalten. Die Automatik ist eine vorsichtige, lernende Heuristik. Vor dem Alltagseinsatz im begleiteten Probebetrieb prüfen, ob die Zeiten zu eurer Ausgabe passen.
+
+## Startgruppe und lernende Gruppengröße (0.7.0-preview)
+
+**Warum:** Zu Beginn steht die Ausgabe sonst leer, weil sich erst eine Schlange aufbauen muss.
+
+- **Startgruppe:** Erste Gruppe des Essenstags und jede Gruppe nach einer Pause von `idleMinutes` (Standard 5) ohne Einlass. Größe: eingestellter Startwert (0 = doppelte Gruppengröße), später der gelernte Wert.
+- **Takt:** Jede folgende Gruppe wird *Größe der nächsten Gruppe × Sekunden pro Kind* nach dem ersten Einlass der vorherigen Gruppe freigegeben. So bleibt die aufgebaute Schlange erhalten, statt nach der Startgruppe leerzulaufen.
+- **Größe lernen:** Taste im Countdown = +1 Kind (bei Startgruppe: Startgruppe +1). Orange Fläche nach automatischer Freigabe = −1 (nach Startgruppe: Startgruppe −1). Normale Gruppen bleiben zwischen kleinster und größter Gruppe (0 = feste Gruppengröße, also zunächst kein Größenlernen). Je Wochentag und halbe Stunde gespeichert.
+- **Neuer Essenstag automatisch** zur eingestellten Uhrzeit (einmal pro Wochentag, nur mit gültiger Uhrzeit). Beim ersten Einschalten der Funktion zählt der laufende Tag als bereits begonnen. Zusätzlich müssen seit dem letzten Scan mindestens 30 Minuten vergangen sein, damit eine falsch gehende Uhr nicht mitten im Mittag zurücksetzt.
+- **Tagesbericht:** je Essenstag Ausgaben, Rückgaben, Gruppen, automatische Freigaben, „früher frei“, „zu voll“, Entlastungen, erste/letzte Ausgabe und nicht zurückgegebene Karten; 60 Tage, CSV-Export.
+
+Ohne Automatik verhält sich alles wie bisher mit fester Gruppengröße.
