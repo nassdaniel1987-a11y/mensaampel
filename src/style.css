@@ -2947,3 +2947,367 @@ header nav {
     display: none;
   }
 }
+
+/* ===== Ampel 0.22 (Claude-Design-Entwurf „Ampelseite für Kinder“): Leuchtkugel, Mini-Ampel, Glas-Pillen. ===== */
+@font-face {
+  font-family: 'Jakarta';
+  src: url('./fonts/jakarta-latin.woff2') format('woff2');
+  font-weight: 200 800;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Jakarta';
+  src: url('./fonts/jakarta-latin-ext.woff2') format('woff2');
+  font-weight: 200 800;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+.ampel22 {
+  --ink: #ffffff;
+  --soft: rgba(255, 255, 255, 0.82);
+  --glass: rgba(255, 255, 255, 0.14);
+  --glass-line: rgba(255, 255, 255, 0.22);
+  --bar: rgba(0, 0, 0, 0.18);
+  --core: #ffffff;
+  --core-ink: #059669;
+  --pill: #ffffff;
+  --pill-ink: #065f46;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: clamp(20px, 4vmin, 44px) clamp(20px, 4.5vmin, 52px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: clamp(16px, 3vmin, 32px);
+  color: var(--ink);
+  font-family:
+    'Jakarta', 'Inter', system-ui, 'Noto Sans', 'Noto Sans Arabic', 'Hiragino Sans', 'PingFang SC', 'Noto Sans JP',
+    'Noto Sans SC', sans-serif;
+  background: radial-gradient(circle at 24% 46%, #34d399 0%, #059669 38%, #064e3b 100%);
+  transition: background 0.4s;
+}
+.ampel22.yellow {
+  --ink: #1c1917;
+  --soft: #44281a;
+  --glass: rgba(255, 255, 255, 0.35);
+  --glass-line: rgba(255, 255, 255, 0.5);
+  --bar: rgba(255, 255, 255, 0.3);
+  --core: #1c1917;
+  --core-ink: #fde047;
+  --pill: #1c1917;
+  --pill-ink: #fde047;
+  background: radial-gradient(circle at 24% 46%, #fde68a 0%, #fbbf24 40%, #d97706 100%);
+}
+.ampel22.red {
+  --core-ink: #e11d48;
+  --pill-ink: #9f1239;
+  --bar: rgba(0, 0, 0, 0.2);
+  background: radial-gradient(circle at 24% 46%, #fb7185 0%, #e11d48 38%, #7f1d1d 100%);
+}
+.ampel22.grey {
+  --core: rgba(255, 255, 255, 0.92);
+  --core-ink: #334155;
+  --glass: rgba(255, 255, 255, 0.1);
+  --glass-line: rgba(255, 255, 255, 0.18);
+  --bar: rgba(0, 0, 0, 0.22);
+  background: radial-gradient(circle at 24% 46%, #64748b 0%, #334155 42%, #0f172a 100%);
+}
+.ampel22 .glass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  font-size: clamp(16px, 2.2vmin, 22px);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ampel22-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ampel22-clock {
+  font-size: clamp(18px, 2.6vmin, 26px) !important;
+  padding-left: 10px !important;
+}
+.ampel22-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mini-light {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+}
+.mini-light i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  opacity: 0.3;
+  background: #f87171;
+}
+.mini-light i:nth-child(2) {
+  background: #fbbf24;
+}
+.mini-light i:nth-child(3) {
+  background: #4ade80;
+}
+.mini-light i.on {
+  opacity: 1;
+  box-shadow: 0 0 10px currentColor;
+}
+.mini-light i.on:nth-child(1) {
+  background: #fecaca;
+  color: #fecaca;
+}
+.mini-light i.on:nth-child(2) {
+  background: #fde047;
+  color: #fde047;
+}
+.mini-light i.on:nth-child(3) {
+  color: #4ade80;
+}
+.ampel22-main {
+  display: flex;
+  align-items: center;
+  gap: clamp(28px, 6vmin, 72px);
+  flex-wrap: wrap;
+}
+.ampel22-orb {
+  --orb: clamp(200px, 40vmin, 360px);
+  position: relative;
+  flex: none;
+  width: var(--orb);
+  height: var(--orb);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.14) 0 41%, rgba(255, 255, 255, 0.08) 41.5% 100%);
+}
+.ampel22.yellow .ampel22-orb {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28) 0 41%, rgba(255, 255, 255, 0.18) 41.5% 100%);
+}
+.ampel22-orb.counting {
+  background: none;
+}
+.ampel22-orb > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.ampel22-orb .track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 20;
+}
+.ampel22-orb .progress {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 20;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+.ampel22-core {
+  width: 66%;
+  height: 66%;
+  border-radius: 50%;
+  background: var(--core);
+  color: var(--core-ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+.ampel22-orb.counting .ampel22-core {
+  width: 75%;
+  height: 75%;
+}
+.ampel22-core svg {
+  width: 52%;
+  height: 52%;
+  stroke-width: 3;
+}
+.ampel22-core svg.exclaim {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+.ampel22-orb.counting .ampel22-core svg {
+  width: 22%;
+  height: 22%;
+  stroke-width: 2.4;
+}
+.ampel22-core strong {
+  font-size: calc(var(--orb) * 0.24);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.ampel22-text {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(12px, 2.4vmin, 22px);
+}
+.ampel22-text h1 {
+  margin: 0;
+  font-size: clamp(52px, 10vmin, 124px);
+  line-height: 0.96;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+}
+.ampel22-pill {
+  margin: 0;
+  padding: 14px 28px;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--pill-ink);
+  font-size: clamp(24px, 4vmin, 38px);
+  font-weight: 800;
+}
+.ampel22-quiet {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 26px 12px 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #065f46;
+}
+.ampel22-quiet > span:first-child {
+  width: clamp(48px, 7vmin, 68px);
+  height: clamp(48px, 7vmin, 68px);
+  border-radius: 50%;
+  background: #d1fae5;
+  display: grid;
+  place-items: center;
+}
+.ampel22-quiet > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.ampel22-quiet strong {
+  font-size: clamp(22px, 3.6vmin, 34px);
+  font-weight: 800;
+}
+.ampel22-quiet small {
+  font-size: clamp(16px, 2.4vmin, 22px);
+  font-weight: 600;
+}
+.ampel22-sentence,
+.ampel22-wait {
+  margin: 0;
+  font-size: clamp(20px, 3.2vmin, 32px);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--soft);
+  max-width: 680px;
+}
+.ampel22-wait {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.ampel22-wait .dots {
+  display: inline-flex;
+  gap: 10px;
+}
+.ampel22-wait .dots i {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: ampel22-dot 1.4s ease-in-out infinite;
+}
+.ampel22-wait .dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.ampel22-wait .dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes ampel22-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.ampel22-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px 14px 24px;
+  border-radius: 28px;
+  background: var(--bar);
+  border: 1px solid var(--glass-line);
+  flex-wrap: wrap;
+}
+.ampel22-language {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: clamp(20px, 3vmin, 28px);
+  font-weight: 700;
+  flex: 1 1 320px;
+}
+.ampel22-language span {
+  padding: 5px 11px;
+  border-radius: 10px;
+  background: var(--glass);
+  font-size: 0.65em;
+  letter-spacing: 0.06em;
+}
+.ampel22-note {
+  margin: 0;
+  font-size: clamp(14px, 2vmin, 20px);
+  font-weight: 600;
+  color: var(--soft);
+}
+.ampel22-buttons {
+  display: flex;
+  gap: 8px;
+}
+.ampel22-buttons button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  justify-content: center;
+  background: var(--glass);
+  color: var(--ink);
+  box-shadow: none;
+}
+.ampel22-buttons button:hover {
+  background: var(--glass-line);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ampel22-wait .dots i {
+    animation: none;
+    opacity: 0.8;
+  }
+}

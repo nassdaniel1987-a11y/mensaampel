@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Hand, WifiOff, Maximize, Bell, BellOff, Volume1 } from 'lucide-react';
+import { Check, Hand, WifiOff, Maximize, Bell, BellOff, Volume1, Hourglass, Clock } from 'lucide-react';
 import type { State } from './types';
 import { ampelLanguages, ampelTexts, friendlyLines, nextSeatText, wantsQuiet } from './ampel-texts.mjs';
 // Two-tone chime when the entrance opens again; browsers only allow it after one tap on "Ton an".
@@ -133,6 +133,145 @@ export function Signal({
     }
     if (next) chime();
   };
+  if (full) {
+    // Full-screen Ampel (design 0.22, Claude Design "Ampelseite für Kinder"): glowing orb with symbol, mini traffic
+    // light, glass pills; state by colour, symbol and word.
+    const tone = admitting ? (yellow ? 'yellow' : 'green') : mood === 'closed' ? 'grey' : 'red';
+    const heading = time
+      ? "Gleich geht's weiter"
+      : green
+        ? 'Komm herein!'
+        : yellow
+          ? 'Nur noch wenige Plätze'
+          : mood === 'wait'
+            ? 'Bitte warten'
+            : reason === 'confirm'
+              ? 'Noch geschlossen'
+              : reason === 'offline'
+                ? 'Keine Verbindung'
+                : title;
+    const pill = time ? 'Ihr seid die Nächsten!' : admitting ? count : mood === 'wait' ? nextSeat : '';
+    const sentence = time
+      ? 'Wenn der Ring leer ist, darf die nächste Gruppe rein.'
+      : green
+        ? quiet && count
+          ? `${count} · bitte einzeln melden.`
+          : text
+        : yellow
+          ? 'Du darfst noch rein. Bitte einzeln bei der Kartenausgabe melden.'
+          : mood === 'wait'
+            ? ''
+            : reason === 'confirm'
+              ? 'Wir bereiten alles vor. Gleich geht es los.'
+              : text;
+    const Icon = time ? Hourglass : green ? Check : mood === 'wait' ? Hand : reason === 'offline' ? WifiOff : Clock;
+    const ring = 2 * Math.PI * 166;
+    return (
+      <section className={`ampel22 ${tone}`} aria-label="Ampelanzeige">
+        <div className="ampel22-top">
+          <span className="glass-pill ampel22-clock">
+            <span className="mini-light" aria-hidden="true">
+              <i className={tone === 'red' ? 'on' : ''} />
+              <i className={tone === 'yellow' ? 'on' : ''} />
+              <i className={tone === 'green' ? 'on' : ''} />
+            </span>
+            {now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          {sig && (
+            <span className="ampel22-chips">
+              <span className="glass-pill">
+                Küche{sig.kitchenFree !== undefined ? ` · ${sig.kitchenFree} frei` : ''}
+              </span>
+              <span className="glass-pill">
+                {sig.mensaOpen ? `Mensa · ${sig.mensaFree ?? 0} frei` : 'Mensa geschlossen'}
+              </span>
+            </span>
+          )}
+        </div>
+        <div className="ampel22-main">
+          <div className={`ampel22-orb ${time ? 'counting' : ''}`} aria-hidden="true">
+            {time && share > 0 && (
+              <svg viewBox="0 0 360 360">
+                <circle cx="180" cy="180" r="166" className="track" />
+                <circle
+                  cx="180"
+                  cy="180"
+                  r="166"
+                  className="progress"
+                  strokeDasharray={ring}
+                  strokeDashoffset={ring * (1 - share)}
+                />
+              </svg>
+            )}
+            <div className="ampel22-core">
+              {yellow ? (
+                <svg viewBox="0 0 24 24" className="exclaim">
+                  <path d="M12 5v9" />
+                  <path d="M12 19h.01" />
+                </svg>
+              ) : (
+                <Icon />
+              )}
+              {time && <strong>{time}</strong>}
+            </div>
+          </div>
+          <div className="ampel22-text">
+            <h1>{heading}</h1>
+            {quiet ? (
+              <p className="ampel22-quiet">
+                <span>
+                  <Volume1 aria-hidden="true" />
+                </span>
+                <span>
+                  <strong>Bitte leise reingehen</strong>
+                  <small>Die Mensa ist fast voll.</small>
+                </span>
+              </p>
+            ) : (
+              pill && <p className="ampel22-pill">{pill}</p>
+            )}
+            {mood === 'wait' && !time ? (
+              <p className="ampel22-wait">
+                <span className="dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                {friendly}
+              </p>
+            ) : (
+              sentence && <p className="ampel22-sentence">{sentence}</p>
+            )}
+          </div>
+        </div>
+        <div className="ampel22-bar">
+          <p className="ampel22-language" dir={language.dir} lang={language.lang ?? language.code.toLowerCase()}>
+            <span>{language.code}</span> {ampelTexts[languageKey][language.code]}
+          </p>
+          <p className="ampel22-note">
+            {admitting ? 'Deinen Platz bekommst du mit einer Platzkarte.' : 'Bitte den Eingang freihalten.'}
+          </p>
+          <span className="ampel22-buttons">
+            <button
+              aria-label="Vollbild"
+              onClick={() => {
+                if (document.fullscreenElement) void document.exitFullscreen();
+                else void document.documentElement.requestFullscreen?.().catch(() => {});
+              }}
+            >
+              <Maximize size={18} />
+            </button>
+            <button onClick={toggleSound} aria-pressed={sound} aria-label={sound ? 'Ton aus' : 'Ton an'}>
+              {sound ? <Bell size={18} /> : <BellOff size={18} />}
+            </button>
+          </span>
+        </div>
+        {sound && locked && (
+          <p className="signal-tap">Ton ist an: einmal auf den Bildschirm tippen, damit er klingt.</p>
+        )}
+      </section>
+    );
+  }
   return (
     <section
       className={`signal ${full ? 'fullscreen-signal' : ''} ${yellow ? 'yellow' : green ? 'green' : 'red'} ${time ? 'counting' : ''}`}

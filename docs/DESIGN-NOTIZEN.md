@@ -38,6 +38,6 @@ Grundidee: Jeder Zustand nutzt den Rand des runden Displays als Ring (Anzeige, C
 
 Umsetzung: nur `core/engine.hpp`/`core/dial.hpp` (Zeichenliste); Rasterer hat Verlauf, Bögen, Kreise, Linien, abgerundete Rechtecke – runde Bogenenden mit kleinen Kreisen, Strich-Ringe als mehrere Bögen. Schriftgrößen prüfen (Glyphen „K“, „:“ in 52 px ggf. per `scripts/build-dial-font.py` ergänzen). Erfundenes: „Sekretariat“ bei gesperrter Karte → eigener Text („bei der Betreuung melden“); „Speicher 88 %“ → unsere Zustände.
 
-## Noch ausstehend
+## Ampelseite (Kinder) – Claude Design, eingebaut in 0.22.0
 
-Ampelseite (Kinder).
+Entwurf: https://claude.ai/artifact/MZju6MX93cU2mMrsHzjcFp (sechs Zustände). Leuchtkugel mit Symbol und zwei Lichtringen, Mini-Ampel neben der Uhrzeit, Glas-Pillen, Glasleiste unten, Schrift Plus Jakarta Sans, Verläufe Grün `#34d399→#059669→#064e3b`, Gelb `#fde68a→#fbbf24→#d97706` (dunkle Schrift), Rot `#fb7185→#e11d48→#7f1d1d`, Grau `#64748b→#334155→#0f172a`.

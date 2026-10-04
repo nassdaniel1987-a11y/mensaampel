@@ -8,6 +8,7 @@ Die jeweiligen Lizenztexte liegen im Ordner `licenses` bzw. bei der Node-Laufzei
 - nlohmann/json 3.11.3: MIT, `licenses/nlohmann-json.txt`.
 - Emscripten 4.0.15: `licenses/Emscripten.txt`; kompiliertes WASM und Laufzeit-Glue.
 - Dial-Schrift: Inter (SemiBold/Bold, SIL Open Font License 1.1): `licenses/Inter.txt`, Quelle `vendor/fonts/`, als Glyphen erzeugt in `core/dial_font.hpp` und `src/dial-font.mjs` (`scripts/build-dial-font.py`).
+- Ampel-Schrift: Plus Jakarta Sans (variabel, Latin + Latin-Ext, SIL Open Font License 1.1): `licenses/PlusJakartaSans.txt`, Dateien `src/fonts/jakarta-*.woff2` (aus `@fontsource-variable/plus-jakarta-sans`).
 
 Die Entwicklungsabhängigkeiten sind in `package-lock.json` festgehalten. Die PC-Laufzeit verwendet ausschließlich lokale Dateien und keine externen Schriftarten, Tracker oder Webdienste.
 
