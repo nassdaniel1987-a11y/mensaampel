@@ -56,6 +56,21 @@ inline std::string tagFromLocation(const std::string &location) {
       return "";
   return parse(tag).valid() ? tag : "";
 }
+// Fallback (0.25.2): when there is no release marked "latest" (GitHub then redirects to ".../releases"), the newest
+// published release from the API list ".../releases?per_page=1", its "tag_name" found by plain text search.
+constexpr const char *listUrl = "https://api.github.com/repos/nassdaniel1987-a11y/mensaampel/releases?per_page=1";
+inline std::string tagFromList(const std::string &json) {
+  const std::string key = "\"tag_name\":";
+  size_t at = json.find(key);
+  if (at == std::string::npos) return "";
+  at += key.size();
+  while (at < json.size() && json[at] == ' ')
+    at++;
+  if (at >= json.size() || json[at] != '"') return "";
+  size_t end = json.find('"', at + 1);
+  if (end == std::string::npos) return "";
+  return tagFromLocation("/releases/tag/" + json.substr(at + 1, end - at - 1));
+}
 inline std::string downloadUrl(const std::string &tag) {
   return std::string(downloadBase) + tag + "/" + assetName;
 }

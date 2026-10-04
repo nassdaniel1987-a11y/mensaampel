@@ -47,11 +47,13 @@ jobs:
 
           **Ausprobieren ohne Installation:** \`Mensaampel_Tablet_Demo.html\` herunterladen und im Browser öffnen, dann oben auf „Simulation“ oder „Hilfe“.
 
-          Vorabversion: gebaut und automatisch getestet, aber noch nicht auf einem echten M5Stack Dial abgenommen. Firmware ${version}, Commit ${GITHUB_SHA}.
+          Testversion: gebaut und automatisch getestet, aber noch nicht vollständig auf einem echten M5Stack Dial abgenommen. Firmware ${version}, Commit ${GITHUB_SHA}.
           NOTES
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" $files --clobber
-            gh release edit "$tag" --notes-file notes.md
+            gh release edit "$tag" --notes-file notes.md --prerelease=false --latest
           else
-            gh release create "$tag" $files --title "Mensaampel ${version}" --notes-file notes.md --prerelease --target "$GITHUB_SHA"
+            # Not a pre-release: the Dial's online update (0.25) asks GitHub for ".../releases/latest", which ignores
+            # pre-releases.
+            gh release create "$tag" $files --title "Mensaampel ${version}" --notes-file notes.md --latest --target "$GITHUB_SHA"
           fi

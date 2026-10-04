@@ -292,6 +292,15 @@ Grundsatz: Das Dial speichert nur kompakte Zahlen; Auswertungen (Prognose, Coach
 - **Dial (`core/dial.hpp`, `core/engine.hpp`):** neue Töne (Grün `#15803d→#052e16` usw., Bernstein jetzt mit weißer Schrift, neu Türkis für Rückgaben), Hilfen `band`, `gauge` (Ring 105–114 px, Lücke oben 312°…588° für den Tastenhinweis, runde Enden als Kreise), `segments`, `mix`. Hauptbildschirm: Ring = freie Plätze / freigegebene Plätze bzw. Countdown; kleine Symbole über der großen Zahl entfallen; Unterzeile „Küche n · Mensa m“. Rückmeldung nach Art (`DialExtras::feedbackKind`: 1 ausgegeben, 2 zurück; Firmware aus dem Klang-Ereignis, PC-Dienst/Demo aus der Meldung): Doppelring + Haken + Nummer groß + „Guten Appetit!“, türkis „K12 zurück, danke!“, abgelehnt rot mit Ring in 6 Stücken und Kreuz; sonstige Meldungen wie bisher. Menü mit Strichring, blauem Zeiger und blauer Auswahl-Pille. Start-Check mit vier Vierteln in Zustandsfarbe und „OK/wartet/Fehler“. Halten: eigener Bildschirm, Ring 102–114 px. Rasterer unverändert (Pixelgleichheit Dial ↔ Browser bleibt).
 - **Tablet:** neue Farbschicht am Ende von `src/style.css` (Tokens, Pillen-Knöpfe ohne Rahmen, Kopfzeile mit Verbindungs-Pille und Pillen-Reitern; Reiter „Betreuung“ heißt jetzt „Betrieb“). `Management.tsx`: `StatusHero`, `RoomCard` (Plus/Minus über den Befehl `room`, nie unter die Belegung), Meldungen als `notice-card`, `SeatGrid` statt Seitentabelle, Tagesaktionen. `DevicePanel.tsx`: `Overview` (Gesundheit als Karten, Geräte-Details), Einrichtungs-Überschrift nur noch vor der Einrichtung. Ampel nur farblich angeglichen.
 
+## Version 0.25.2-preview: Online-Update findet Vorabversionen
+
+**Befund am Gerät:** Die Meldung lautete „GitHub nicht erreichbar (Code 302, Speicher 75 KB)“. TLS und Speicher waren in Ordnung, aber `…/releases/latest` leitete auf `…/releases` weiter. Alle Releases trugen `--prerelease`, und GitHub kennt dann keine „latest“.
+
+**Änderungen:**
+- `release.yml` veröffentlicht mit `--latest` (bei Neuveröffentlichung: `--prerelease=false --latest`).
+- Firmware: Ohne Tag in der Weiterleitung fragt das Dial `api.github.com/…/releases?per_page=1` ab, liest nur die ersten 6 KB mit HTTP/1.0 (keine Chunk-Marken) und sucht `"tag_name"` per Textsuche (`netupd::tagFromList`, Test).
+- Die Freigabe der bestehenden 0.25.1 ließ sich aus der Sitzung nicht ändern (keine Berechtigung).
+
 ## Version 0.25.1-preview: Kranz schneller zeichnen, WLAN-Suche schonender
 
 **Befund am Gerät (0.25.0):**

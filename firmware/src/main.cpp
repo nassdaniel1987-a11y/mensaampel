@@ -1172,7 +1172,32 @@ std::string netLatestTag() {
   int code = netCode = http.GET();
   std::string location = http.header("Location").c_str();
   http.end();
-  return code >= 300 && code < 400 ? mensa::netupd::tagFromLocation(location) : "";
+  std::string tag = code >= 300 && code < 400 ? mensa::netupd::tagFromLocation(location) : "";
+  if (!tag.empty()) return tag;
+  // No release marked "latest" (only pre-releases): the newest one from the list (0.25.2).
+  // The list is about 18 KB: only its beginning is read ("tag_name" comes early); HTTP/1.0 so that no chunk markers
+  // can split the text.
+  HTTPClient list;
+  list.setTimeout(15000);
+  list.useHTTP10(true);
+  if (!list.begin(client, mensa::netupd::listUrl)) return "";
+  list.addHeader("Accept", "application/vnd.github+json");
+  code = netCode = list.GET();
+  if (code == 200) {
+    std::string head;
+    head.reserve(6144);
+    WiFiClient *stream = list.getStreamPtr();
+    uint64_t until = nowMs() + 15000;
+    char part[512];
+    while (head.size() < 6144 && nowMs() < until && (stream->connected() || stream->available())) {
+      int n = stream->readBytes(part, std::min(sizeof(part), size_t(6144 - head.size())));
+      if (n > 0) head.append(part, n);
+      tag = mensa::netupd::tagFromList(head);
+      if (!tag.empty()) break;
+    }
+  }
+  list.end();
+  return tag;
 }
 void netCheck(const std::string &ssid, const std::string &password) {
   if (!netConnect(ssid, password)) return;

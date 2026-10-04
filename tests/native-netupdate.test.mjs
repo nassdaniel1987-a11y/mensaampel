@@ -22,6 +22,7 @@ test('Online-Update: Versionen, Release-Adresse, Download', { skip: compiler.err
   assert.equal(out.compare, '1111', 'Vergleich nach Zahlen, nicht nach Text');
   assert.equal(out.tag, '[v0.25.0-preview]');
   assert.equal(out.badtag, '[][][]', 'nur saubere Versions-Tags');
+  assert.equal(out.list, '[v0.25.2-preview][][]', 'Rückfall über die Release-Liste');
   assert.equal(
     out.url,
     'https://github.com/nassdaniel1987-a11y/mensaampel/releases/download/v0.25.0-preview/Mensaampel-Dial-Update.bin',

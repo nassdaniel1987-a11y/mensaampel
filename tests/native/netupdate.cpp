@@ -16,6 +16,9 @@ int main() {
   printf("badtag [%s][%s][%s]\n", tagFromLocation("https://github.com/x/y/releases").c_str(),
          tagFromLocation("https://github.com/x/y/releases/tag/v1.0.0/../../evil").c_str(),
          tagFromLocation("https://github.com/x/y/releases/tag/latest").c_str());
+  printf("list [%s][%s][%s]\n",
+         tagFromList("[{\"url\":\"x\",\"tag_name\": \"v0.25.2-preview\",\"name\":\"y\"}]").c_str(),
+         tagFromList("[]").c_str(), tagFromList("[{\"tag_name\":\"v1.0.0\\\"evil\"}]").c_str());
   printf("url %s\n", downloadUrl("v0.25.0-preview").c_str());
   printf("strength %s|%s|%s\n", strength(-50), strength(-75), strength(-90));
 }
